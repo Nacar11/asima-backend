@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -6,9 +6,8 @@ import appConfig from '@/config/app.config';
 import databaseConfig from '@/database/config/database.config';
 import authConfig from '@/auth/config/auth.config';
 import { TypeOrmConfigService } from '@/database/typeorm-config.service';
-import { HealthModule } from '@/health/health.module';
-import { PermissionsModule } from '@/permissions/permissions.module';
-import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
+import { PermissionEntity } from '@/permissions/persistence/entities/permission.entity';
+import { PermissionSeedService } from './permission/permission-seed.service';
 
 @Module({
   imports: [
@@ -21,12 +20,9 @@ import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
       useClass: TypeOrmConfigService,
       dataSourceFactory: async (options) => new DataSource(options!).initialize(),
     }),
-    HealthModule,
-    PermissionsModule,
+    TypeOrmModule.forFeature([PermissionEntity]),
   ],
+  providers: [PermissionSeedService],
+  exports: [PermissionSeedService],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
-  }
-}
+export class SeedModule {}

@@ -1,0 +1,14 @@
+[
+  { "code": "USER:Create", "resource": "USER", "action": "Create", "description": "Create new user accounts" },
+  { "code": "USER:View", "resource": "USER", "action": "View", "description": "View user list and individual user profiles" },
+  { "code": "USER:Update", "resource": "USER", "action": "Update", "description": "Edit user details" },
+  { "code": "USER:Delete", "resource": "USER", "action": "Delete", "description": "Soft-delete users" },
+
+  { "code": "ROLE:Create", "resource": "ROLE", "action": "Create", "description": "Create new roles" },
+  { "code": "ROLE:View", "resource": "ROLE", "action": "View", "description": "View roles and their permissions" },
+  { "code": "ROLE:Update", "resource": "ROLE", "action": "Update", "description": "Edit roles and assign permissions" },
+  { "code": "ROLE:Delete", "resource": "ROLE", "action": "Delete", "description": "Remove roles" },
+
+  { "code": "PERMISSION:View", "resource": "PERMISSION", "action": "View", "description": "View the permission catalog" },
+  { "code": "PERMISSION:Update", "resource": "PERMISSION", "action": "Update", "description": "Edit permission descriptions" }
+]
