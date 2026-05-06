@@ -6,7 +6,7 @@
     "deleteOutDir": true,
     "tsConfigPath": "tsconfig.build.json",
     "assets": [
-      { "include": "database/seeds/data/**/*.json", "outDir": "dist", "watchAssets": true }
+      { "include": "database/seeds/data/*.json", "outDir": "dist", "watchAssets": true }
     ]
   }
 }

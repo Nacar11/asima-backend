@@ -1,0 +1,24 @@
+[
+  {
+    "name": "SUPER_ADMIN",
+    "description": "Bypasses all permission checks. Reserved for system administrators.",
+    "permission_codes": "*"
+  },
+  {
+    "name": "ADMIN",
+    "description": "Manages users and views the role/permission catalog.",
+    "permission_codes": [
+      "USER:Create",
+      "USER:View",
+      "USER:Update",
+      "USER:Delete",
+      "ROLE:View",
+      "PERMISSION:View"
+    ]
+  },
+  {
+    "name": "EMPLOYEE",
+    "description": "Default role for new registrations. Self-service routes only.",
+    "permission_codes": []
+  }
+]

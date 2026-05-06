@@ -8,6 +8,7 @@ import authConfig from '@/auth/config/auth.config';
 import { TypeOrmConfigService } from '@/database/typeorm-config.service';
 import { HealthModule } from '@/health/health.module';
 import { PermissionsModule } from '@/permissions/permissions.module';
+import { RolesModule } from '@/roles/roles.module';
 import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
 
 @Module({
@@ -23,6 +24,7 @@ import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
     }),
     HealthModule,
     PermissionsModule,
+    RolesModule,
   ],
 })
 export class AppModule implements NestModule {
