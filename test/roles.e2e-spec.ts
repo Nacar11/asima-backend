@@ -40,12 +40,12 @@ describe('Roles admin (e2e)', () => {
     await app.close();
   });
 
-  it('GET /admin/roles returns three roles with their permission counts', async () => {
+  it('GET /admin/roles returns five seeded roles with their permission counts', async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/v${API_VERSION}/admin/roles`)
       .expect(200);
 
-    expect(res.body.total).toBe(3);
+    expect(res.body.total).toBe(5);
     const byName = Object.fromEntries(
       res.body.data.map((r: { name: string; permissions: unknown[] }) => [
         r.name,
@@ -53,19 +53,21 @@ describe('Roles admin (e2e)', () => {
       ]),
     );
     expect(byName.SUPER_ADMIN).toBe(10);
-    expect(byName.ADMIN).toBe(6);
+    expect(byName.HR_ADMIN).toBe(6);
+    expect(byName.PROJECT_MANAGER).toBe(0);
+    expect(byName.TECHNICAL_DIRECTOR).toBe(0);
     expect(byName.EMPLOYEE).toBe(0);
   });
 
-  it('GET /admin/roles/:id returns one role with its permissions', async () => {
+  it('GET /admin/roles/:id returns HR_ADMIN with its 6 permissions', async () => {
     const list = await request(app.getHttpServer()).get(`/api/v${API_VERSION}/admin/roles`);
-    const admin = list.body.data.find((r: { name: string }) => r.name === 'ADMIN');
+    const hrAdmin = list.body.data.find((r: { name: string }) => r.name === 'HR_ADMIN');
 
     const res = await request(app.getHttpServer())
-      .get(`/api/v${API_VERSION}/admin/roles/${admin.id}`)
+      .get(`/api/v${API_VERSION}/admin/roles/${hrAdmin.id}`)
       .expect(200);
 
-    expect(res.body.name).toBe('ADMIN');
+    expect(res.body.name).toBe('HR_ADMIN');
     expect(res.body.permissions).toHaveLength(6);
     const codes: string[] = res.body.permissions.map((p: { code: string }) => p.code);
     expect(codes).toContain('USER:Create');

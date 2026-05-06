@@ -1,12 +1,13 @@
 [
   {
+    "_doc": "See docs/adr/0001-roles-and-approval-design.md before adding/renaming roles. Roles drive permission gates; approval routing lives in a separate per-employee chain (lands with leave module). Do NOT invent a parallel approval system here.",
     "name": "SUPER_ADMIN",
-    "description": "Bypasses all permission checks. Reserved for system administrators.",
+    "description": "Bypasses all permission checks via system_admin flag. Reserved for ops/infra.",
     "permission_codes": "*"
   },
   {
-    "name": "ADMIN",
-    "description": "Manages users and views the role/permission catalog.",
+    "name": "HR_ADMIN",
+    "description": "HR back office. Manages users, sees roles + permissions, overrides approvals.",
     "permission_codes": [
       "USER:Create",
       "USER:View",
@@ -15,6 +16,16 @@
       "ROLE:View",
       "PERMISSION:View"
     ]
+  },
+  {
+    "name": "PROJECT_MANAGER",
+    "description": "2nd-level approver in employee leave chains. Authority over a specific request requires being on that employee's approval chain (see ADR 0001). Permissions empty in v0; LEAVE:* codes land with the leave module.",
+    "permission_codes": []
+  },
+  {
+    "name": "TECHNICAL_DIRECTOR",
+    "description": "1st-level approver in employee leave chains. Same permission set as PROJECT_MANAGER; the PM/TD distinction lives in the approval chain step, not in role permissions. See ADR 0001.",
+    "permission_codes": []
   },
   {
     "name": "EMPLOYEE",
