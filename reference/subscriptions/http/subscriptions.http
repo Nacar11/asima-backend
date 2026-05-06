@@ -1,0 +1,92 @@
+### Subscriptions API Tests
+### Base URL
+@baseUrl = http://localhost:4080/api/v1
+
+### Login to get token
+# @name login
+POST {{baseUrl}}/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "admin@cody.inc",
+  "password": "password"
+}
+
+### Set token from login response
+@token = {{login.response.body.token}}
+
+### ==================================================
+### SUBSCRIPTIONS ENDPOINTS
+### ==================================================
+
+### Subscribe to a Plan
+# @name subscribe
+POST {{baseUrl}}/subscriptions/subscribe
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "plan_id": 1,
+  "auto_renew": true
+}
+
+### Get All Subscriptions (Admin)
+GET {{baseUrl}}/subscriptions?page=1&limit=10
+Authorization: Bearer {{token}}
+
+### Get My Current Active Subscription
+GET {{baseUrl}}/subscriptions/my-subscription
+Authorization: Bearer {{token}}
+
+### Get My Subscription History
+GET {{baseUrl}}/subscriptions/my-history
+Authorization: Bearer {{token}}
+
+### Get Subscription by ID
+@subscriptionId = {{subscribe.response.body.id}}
+GET {{baseUrl}}/subscriptions/{{subscriptionId}}
+Authorization: Bearer {{token}}
+
+### Update Subscription
+PATCH {{baseUrl}}/subscriptions/{{subscriptionId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "auto_renew": false
+}
+
+### Activate Subscription (after payment)
+POST {{baseUrl}}/subscriptions/{{subscriptionId}}/activate
+Authorization: Bearer {{token}}
+
+### Suspend Subscription (Admin)
+POST {{baseUrl}}/subscriptions/{{subscriptionId}}/suspend
+Authorization: Bearer {{token}}
+
+### Renew Subscription
+POST {{baseUrl}}/subscriptions/{{subscriptionId}}/renew
+Authorization: Bearer {{token}}
+
+### Cancel Subscription
+POST {{baseUrl}}/subscriptions/{{subscriptionId}}/cancel
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "cancellation_reason": "No longer need the service"
+}
+
+### Delete Subscription
+DELETE {{baseUrl}}/subscriptions/{{subscriptionId}}
+Authorization: Bearer {{token}}
+
+### ==================================================
+### USAGE ENDPOINTS (TRV-032)
+### ==================================================
+
+### Get Subscription Usage Stats
+# @name getUsage
+# Returns current usage vs plan limits
+GET {{baseUrl}}/subscriptions/usage
+Authorization: Bearer {{token}}

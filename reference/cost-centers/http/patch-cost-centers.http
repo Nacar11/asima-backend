@@ -1,0 +1,224 @@
+### Get Auth Token
+# @name login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+### Set token variable from login response
+@token = {{login.token}}
+
+### ===========================================
+### PATCH COST CENTERS ENDPOINTS (UPDATE)
+### ===========================================
+
+### Update Cost Center (Update Remarks Only)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "remarks": "Updated remarks for cost center"
+}
+
+### Update Cost Center (Update Status to Hold)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "Hold"
+}
+
+### Update Cost Center (Update Status to Active)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "Active"
+}
+
+### Update Cost Center (Update Status to Cancelled)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "Cancelled"
+}
+
+### Update Cost Center (Update Organizational Hierarchy - Division Only)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "02",
+  "remarks": "Updated to new division"
+}
+
+### Update Cost Center (Update Organizational Hierarchy - Division and Department)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "02",
+  "department": "03",
+  "remarks": "Updated to new division and department"
+}
+
+### Update Cost Center (Update Organizational Hierarchy - Division, Department, Section)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "02",
+  "department": "03",
+  "section": "04",
+  "remarks": "Updated to new division, department, and section"
+}
+
+### Update Cost Center (Update Complete Organizational Hierarchy)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "02",
+  "department": "03",
+  "section": "04",
+  "sub_section": "05",
+  "remarks": "Updated complete organizational hierarchy"
+}
+
+### Update Cost Center (Update Multiple Fields - Status and Remarks)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "remarks": "Updated multiple fields - status and remarks",
+  "status": "Active"
+}
+
+### Update Cost Center (Update Multiple Fields - Hierarchy and Status)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "03",
+  "department": "04",
+  "section": "05",
+  "sub_section": "06",
+  "remarks": "Updated multiple fields - hierarchy and status",
+  "status": "Hold"
+}
+
+### Update Cost Center (Update All Fields)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "04",
+  "department": "05",
+  "section": "06",
+  "sub_section": "07",
+  "remarks": "Updated all fields - complete cost center update",
+  "status": "Active"
+}
+
+### Update Cost Center (Backend Team - Change to Frontend)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "01",
+  "department": "01",
+  "section": "01",
+  "sub_section": "02",
+  "remarks": "Changed from Backend to Frontend Development Team",
+  "status": "Active"
+}
+
+### Update Cost Center (Development Team - Change to DevOps)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "01",
+  "department": "02",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Changed from Development to DevOps Team",
+  "status": "Active"
+}
+
+### Update Cost Center (Put Team on Hold)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "remarks": "Team temporarily on hold - project paused",
+  "status": "Hold"
+}
+
+### Update Cost Center (Cancel Team)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "remarks": "Team cancelled - project discontinued",
+  "status": "Cancelled"
+}
+
+### Update Cost Center (Reactivate Team)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "remarks": "Team reactivated - project resumed",
+  "status": "Active"
+}
+
+### Update Cost Center (Change Department Only)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "department": "03",
+  "remarks": "Moved to different department"
+}
+
+### Update Cost Center (Change Section Only)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "section": "04",
+  "remarks": "Moved to different section"
+}
+
+### Update Cost Center (Change Sub-Section Only)
+PATCH {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "sub_section": "05",
+  "remarks": "Moved to different sub-section"
+}

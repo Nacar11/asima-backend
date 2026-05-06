@@ -1,0 +1,64 @@
+@baseUrl = http://localhost:4080
+@token = your_token_here
+
+### Login
+# @name Login
+POST {{baseUrl}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "admin@cody.inc",
+  "password": "password"
+}
+
+### Get Token
+@token = {{Login.response.body.token}}
+
+### Create Seller Earning
+# @name CreateEarning
+POST {{baseUrl}}/api/v1/seller-earnings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "seller_id": 1,
+  "source_type": "booking",
+  "source_id": 1,
+  "milestone_id": 1,
+  "gross_amount": 10000.00,
+  "platform_fee": 1000.00,
+  "net_amount": 9000.00,
+  "currency_id": 1,
+  "status": "pending"
+}
+
+### Get All Seller Earnings
+GET {{baseUrl}}/api/v1/seller-earnings?page=1&limit=10
+Authorization: Bearer {{token}}
+
+### Get Seller Earnings by Seller ID
+GET {{baseUrl}}/api/v1/seller-earnings/seller/1
+Authorization: Bearer {{token}}
+
+### Get Seller Earnings Summary
+GET {{baseUrl}}/api/v1/seller-earnings/seller/1/summary
+Authorization: Bearer {{token}}
+
+### Get Seller Earnings Dashboard (Enhanced with Chart)
+# @name getEarningsDashboard
+GET {{baseUrl}}/api/v1/seller-earnings/seller/1/dashboard
+Authorization: Bearer {{token}}
+
+### Get Seller Earning by ID
+GET {{baseUrl}}/api/v1/seller-earnings/{{CreateEarning.response.body.id}}
+Authorization: Bearer {{token}}
+
+### Update Seller Earning
+PATCH {{baseUrl}}/api/v1/seller-earnings/{{CreateEarning.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "available",
+  "available_at": "2024-12-12T00:00:00Z"
+}

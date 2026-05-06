@@ -1,0 +1,259 @@
+### Get Auth Token
+# @name login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+### Set token variable from login response
+@token = {{login.token}}
+
+### ===========================================
+### POST COST CENTERS ENDPOINTS (CREATE)
+### ===========================================
+
+### Create Cost Center (Minimal - Division Only)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "00",
+  "remarks": "Test Cost Center - Division Only"
+}
+
+### Create Cost Center (With Department)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "00",
+  "department": "01",
+  "remarks": "Test Cost Center - Division and Department"
+}
+
+### Create Cost Center (With Section)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "00",
+  "department": "01",
+  "section": "02",
+  "remarks": "Test Cost Center - Division, Department, and Section"
+}
+
+### Create Cost Center (Complete Hierarchy)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "00",
+  "department": "03",
+  "section": "09",
+  "sub_section": "02",
+  "remarks": "Test Cost Center - Complete Hierarchy",
+  "status": "Active"
+}
+
+### Create Cost Center (With Hold Status)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "01",
+  "department": "01",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Test Cost Center - Hold Status",
+  "status": "Hold"
+}
+
+### Create Cost Center (With Cancelled Status)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "02",
+  "department": "02",
+  "section": "02",
+  "sub_section": "02",
+  "remarks": "Test Cost Center - Cancelled Status",
+  "status": "Cancelled"
+}
+
+### Create Cost Center (Backend Development Team)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "01",
+  "department": "01",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Backend Development Team - Full Stack Engineers",
+  "status": "Active"
+}
+
+### Create Cost Center (Frontend Development Team)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "01",
+  "department": "01",
+  "section": "01",
+  "sub_section": "02",
+  "remarks": "Frontend Development Team - React/Vue Engineers",
+  "status": "Active"
+}
+
+### Create Cost Center (DevOps Team)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "01",
+  "department": "02",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "DevOps Team - Infrastructure and Deployment",
+  "status": "Active"
+}
+
+### Create Cost Center (QA Team)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "01",
+  "department": "02",
+  "section": "01",
+  "sub_section": "02",
+  "remarks": "Quality Assurance Team - Testing and Validation",
+  "status": "Active"
+}
+
+### Create Cost Center (Marketing Department)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "02",
+  "department": "01",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Marketing Department - Digital Marketing Team",
+  "status": "Active"
+}
+
+### Create Cost Center (Sales Department)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "02",
+  "department": "02",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Sales Department - Business Development Team",
+  "status": "Active"
+}
+
+### Create Cost Center (HR Department)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "03",
+  "department": "01",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Human Resources Department - Recruitment and Management",
+  "status": "Active"
+}
+
+### Create Cost Center (Finance Department)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "03",
+  "department": "02",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Finance Department - Accounting and Financial Planning",
+  "status": "Active"
+}
+
+### Create Cost Center (Operations Department)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "04",
+  "department": "01",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Operations Department - Business Operations and Support",
+  "status": "Active"
+}
+
+### Create Cost Center (Customer Support)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "04",
+  "department": "02",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Customer Support Department - Client Services and Support",
+  "status": "Active"
+}
+
+### Create Cost Center (Research and Development)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "05",
+  "department": "01",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Research and Development - Innovation and Product Development",
+  "status": "Active"
+}
+
+### Create Cost Center (Legal Department)
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "05",
+  "department": "02",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Legal Department - Compliance and Legal Affairs",
+  "status": "Active"
+}

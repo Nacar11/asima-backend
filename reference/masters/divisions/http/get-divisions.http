@@ -1,0 +1,48 @@
+### Get Auth Token
+# @name login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+### Set token variable from login response
+@token = {{login.token}}
+
+### ===========================================
+### GET DIVISIONS ENDPOINTS
+### ===========================================
+
+### Get All Divisions (DevExtreme Pagination)
+GET {{BACKEND_DOMAIN}}/api/v1/divisions/?requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Divisions with Filter (Active Status)
+GET {{BACKEND_DOMAIN}}/api/v1/divisions/?filter=[%22status%22,%22=%22,%22Active%22]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Divisions with Search
+GET {{BACKEND_DOMAIN}}/api/v1/divisions/?searchValue=01&searchOperation=contains&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Divisions with Sort
+GET {{BACKEND_DOMAIN}}/api/v1/divisions/?sort=[{%22selector%22:%22division_code%22,%22desc%22:false}]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Divisions (V2 Pagination)
+GET {{BACKEND_DOMAIN}}/api/v1/divisions/v2?page=1&limit=20&search=Technology&status=Active
+Authorization: Bearer {{token}}
+
+### Get All Divisions (Simple List)
+GET {{BACKEND_DOMAIN}}/api/v1/divisions/all
+Authorization: Bearer {{token}}
+
+### Get Division Lookup (For Dropdowns)
+GET {{BACKEND_DOMAIN}}/api/v1/divisions/lookup?searchValue=01&searchOperation=contains&skip=0&take=10
+Authorization: Bearer {{token}}
+
+### Get Division by ID
+GET {{BACKEND_DOMAIN}}/api/v1/divisions/1
+Authorization: Bearer {{token}}

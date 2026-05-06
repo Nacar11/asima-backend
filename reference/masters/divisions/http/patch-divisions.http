@@ -1,0 +1,57 @@
+### Get Auth Token
+# @name login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+### Set token variable from login response
+@token = {{login.token}}
+
+### ===========================================
+### PATCH DIVISIONS ENDPOINTS (UPDATE)
+### ===========================================
+
+### Update Division (Basic Fields)
+PATCH {{BACKEND_DOMAIN}}/api/v1/divisions/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division_name": "Updated Technology Division",
+  "remarks": "Updated remarks for technology division"
+}
+
+### Update Division (Status Change)
+PATCH {{BACKEND_DOMAIN}}/api/v1/divisions/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "Active"
+}
+
+### Update Division (Complete Update)
+PATCH {{BACKEND_DOMAIN}}/api/v1/divisions/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division_code": "01",
+  "division_name": "Advanced Technology Division",
+  "remarks": "Updated technology division with enhanced capabilities",
+  "status": "Active"
+}
+
+### Update Division (Multiple Fields)
+PATCH {{BACKEND_DOMAIN}}/api/v1/divisions/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division_name": "Strategic Technology Division",
+  "remarks": "Updated strategic technology division"
+}

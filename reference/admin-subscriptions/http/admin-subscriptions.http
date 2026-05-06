@@ -1,0 +1,188 @@
+### Admin Subscriptions API Tests
+### Base URL
+@baseUrl = http://localhost:4080/api/v1
+@token = your_jwt_token_here
+
+### Variables
+@subscriptionId = 1
+@paymentId = 1
+
+### ========== OVERVIEW & ANALYTICS ==========
+
+### 1. Get Subscription Overview
+GET {{baseUrl}}/admin/subscriptions/overview
+Authorization: Bearer {{token}}
+
+### 2. Get Subscription Analytics
+GET {{baseUrl}}/admin/subscriptions/analytics
+Authorization: Bearer {{token}}
+
+### 3. Get Subscription Analytics with Date Range
+GET {{baseUrl}}/admin/subscriptions/analytics?start_date=2025-01-01&end_date=2025-12-31
+Authorization: Bearer {{token}}
+
+### 4. Get Quick Stats
+GET {{baseUrl}}/admin/subscriptions/quick-stats
+Authorization: Bearer {{token}}
+
+### ========== LISTS ==========
+
+### 5. Get Operations Log
+GET {{baseUrl}}/admin/subscriptions/operations?page=1&limit=20
+Authorization: Bearer {{token}}
+
+### 6. Get Operations Log with Filters
+GET {{baseUrl}}/admin/subscriptions/operations?page=1&limit=20&subscription_id=1&operation_type=renew
+Authorization: Bearer {{token}}
+
+### 7. Get Upcoming Renewals (Next 7 days)
+GET {{baseUrl}}/admin/subscriptions/upcoming-renewals?days=7&page=1&limit=20
+Authorization: Bearer {{token}}
+
+### 8. Get Upcoming Renewals (Next 30 days)
+GET {{baseUrl}}/admin/subscriptions/upcoming-renewals?days=30&page=1&limit=20
+Authorization: Bearer {{token}}
+
+### 9. Get Failed Payments
+GET {{baseUrl}}/admin/subscriptions/failed-payments?page=1&limit=20
+Authorization: Bearer {{token}}
+
+### ========== INDIVIDUAL OPERATIONS ==========
+
+### 10. Manual Renewal
+POST {{baseUrl}}/admin/subscriptions/{{subscriptionId}}/renew
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "reason": "Manual renewal due to payment issue resolution"
+}
+
+### 11. Extend Subscription
+POST {{baseUrl}}/admin/subscriptions/{{subscriptionId}}/extend
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "days": 30,
+  "reason": "Customer service compensation"
+}
+
+### 12. Retry Payment
+POST {{baseUrl}}/admin/subscriptions/{{subscriptionId}}/retry
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "reason": "Payment gateway issue resolved"
+}
+
+### 13. Pause Subscription
+POST {{baseUrl}}/admin/subscriptions/{{subscriptionId}}/pause
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "reason": "Customer requested temporary pause"
+}
+
+### 14. Cancel Subscription
+POST {{baseUrl}}/admin/subscriptions/{{subscriptionId}}/cancel
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "reason": "Customer requested cancellation"
+}
+
+### 15. Upgrade Plan
+POST {{baseUrl}}/admin/subscriptions/{{subscriptionId}}/upgrade
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "new_plan_id": 2,
+  "reason": "Customer requested upgrade to Pro plan",
+  "prorate": true
+}
+
+### 16. Sync Billing
+POST {{baseUrl}}/admin/subscriptions/{{subscriptionId}}/sync-billing
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "reason": "Billing cycle synchronization requested"
+}
+
+### ========== BULK OPERATIONS ==========
+
+### 17. Bulk Action - Renew
+POST {{baseUrl}}/admin/subscriptions/bulk-action
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "subscription_ids": [1, 2, 3],
+  "operation_type": "renew",
+  "reason": "Bulk renewal after system maintenance"
+}
+
+### 18. Bulk Action - Extend
+POST {{baseUrl}}/admin/subscriptions/bulk-action
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "subscription_ids": [1, 2, 3],
+  "operation_type": "extend",
+  "reason": "Bulk extension for customer service",
+  "metadata": {
+    "days": 15
+  }
+}
+
+### 19. Bulk Action - Retry Payment
+POST {{baseUrl}}/admin/subscriptions/bulk-action
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "subscription_ids": [4, 5, 6],
+  "operation_type": "retry_payment",
+  "reason": "Bulk payment retry after gateway fix"
+}
+
+### 20. Bulk Action - Pause
+POST {{baseUrl}}/admin/subscriptions/bulk-action
+Content-Type: application/json
+Authorization: Bearer {{token}}{
+  "subscription_ids": [1, 2, 3],
+  "operation_type": "pause",
+  "reason": "Bulk pause for system maintenance"
+}### 21. Bulk Action - Cancel
+POST {{baseUrl}}/admin/subscriptions/bulk-action
+Content-Type: application/json
+Authorization: Bearer {{token}}{
+  "subscription_ids": [1, 2, 3],
+  "operation_type": "cancel",
+  "reason": "Bulk cancellation due to policy change"
+}### 22. Bulk Action - Upgrade Plan
+POST {{baseUrl}}/admin/subscriptions/bulk-action
+Content-Type: application/json
+Authorization: Bearer {{token}}{
+  "subscription_ids": [1, 2, 3],
+  "operation_type": "upgrade_plan",
+  "reason": "Bulk upgrade to new tier",
+  "metadata": {
+    "new_plan_id": 2,
+    "prorate": true
+  }
+}### 23. Bulk Action - Sync Billing
+POST {{baseUrl}}/admin/subscriptions/bulk-action
+Content-Type: application/json
+Authorization: Bearer {{token}}{
+  "subscription_ids": [1, 2, 3],
+  "operation_type": "sync_billing",
+  "reason": "Bulk billing synchronization"
+}

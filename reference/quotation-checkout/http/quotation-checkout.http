@@ -1,0 +1,101 @@
+### Variables
+@baseUrl = http://localhost:4080
+@adminEmail = admin@cody.inc
+@adminPassword = password
+
+### Get Auth Token
+# @name login
+POST {{baseUrl}}/api/v1/auth/email/login
+accept: application/json
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+### ===========================================
+### QUOTATION CHECKOUT ENDPOINTS
+### ===========================================
+
+### Get Checkout Preview for Quotation
+# Shows all items, existing bookings (preventive), and pricing summary
+# @name getCheckoutPreview
+GET {{baseUrl}}/api/v1/quotations/1/checkout/preview
+Authorization: Bearer {{login.response.body.token}}
+
+### Process Quotation Checkout - Basic
+# Creates SalesOrder, updates/creates bookings
+# @name processCheckoutBasic
+POST {{baseUrl}}/api/v1/quotations/1/checkout
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "payment_method": "card",
+  "notes": "Please process as soon as possible"
+}
+
+### Process Quotation Checkout - With Schedule Overrides
+# Override suggested schedule dates for specific items
+# @name processCheckoutWithOverrides
+POST {{baseUrl}}/api/v1/quotations/1/checkout
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "payment_method": "gcash",
+  "service_address_id": 1,
+  "schedule_overrides": [
+    {
+      "quotation_item_id": 1,
+      "scheduled_date": "2026-03-01",
+      "scheduled_start_time": "14:00:00"
+    },
+    {
+      "quotation_item_id": 2,
+      "scheduled_date": "2026-03-15",
+      "scheduled_start_time": "10:00:00"
+    }
+  ],
+  "notes": "Rescheduled to March"
+}
+
+### Process Quotation Checkout - With Payment Token
+# Include payment method token from gateway
+# @name processCheckoutWithPayment
+POST {{baseUrl}}/api/v1/quotations/1/checkout
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "payment_method": "card",
+  "payment_method_token": "pm_test_123456789",
+  "notes": "Card payment"
+}
+
+###
+### ===========================================
+### ERROR SCENARIOS
+### ===========================================
+
+### Error: Quotation Not Found
+# @name errorNotFound
+GET {{baseUrl}}/api/v1/quotations/999999/checkout/preview
+Authorization: Bearer {{login.response.body.token}}
+
+### Error: Unauthorized (No Token)
+# @name errorUnauthorized
+GET {{baseUrl}}/api/v1/quotations/1/checkout/preview
+
+### Error: Invalid Quotation Status
+# Will fail if quotation is not in QUOTED status
+# @name errorWrongStatus
+POST {{baseUrl}}/api/v1/quotations/1/checkout
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "payment_method": "card"
+}

@@ -1,0 +1,75 @@
+### Variables
+@baseUrl = http://localhost:4080
+@adminEmail = admin@cody.inc
+@adminPassword = password
+
+### Get Auth Token
+# @name login
+POST {{baseUrl}}/api/v1/auth/email/login
+accept: application/json
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+### ===========================================
+### BOOKING CANCELLATION ENDPOINTS
+### ===========================================
+
+### Cancel a Booking
+# @name cancelBooking
+POST {{baseUrl}}/api/v1/booking-cancellations/bookings/1/cancel
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "reason": "schedule_conflict",
+  "reason_details": "Need to reschedule due to emergency"
+}
+
+### Get All Cancellations
+# @name getAllCancellations
+GET {{baseUrl}}/api/v1/booking-cancellations?skip=0&take=20
+Authorization: Bearer {{login.response.body.token}}
+
+### Get Cancellations by Booking ID
+# @name getCancellationsByBooking
+GET {{baseUrl}}/api/v1/booking-cancellations?booking_id=1&skip=0&take=20
+Authorization: Bearer {{login.response.body.token}}
+
+### Get Cancellation by ID
+# @name getCancellationById
+GET {{baseUrl}}/api/v1/booking-cancellations/1
+Authorization: Bearer {{login.response.body.token}}
+
+### Get Cancellation by Booking ID
+# @name getCancellationByBookingId
+GET {{baseUrl}}/api/v1/booking-cancellations/booking/1
+Authorization: Bearer {{login.response.body.token}}
+
+### Cancel Booking - Different Reasons
+# @name cancelBookingEmergency
+POST {{baseUrl}}/api/v1/booking-cancellations/bookings/1/cancel
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "reason": "emergency",
+  "reason_details": "Family emergency"
+}
+
+# @name cancelBookingChangedMind
+POST {{baseUrl}}/api/v1/booking-cancellations/bookings/1/cancel
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "reason": "changed_mind",
+  "reason_details": "Found a better alternative"
+}
+
+
+

@@ -1,0 +1,102 @@
+### Variables
+@baseUrl = http://localhost:3000/api/v1
+@authToken = YOUR_JWT_TOKEN_HERE
+
+### Create Form Template
+POST {{baseUrl}}/form-templates
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "service_id": 1,
+  "name": "Quantity",
+  "code": "quantity",
+  "field_type": "number",
+  "is_required": true,
+  "placeholder": "Enter quantity",
+  "help_text": "How many items do you need?",
+  "default_value": "1",
+  "sequence_order": 0,
+  "validation_rules": [
+    {
+      "rule_type": "min",
+      "rule_value": "1",
+      "error_message": "Minimum quantity is 1"
+    },
+    {
+      "rule_type": "max",
+      "rule_value": "100",
+      "error_message": "Maximum quantity is 100"
+    }
+  ]
+}
+
+### Create Form Template with Dropdown Options
+POST {{baseUrl}}/form-templates
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "service_id": 1,
+  "name": "Size",
+  "code": "size",
+  "field_type": "dropdown",
+  "is_required": true,
+  "placeholder": "Select size",
+  "sequence_order": 1,
+  "options": [
+    {
+      "label": "Small",
+      "value": "small",
+      "sequence_order": 0
+    },
+    {
+      "label": "Medium",
+      "value": "medium",
+      "sequence_order": 1,
+      "is_default": true
+    },
+    {
+      "label": "Large",
+      "value": "large",
+      "sequence_order": 2
+    }
+  ]
+}
+
+### Get All Form Templates
+GET {{baseUrl}}/form-templates
+Authorization: Bearer {{authToken}}
+
+### Get Form Templates by Service
+GET {{baseUrl}}/form-templates/by-service/1
+Authorization: Bearer {{authToken}}
+
+### Get Form Templates with Filter
+GET {{baseUrl}}/form-templates?service_id=1&is_active=true
+Authorization: Bearer {{authToken}}
+
+### Get Single Form Template
+GET {{baseUrl}}/form-templates/1
+Authorization: Bearer {{authToken}}
+
+### Update Form Template
+PATCH {{baseUrl}}/form-templates/1
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "name": "Updated Quantity",
+  "is_required": false,
+  "validation_rules": [
+    {
+      "rule_type": "min",
+      "rule_value": "0",
+      "error_message": "Minimum quantity is 0"
+    }
+  ]
+}
+
+### Delete Form Template
+DELETE {{baseUrl}}/form-templates/1
+Authorization: Bearer {{authToken}}

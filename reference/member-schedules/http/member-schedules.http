@@ -1,0 +1,62 @@
+# @name Login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+###
+
+# @name CreateMemberSchedule
+# @requires Login
+POST {{BACKEND_DOMAIN}}/api/v1/member-schedules
+Authorization: Bearer {{Login.response.body.token}}
+Content-Type: application/json
+
+{
+  "seller_member_id": 1,
+  "day_of_week": 2,
+  "start_time": "09:00:00",
+  "end_time": "17:00:00",
+  "is_available": true
+}
+
+###
+
+# @name ListMemberSchedules
+# @requires Login
+GET {{BACKEND_DOMAIN}}/api/v1/member-schedules?seller_member_id=1
+Authorization: Bearer {{Login.response.body.token}}
+
+###
+
+# @name GetMemberSchedule
+# @requires Login
+GET {{BACKEND_DOMAIN}}/api/v1/member-schedules/{{CreateMemberSchedule.response.body.id}}
+Authorization: Bearer {{Login.response.body.token}}
+
+###
+
+# @name UpdateMemberSchedule
+# @requires Login
+PATCH {{BACKEND_DOMAIN}}/api/v1/member-schedules/{{CreateMemberSchedule.response.body.id}}
+Authorization: Bearer {{Login.response.body.token}}
+Content-Type: application/json
+
+{
+  "break_start": "12:00:00",
+  "break_end": "13:00:00"
+}
+
+###
+
+# @name DeleteMemberSchedule
+# @requires Login
+DELETE {{BACKEND_DOMAIN}}/api/v1/member-schedules/{{CreateMemberSchedule.response.body.id}}
+Authorization: Bearer {{Login.response.body.token}}
+
+
+
+

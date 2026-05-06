@@ -1,0 +1,7 @@
+export enum MembershipStatusEnum {
+  PENDING = 'PENDING',
+  ACTIVE = 'ACTIVE',
+  GRACE_PERIOD = 'GRACE_PERIOD',
+  EXPIRED = 'EXPIRED',
+  CANCELLED = 'CANCELLED',
+}

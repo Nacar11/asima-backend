@@ -1,0 +1,153 @@
+### Booking Milestones API Tests
+### Base URL for the API
+
+@baseUrl = http://localhost:4080/api/v1
+@token = {{loginResponse.response.body.token}}
+
+### ===============================
+### AUTHENTICATION
+### ===============================
+
+# @name loginResponse
+POST {{baseUrl}}/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "admin@cody.inc",
+  "password": "password"
+}
+
+### ===============================
+### BOOKING MILESTONES CRUD
+### ===============================
+
+### Get all milestones
+GET {{baseUrl}}/booking-milestones
+Authorization: Bearer {{token}}
+
+### Get milestones for a specific booking
+GET {{baseUrl}}/booking-milestones?booking_id=1
+Authorization: Bearer {{token}}
+
+### Get milestone by ID
+GET {{baseUrl}}/booking-milestones/1
+Authorization: Bearer {{token}}
+
+### Create a milestone manually
+POST {{baseUrl}}/booking-milestones
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "booking_id": 1,
+  "name": "Initial Consultation",
+  "description": "Complete initial consultation with customer to understand requirements",
+  "sequence_order": 1,
+  "payment_percent": 30.00,
+  "payment_amount": 450.00,
+  "auto_approve_after_hours": 48
+}
+
+### Create milestones from template
+POST {{baseUrl}}/booking-milestones/from-template
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "booking_id": 1,
+  "service_id": 1
+}
+
+### ===============================
+### MILESTONE STATUS TRANSITIONS
+### ===============================
+
+### Start milestone (PENDING -> IN_PROGRESS)
+PATCH {{baseUrl}}/booking-milestones/1/start
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider_notes": "Starting work on this milestone"
+}
+
+### Complete/Submit milestone (IN_PROGRESS -> SUBMITTED)
+### This sets submitted_at for auto-approval tracking
+PATCH {{baseUrl}}/booking-milestones/1/complete
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider_notes": "Milestone completed. Please review and approve."
+}
+
+### Approve milestone (SUBMITTED -> APPROVED)
+PATCH {{baseUrl}}/booking-milestones/1/approve
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "customer_notes": "Great work! Approved."
+}
+
+### Request revision (SUBMITTED -> REJECTED)
+PATCH {{baseUrl}}/booking-milestones/1/request-revision
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "rejection_reason": "Please make these adjustments..."
+}
+
+### ===============================
+### AUTO-APPROVAL TESTING
+### ===============================
+
+### Note: Auto-approval runs as a cron job every hour.
+### To test, create a milestone with short auto_approve_after_hours:
+
+### Create a milestone with 1-hour auto-approval
+POST {{baseUrl}}/booking-milestones
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "booking_id": 1,
+  "name": "Quick Review Milestone",
+  "description": "This milestone will auto-approve after 1 hour if not manually approved",
+  "sequence_order": 5,
+  "payment_percent": 10.00,
+  "payment_amount": 150.00,
+  "auto_approve_after_hours": 1
+}
+
+### Submit the milestone to trigger submitted_at
+PATCH {{baseUrl}}/booking-milestones/1/complete
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider_notes": "Submitted for auto-approval testing"
+}
+
+### Check milestone status - should show submitted_at and auto_approve_after_hours
+GET {{baseUrl}}/booking-milestones/1
+Authorization: Bearer {{token}}
+
+### ===============================
+### UPDATE & DELETE
+### ===============================
+
+### Update milestone
+PATCH {{baseUrl}}/booking-milestones/1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Updated Milestone Name",
+  "description": "Updated description"
+}
+
+### Delete milestone
+DELETE {{baseUrl}}/booking-milestones/1
+Authorization: Bearer {{token}}

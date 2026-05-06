@@ -1,0 +1,59 @@
+### Get Auth Token
+# @name login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+### Set token variable from login response
+@token = {{login.token}}
+
+### ===========================================
+### PATCH DEPARTMENTS ENDPOINTS (UPDATE)
+### ===========================================
+
+### Update Department (Basic Fields)
+PATCH {{BACKEND_DOMAIN}}/api/v1/departments/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "department_name": "Updated Operations Department",
+  "department_head": "John Smith",
+  "remarks": "Updated remarks for operations department"
+}
+
+### Update Department (Status Change)
+PATCH {{BACKEND_DOMAIN}}/api/v1/departments/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "Active"
+}
+
+### Update Department (Complete Update)
+PATCH {{BACKEND_DOMAIN}}/api/v1/departments/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "department_name": "Advanced IT Department",
+  "department_head": "David Johnson",
+  "remarks": "Updated IT department with enhanced responsibilities",
+  "status": "Active"
+}
+
+### Update Department (Multiple Fields)
+PATCH {{BACKEND_DOMAIN}}/api/v1/departments/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "department_name": "Strategic Sales Department",
+  "department_head": "Emily Rodriguez",
+  "remarks": "Enhanced sales department with strategic focus"
+}

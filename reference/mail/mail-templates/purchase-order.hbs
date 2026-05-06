@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}}</title>
+  <style>
+    table {
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      width: auto;
+    }
+
+    td {
+      border: 1px solid #ddd;
+      font-size: 14px;
+      text-align: center;
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
+
+    .emphasize {
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body style="margin: 0; font-family: Arial, sans-serif; background-color: #ffffff; padding: 0;">
+  <header style="background-color: #222; padding: 20px; text-align: center;">
+    <div class="company-logo">
+      {{#if logo_url}}
+      <img style="height: auto; max-width: 150px;" src="{{logo_url}}" alt="{{app_name}}" width="150">
+      {{else}}
+      <img style="height: auto;width: 12rem;" src="{{domain}}/logo.png" alt="" width="100" srcset="">
+      {{/if}}
+    </div>
+  </header>
+  <main style="padding: 50px; color: #101010;; font-size: 16px; font-weight: 100;">
+    <p style="margin: 0 0 16px;">
+      {{salutation}}<br>
+    </p>
+    <p style="margin: 0 0 16px;">
+      {{bodyMessage}} <br>
+      {{body5}}
+    </p>
+    <div style="justify-content: space-between; display: flex;">
+      <div style="margin-right: auto;">
+        <div>PO Number: <span class="emphasize">{{control_no}}</span></div>
+        <div>PO Date: <span class="emphasize">{{dateFormat po_date}}</span></div>
+        {{!--
+        <div>Revision: <span class="emphasize">0</span></div>
+        --}}
+      </div>
+      <div>
+        <div>Supplier:</div>
+        <div class="emphasize" style="font-size: 20px;">{{ supplier_code }} - {{ supplier_name }} </div>
+      </div>
+    </div>
+    <br><br>
+    <div style="margin: auto; width: 100%;">
+      <table CELLSPACING=0 CELLPADDING=5>
+        <tr>
+          <th colspan="2">Item</th>
+          <th>Required Date</th>
+          <th>Quantity</th>
+          <th>Price</th>
+          <th>Amount</th>
+        </tr>
+        {{#each this.data.items}}
+        <tr>
+          <td style="width: 5%;">{{increment @index}}</td>
+          <td style="text-align: left; width: 35%; padding-left: 0.4rem; padding-right: 0.4rem;">
+            {{material.material_code}} {{material.material_name}} <br> {{material.material_specification}}</td>
+          <td>{{dateFormat required_date}}</td>
+          <td>{{po_qty}} {{uom.uom_code}}</td>
+          <td style="text-align: right; padding-left: 0.4rem; padding-right: 0.4rem;">{{moneyFormat unit_price}}</td>
+          <td style="text-align: right; padding-left: 0.4rem; padding-right: 0.4rem;">{{moneyFormat amount}}</td>
+        </tr>
+        {{/each}}
+      </table>
+      <br>
+      <div style="justify-content: flex-end; display: flex;">
+        <div style="margin-right: 2rem; margin-left: auto">
+          <div>Sub Total:</div>
+          <div>Vat Inc:</div>
+          <div>Total Discount:</div>
+          <div class="emphasize">Total:</div>
+        </div>
+        <div style="width: 18%; text-align: end;">
+          <div>{{moneyFormat purchaseOrderSummary.subTotal}}</div>
+          <div>{{moneyFormat purchaseOrderSummary.vatInc}}</div>
+          <div>{{moneyFormat purchaseOrderSummary.totalDisc}}</div>
+          <div class="emphasize">{{moneyFormat purchaseOrderSummary.total}}</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  {{!-- for footer action link/buttons --}}
+  <footer style="text-align: center; margin-top: 20px; padding: 50px;">
+    {{!-- <div style="display: flex; justify-content: space-around; width: 100%;">
+      <div>
+        <a href="#" style="border-radius: 4px; display: inline-block; padding: 10px 20px; background-color: #101010;
+                  text-decoration: none; color: #ffffff; font-size: 16px;">
+          {{ctaApprove}}
+        </a>
+      </div>
+      <div>
+        <a href="#" style="border-radius: 4px; display: inline-block; padding: 10px 20px; background-color: #101010;
+                  text-decoration: none; color: #ffffff; font-size: 16px;">
+          {{ctaDisapprove}}
+        </a>
+      </div>
+    </div> --}}
+  </footer>
+ 
+  {{!-- for footer corporate logo --}}
+  
+  <section style="padding: 20px; color: red; font-size: 16px; font-weight: bold; text-align:center">
+    <p style="margin: 0;">
+      *Note: This is a system generated email.  Do not reply.
+    </p>
+  </section>
+ 
+</body>
+</html>

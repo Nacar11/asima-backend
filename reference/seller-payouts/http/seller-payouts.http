@@ -1,0 +1,52 @@
+@baseUrl = http://localhost:4080
+@token = your_token_here
+
+### Login
+# @name Login
+POST {{baseUrl}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "admin@cody.inc",
+  "password": "password"
+}
+
+### Get Token
+@token = {{Login.response.body.token}}
+
+### Create Seller Payout
+# @name CreatePayout
+POST {{baseUrl}}/api/v1/seller-payouts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "seller_id": 1,
+  "amount": 5000.00,
+  "currency_id": 1,
+  "payout_method": "bank_transfer",
+  "bank_name": "Bank of the Philippines",
+  "account_number": "1234567890",
+  "account_name": "John Doe"
+}
+
+### Get All Seller Payouts
+GET {{baseUrl}}/api/v1/seller-payouts?page=1&limit=10
+Authorization: Bearer {{token}}
+
+### Get Seller Payouts by Seller ID
+GET {{baseUrl}}/api/v1/seller-payouts/seller/1
+Authorization: Bearer {{token}}
+
+### Get Seller Payout by ID
+GET {{baseUrl}}/api/v1/seller-payouts/{{CreatePayout.response.body.id}}
+Authorization: Bearer {{token}}
+
+### Update Seller Payout
+PATCH {{baseUrl}}/api/v1/seller-payouts/{{CreatePayout.response.body.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "processing"
+}

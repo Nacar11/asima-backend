@@ -1,0 +1,88 @@
+### Get Auth Token
+# @name login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+### Set token variable from login response
+@token = {{login.token}}
+
+### ===========================================
+### BULK DELETE EXAMPLES (Individual Deletes)
+### ===========================================
+
+### Delete Multiple Cost Centers (Individual Calls)
+### Note: There is no bulk-delete endpoint, so we delete individually
+
+### Delete Cost Center 10
+DELETE {{BACKEND_DOMAIN}}/api/v1/cost-centers/10
+Authorization: Bearer {{token}}
+
+### Delete Cost Center 11
+DELETE {{BACKEND_DOMAIN}}/api/v1/cost-centers/11
+Authorization: Bearer {{token}}
+
+### Delete Cost Center 12
+DELETE {{BACKEND_DOMAIN}}/api/v1/cost-centers/12
+Authorization: Bearer {{token}}
+
+### Delete Cost Center 13
+DELETE {{BACKEND_DOMAIN}}/api/v1/cost-centers/13
+Authorization: Bearer {{token}}
+
+### Delete Cost Center 14
+DELETE {{BACKEND_DOMAIN}}/api/v1/cost-centers/14
+Authorization: Bearer {{token}}
+
+### ===========================================
+### BULK DELETE ENDPOINT (Now Implemented)
+### ===========================================
+
+### Bulk Delete Cost Centers (Multiple IDs)
+DELETE {{BACKEND_DOMAIN}}/api/v1/cost-centers/bulk-delete
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "ids": [10, 11, 12, 13, 14]
+}
+
+### Bulk Delete Cost Centers (Small Batch)
+DELETE {{BACKEND_DOMAIN}}/api/v1/cost-centers/bulk-delete
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "ids": [1, 2, 3]
+}
+
+### Bulk Delete Cost Centers (Large Batch)
+DELETE {{BACKEND_DOMAIN}}/api/v1/cost-centers/bulk-delete
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "ids": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+}
+
+### Bulk Delete Cost Centers (Single ID)
+DELETE {{BACKEND_DOMAIN}}/api/v1/cost-centers/bulk-delete
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "ids": [25]
+}
+
+### Bulk Delete Cost Centers (Test with Non-existent IDs)
+DELETE {{BACKEND_DOMAIN}}/api/v1/cost-centers/bulk-delete
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "ids": [999, 1000, 1001]
+}

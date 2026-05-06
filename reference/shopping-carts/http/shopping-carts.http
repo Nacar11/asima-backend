@@ -1,0 +1,264 @@
+### Get Auth Token
+# @name login
+POST {{baseUrl}}/api/v1/auth/email/login
+accept: application/json
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+### ===========================================
+### GET SHOPPING CART ENDPOINTS
+### ===========================================
+
+### Get My Cart (Auto-creates if doesn't exist)
+# @name getMyCart
+GET {{baseUrl}}/api/v1/shopping-carts/my-cart
+Authorization: Bearer {{login.response.body.token}}
+
+### Get Cart by ID with Pagination
+# @name getCartById
+GET {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}?page=1&limit=20
+Authorization: Bearer {{login.response.body.token}}
+
+### Get Cart Summary
+# @name getCartSummary
+GET {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/summary
+Authorization: Bearer {{login.response.body.token}}
+
+###
+### ===========================================
+### POST SHOPPING CART ENDPOINTS (ADD ITEMS)
+### ===========================================
+
+### Add Product Item to Cart
+# @name addProductItem
+POST {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "variant_id": 1,
+  "quantity": 2,
+  "is_selected": true
+}
+
+### Add Service Item to Cart (Without Package)
+# @name addServiceItem
+POST {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/service
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "service_id": 1,
+  "scheduled_date": "2024-12-25",
+  "scheduled_start_time": "09:00:00",
+  "quantity": 1,
+  "is_selected": true
+}
+
+### Add Service Item to Cart (With Package)
+# @name addServiceItemWithPackage
+POST {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/service
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "service_id": 1,
+  "package_id": 1,
+  "scheduled_date": "2024-12-26",
+  "scheduled_start_time": "14:00:00",
+  "quantity": 1,
+  "is_selected": true
+}
+
+### Add Service Item to Cart (With Address and Special Requests - TRV-010 Unified Cart)
+# @name addServiceItemWithAddress
+POST {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/service
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "service_id": 1,
+  "package_id": 1,
+  "scheduled_date": "2025-01-15",
+  "scheduled_start_time": "10:00:00",
+  "service_address_id": 1,
+  "special_requests": "Please call 30 minutes before arrival. Gate code is 1234. Parking available in front of the house.",
+  "quantity": 1,
+  "is_selected": true
+}
+
+### Add Service Item to Cart (Different Time Same Day)
+# @name addServiceItemDifferentTime
+POST {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/service
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "service_id": 1,
+  "package_id": 1,
+  "scheduled_date": "2024-12-26",
+  "scheduled_start_time": "16:00:00",
+  "quantity": 1,
+  "is_selected": false
+}
+
+###
+### ===========================================
+### PATCH SHOPPING CART ENDPOINTS (UPDATE)
+### ===========================================
+
+### Update Cart Item Quantity
+# @name updateCartItem
+PATCH {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/{{addProductItem.response.body.items[0].id}}
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "quantity": 5,
+  "is_selected": true
+}
+
+### Update Cart Item Selection Status Only
+# @name updateCartItemSelection
+PATCH {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/{{addServiceItem.response.body.items[0].id}}
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "is_selected": false
+}
+
+### Bulk Update Cart Items Selection
+# @name bulkUpdateCartItems
+PATCH {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/bulk-update
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "item_ids": [1, 2, 3],
+  "is_selected": true
+}
+
+###
+### ===========================================
+### DELETE SHOPPING CART ENDPOINTS
+### ===========================================
+
+### Delete Cart Item
+# @name deleteCartItem
+DELETE {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/{{addServiceItemDifferentTime.response.body.items[0].id}}
+Authorization: Bearer {{login.response.body.token}}
+
+### Bulk Delete Cart Items
+# @name bulkDeleteCartItems
+DELETE {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/bulk-delete
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "item_ids": [1, 2]
+}
+
+###
+### ===========================================
+### ERROR TESTING
+### ===========================================
+
+### Test: Add Product Item - Invalid Variant ID
+# @name addProductItemInvalidVariant
+POST {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "variant_id": 99999,
+  "quantity": 1
+}
+
+### Test: Add Service Item - Missing Required Fields
+# @name addServiceItemMissingFields
+POST {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/service
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "service_id": 1
+}
+
+### Test: Add Service Item - Invalid Date Format
+# @name addServiceItemInvalidDate
+POST {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/service
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "service_id": 1,
+  "scheduled_date": "invalid-date",
+  "scheduled_start_time": "09:00:00"
+}
+
+### Test: Add Service Item - Invalid Time Format
+# @name addServiceItemInvalidTime
+POST {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/service
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "service_id": 1,
+  "scheduled_date": "2024-12-25",
+  "scheduled_start_time": "25:00:00"
+}
+
+### Test: Add Service Item - Invalid Service ID
+# @name addServiceItemInvalidService
+POST {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/service
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "service_id": 99999,
+  "scheduled_date": "2024-12-25",
+  "scheduled_start_time": "09:00:00"
+}
+
+### Test: Add Service Item - Invalid Package ID
+# @name addServiceItemInvalidPackage
+POST {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/service
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "service_id": 1,
+  "package_id": 99999,
+  "scheduled_date": "2024-12-25",
+  "scheduled_start_time": "09:00:00"
+}
+
+### Test: Update Cart Item - Invalid Item ID
+# @name updateCartItemInvalidId
+PATCH {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/99999
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "quantity": 1
+}
+
+### Test: Delete Cart Item - Invalid Item ID
+# @name deleteCartItemInvalidId
+DELETE {{baseUrl}}/api/v1/shopping-carts/{{getMyCart.response.body.id}}/items/99999
+Authorization: Bearer {{login.response.body.token}}
+
+### Test: Unauthorized Access (No Token)
+# @name unauthorizedAccess
+GET {{baseUrl}}/api/v1/shopping-carts/my-cart
+
+### Test: Access Another User's Cart
+# @name accessOtherUserCart
+GET {{baseUrl}}/api/v1/shopping-carts/999
+Authorization: Bearer {{login.response.body.token}}

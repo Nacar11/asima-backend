@@ -1,0 +1,107 @@
+### Escrow Transactions API Tests
+### Base URL
+@baseUrl = http://localhost:4080/api/v1
+@token = your_jwt_token_here
+
+### Variables
+@bookingId = 1
+@milestoneId = 1
+@transactionId = 1
+
+### 1. Create Escrow Transaction (Deposit)
+POST {{baseUrl}}/escrow-transactions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "booking_id": {{bookingId}},
+  "transaction_type": "deposit",
+  "amount": 10000.00,
+  "currency_id": 1,
+  "notes": "Initial deposit for booking"
+}
+
+### 2. List Escrow Transactions
+GET {{baseUrl}}/escrow-transactions?page=1&limit=20
+Authorization: Bearer {{token}}
+
+### 3. List Escrow Transactions by Booking
+GET {{baseUrl}}/escrow-transactions/booking/{{bookingId}}
+Authorization: Bearer {{token}}
+
+### 4. Get Escrow Transaction by ID
+GET {{baseUrl}}/escrow-transactions/{{transactionId}}
+Authorization: Bearer {{token}}
+
+### 5. Release Escrow to Provider
+POST {{baseUrl}}/escrow-transactions/release
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "milestone_id": {{milestoneId}},
+  "amount": 1800.00,
+  "released_to": 2,
+  "release_method": "bank_transfer",
+  "reference_number": "REF123456",
+  "notes": "Milestone 1 payment release"
+}
+
+### 6. Process Refund
+POST {{baseUrl}}/escrow-transactions/refund
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "booking_id": {{bookingId}},
+  "amount": 5000.00,
+  "currency_id": 1,
+  "notes": "Partial refund for cancellation"
+}
+
+### 7. Hold Funds for Dispute
+POST {{baseUrl}}/escrow-transactions/dispute/hold
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "booking_id": {{bookingId}},
+  "amount": 10000.00,
+  "currency_id": 1,
+  "notes": "Dispute hold pending resolution"
+}
+
+### 8. Release Funds from Dispute
+POST {{baseUrl}}/escrow-transactions/dispute/release
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "booking_id": {{bookingId}},
+  "amount": 10000.00,
+  "currency_id": 1,
+  "released_to": 1,
+  "notes": "Dispute resolved, releasing funds to customer"
+}
+
+### 9. Update Escrow Transaction
+PATCH {{baseUrl}}/escrow-transactions/{{transactionId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "completed",
+  "reference_number": "REF789012",
+  "notes": "Transaction processed successfully"
+}
+
+### 10. Filter by Transaction Type
+GET {{baseUrl}}/escrow-transactions?transaction_type=release&booking_id={{bookingId}}
+Authorization: Bearer {{token}}
+
+### 11. Filter by Status
+GET {{baseUrl}}/escrow-transactions?status=completed&page=1&limit=20
+Authorization: Bearer {{token}}
+
+
+

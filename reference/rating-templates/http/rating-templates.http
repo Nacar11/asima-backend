@@ -1,0 +1,201 @@
+### Variables
+@baseUrl = http://localhost:4080
+@adminEmail = admin@cody.inc
+@adminPassword = password
+
+### Get Auth Token
+# @name login
+POST {{baseUrl}}/api/v1/auth/email/login
+accept: application/json
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+### ===========================================
+### RATING TEMPLATES ENDPOINTS
+### ===========================================
+
+### Create Rating Template - Stars (Service Quality)
+# @name createStarsTemplate
+POST {{baseUrl}}/api/v1/rating-templates
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Service Quality",
+  "code": "service_quality",
+  "description": "Rate the overall quality of service provided",
+  "rating_type": "stars",
+  "min_value": 1,
+  "max_value": 5,
+  "is_required": true,
+  "sequence_order": 1,
+  "is_active": true
+}
+
+### Create Rating Template - Stars (Professionalism)
+# @name createProfessionalismTemplate
+POST {{baseUrl}}/api/v1/rating-templates
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Professionalism",
+  "code": "professionalism",
+  "description": "Rate the professionalism of the service provider",
+  "rating_type": "stars",
+  "min_value": 1,
+  "max_value": 5,
+  "is_required": true,
+  "sequence_order": 2,
+  "is_active": true
+}
+
+### Create Rating Template - Stars (Timeliness)
+# @name createTimelinessTemplate
+POST {{baseUrl}}/api/v1/rating-templates
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Timeliness",
+  "code": "timeliness",
+  "description": "Rate the punctuality and adherence to schedule",
+  "rating_type": "stars",
+  "min_value": 1,
+  "max_value": 5,
+  "is_required": true,
+  "sequence_order": 3,
+  "is_active": true
+}
+
+### Create Rating Template - Thumbs (Would Recommend)
+# @name createRecommendTemplate
+POST {{baseUrl}}/api/v1/rating-templates
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Would Recommend",
+  "code": "would_recommend",
+  "description": "Would you recommend this service provider to others?",
+  "rating_type": "thumbs",
+  "min_value": 0,
+  "max_value": 1,
+  "is_required": false,
+  "sequence_order": 4,
+  "is_active": true
+}
+
+### Create Rating Template - Scale (Value for Money)
+# @name createValueTemplate
+POST {{baseUrl}}/api/v1/rating-templates
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Value for Money",
+  "code": "value_for_money",
+  "description": "Rate the value received for the price paid (1-10)",
+  "rating_type": "scale",
+  "min_value": 1,
+  "max_value": 10,
+  "is_required": false,
+  "sequence_order": 5,
+  "is_active": true
+}
+
+### List All Rating Templates
+# @name listTemplates
+GET {{baseUrl}}/api/v1/rating-templates
+Authorization: Bearer {{login.response.body.token}}
+
+### List Rating Templates with Pagination
+# @name listTemplatesPaginated
+GET {{baseUrl}}/api/v1/rating-templates?page=1&limit=10
+Authorization: Bearer {{login.response.body.token}}
+
+### List Active Rating Templates Only
+# @name listActiveTemplates
+GET {{baseUrl}}/api/v1/rating-templates/active
+Authorization: Bearer {{login.response.body.token}}
+
+### Get Rating Template by ID
+# @name getTemplateById
+GET {{baseUrl}}/api/v1/rating-templates/1
+Authorization: Bearer {{login.response.body.token}}
+
+### Update Rating Template
+# @name updateTemplate
+PATCH {{baseUrl}}/api/v1/rating-templates/1
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "description": "Updated: Rate the overall quality of service provided",
+  "is_required": true
+}
+
+### Deactivate Rating Template
+# @name deactivateTemplate
+PATCH {{baseUrl}}/api/v1/rating-templates/5
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "is_active": false
+}
+
+### Delete Rating Template (Soft Delete)
+# @name deleteTemplate
+DELETE {{baseUrl}}/api/v1/rating-templates/5
+Authorization: Bearer {{login.response.body.token}}
+
+###
+### ===========================================
+### ERROR SCENARIOS
+### ===========================================
+
+### Error: Template Not Found
+# @name errorNotFound
+GET {{baseUrl}}/api/v1/rating-templates/999999
+Authorization: Bearer {{login.response.body.token}}
+
+### Error: Unauthorized (No Token)
+# @name errorUnauthorized
+GET {{baseUrl}}/api/v1/rating-templates
+
+### Error: Duplicate Code
+# @name errorDuplicateCode
+POST {{baseUrl}}/api/v1/rating-templates
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Duplicate Service Quality",
+  "code": "service_quality",
+  "rating_type": "stars",
+  "min_value": 1,
+  "max_value": 5,
+  "is_required": true,
+  "sequence_order": 10,
+  "is_active": true
+}
+
+### Error: Invalid Rating Type
+# @name errorInvalidType
+POST {{baseUrl}}/api/v1/rating-templates
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Invalid Type",
+  "code": "invalid_type",
+  "rating_type": "invalid",
+  "min_value": 1,
+  "max_value": 5
+}

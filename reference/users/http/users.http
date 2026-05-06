@@ -1,0 +1,50 @@
+# @name login
+POST {{baseUrl}}/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+# @name createUser
+POST {{baseUrl}}/v1/users
+Authorization: Bearer {{login.response.body.data.access_token}}
+Content-Type: application/json
+
+{
+  "email": "user{{$timestamp}}@example.com",
+  "password": "Password123!",
+  "first_name": "Unified",
+  "last_name": "Tester",
+  "phone": "+639171234567",
+  "email_verified": true,
+  "phone_verified": false
+}
+
+###
+# @name listUsers
+GET {{baseUrl}}/v1/users?take=20&skip=0
+Authorization: Bearer {{login.response.body.data.access_token}}
+
+###
+# @name getUser
+GET {{baseUrl}}/v1/users/{{createUser.response.body.id}}
+Authorization: Bearer {{login.response.body.data.access_token}}
+
+###
+# @name updateUser
+PATCH {{baseUrl}}/v1/users/{{createUser.response.body.id}}
+Authorization: Bearer {{login.response.body.data.access_token}}
+Content-Type: application/json
+
+{
+  "phone": "+639188765432",
+  "phone_verified": true,
+  "preferred_currency_id": 1
+}
+
+
+
+

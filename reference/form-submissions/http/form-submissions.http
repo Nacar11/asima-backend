@@ -1,0 +1,65 @@
+### Variables
+@baseUrl = http://localhost:3000/api/v1
+@authToken = YOUR_JWT_TOKEN_HERE
+
+### Create Form Submission
+POST {{baseUrl}}/form-submissions
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "service_id": 1,
+  "values": [
+    {
+      "form_template_id": 1,
+      "field_code": "quantity",
+      "value": "5"
+    },
+    {
+      "form_template_id": 2,
+      "field_code": "size",
+      "value": "medium"
+    }
+  ]
+}
+
+### Create Form Submission with Booking
+POST {{baseUrl}}/form-submissions
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "service_id": 1,
+  "booking_id": 1,
+  "values": [
+    {
+      "form_template_id": 1,
+      "field_code": "quantity",
+      "value": "3"
+    }
+  ]
+}
+
+### Get All Form Submissions
+GET {{baseUrl}}/form-submissions
+Authorization: Bearer {{authToken}}
+
+### Get Form Submissions by Service
+GET {{baseUrl}}/form-submissions?service_id=1
+Authorization: Bearer {{authToken}}
+
+### Get My Submissions
+GET {{baseUrl}}/form-submissions/my-submissions
+Authorization: Bearer {{authToken}}
+
+### Get Form Submission by Booking
+GET {{baseUrl}}/form-submissions/by-booking/1
+Authorization: Bearer {{authToken}}
+
+### Get Single Form Submission
+GET {{baseUrl}}/form-submissions/1
+Authorization: Bearer {{authToken}}
+
+### Delete Form Submission
+DELETE {{baseUrl}}/form-submissions/1
+Authorization: Bearer {{authToken}}

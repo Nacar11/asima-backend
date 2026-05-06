@@ -1,0 +1,152 @@
+### Get Auth Token
+# @name login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+### Set token variable from login response
+@token = {{login.token}}
+
+### ===========================================
+### GET COST CENTERS ENDPOINTS
+### ===========================================
+
+### Get All Cost Centers (DevExtreme Pagination)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Filter (Active Status)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[%22status%22,%22=%22,%22Active%22]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Filter (Cancelled Status)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[%22status%22,%22=%22,%22Cancelled%22]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Filter (Hold Status)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[%22status%22,%22=%22,%22Hold%22]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Complex Filter (Multiple Status)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[[%22status%22,%22=%22,%22Active%22],%22or%22,[%22status%22,%22=%22,%22Hold%22]]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Search (Cost Center Code)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?searchValue=01010101&searchOperation=contains&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Search (Division)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?searchValue=01&searchOperation=contains&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Sort (Cost Center Code ASC)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?sort=[{%22selector%22:%22cost_center_code%22,%22desc%22:false}]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Sort (Cost Center Code DESC)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?sort=[{%22selector%22:%22cost_center_code%22,%22desc%22:true}]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Sort (Created Date DESC)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?sort=[{%22selector%22:%22created_at%22,%22desc%22:true}]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Sort (Division Name ASC)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?sort=[{%22selector%22:%22division.division_name%22,%22desc%22:false}]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Filter by Division
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[%22division.id%22,%22=%22,1]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Filter by Department
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[%22department.id%22,%22=%22,1]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Filter by Section
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[%22section.id%22,%22=%22,1]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Filter by Sub-Section
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[%22sub_section.id%22,%22=%22,1]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers with Date Range Filter
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[%22created_at%22,%22%3E=%22,%222025-01-01%22]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers (V2 Pagination)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/v2?page=1&limit=20&search=Backend&status=Active
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers (V2 Pagination with Multiple Status)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/v2?page=1&limit=20&search=Development&status=Active,Cancelled
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers (V2 Pagination - All Status)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/v2?page=1&limit=20&search=Team&status=all
+Authorization: Bearer {{token}}
+
+### Get All Cost Centers (Simple List)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/all
+Authorization: Bearer {{token}}
+
+### Get Cost Center Lookup (For Dropdowns)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/lookup?searchValue=01&searchOperation=contains&skip=0&take=10
+Authorization: Bearer {{token}}
+
+### Get Cost Center Lookup with Exclude
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/lookup?searchValue=Backend&searchOperation=contains&skip=0&take=10&exclude=1,2,3
+Authorization: Bearer {{token}}
+
+### Get Cost Center Lookup by ID
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/lookup/1
+Authorization: Bearer {{token}}
+
+### Get Cost Center by ID
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/1
+Authorization: Bearer {{token}}
+
+### Get Cost Center by ID (Another)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/6
+Authorization: Bearer {{token}}
+
+### ===========================================
+### ADVANCED GET QUERY EXAMPLES
+### ===========================================
+
+### Get Cost Centers with Complex Filter (Status and Division)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[[%22status%22,%22=%22,%22Active%22],%22and%22,[%22division.id%22,%22=%22,1]]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get Cost Centers with Complex Filter (Status and Department)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[[%22status%22,%22=%22,%22Active%22],%22and%22,[%22department.id%22,%22=%22,1]]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get Cost Centers with Complex Filter (Status and Section)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[[%22status%22,%22=%22,%22Active%22],%22and%22,[%22section.id%22,%22=%22,1]]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get Cost Centers with Complex Filter (Status and Sub-Section)
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[[%22status%22,%22=%22,%22Active%22],%22and%22,[%22sub_section.id%22,%22=%22,1]]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get Cost Centers with Date Range and Status Filter
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[[%22status%22,%22=%22,%22Active%22],%22and%22,[%22created_at%22,%22%3E=%22,%222025-01-01%22]]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get Cost Centers with Multiple Sort Criteria
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?sort=[{%22selector%22:%22status%22,%22desc%22:false},{%22selector%22:%22cost_center_code%22,%22desc%22:false}]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get Cost Centers with Search and Filter Combination
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?searchValue=01&searchOperation=contains&filter=[%22status%22,%22=%22,%22Active%22]&requireTotalCount=true&skip=0&take=20
+Authorization: Bearer {{token}}
+
+### Get Cost Centers with Pagination and All Filters
+GET {{BACKEND_DOMAIN}}/api/v1/cost-centers/?filter=[%22status%22,%22=%22,%22Active%22]&searchValue=Backend&searchOperation=contains&sort=[{%22selector%22:%22cost_center_code%22,%22desc%22:false}]&requireTotalCount=true&skip=0&take=10
+Authorization: Bearer {{token}}

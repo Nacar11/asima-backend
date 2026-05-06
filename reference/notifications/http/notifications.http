@@ -1,0 +1,67 @@
+@baseUrl = http://localhost:4080
+@token = your_token_here
+
+### Login
+# @name Login
+POST {{baseUrl}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "admin@cody.inc",
+  "password": "password"
+}
+
+### Get Token
+@token = {{Login.response.body.token}}
+
+### Create Notification
+# @name CreateNotification
+POST {{baseUrl}}/api/v1/notifications
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "user_id": 1,
+  "type": "booking_confirmed",
+  "title": "Booking Confirmed",
+  "body": "Your booking #BK-20241211-1234 has been confirmed.",
+  "entity_type": "booking",
+  "entity_id": 1,
+  "action_url": "/bookings/1",
+  "send_push": false
+}
+
+### Get All Notifications
+GET {{baseUrl}}/api/v1/notifications?page=1&limit=10
+Authorization: Bearer {{token}}
+
+### Get Unread Count
+GET {{baseUrl}}/api/v1/notifications/unread-count
+Authorization: Bearer {{token}}
+
+### Get Notification by ID
+GET {{baseUrl}}/api/v1/notifications/{{CreateNotification.response.body.id}}
+Authorization: Bearer {{token}}
+
+### Mark Notification as Read
+PATCH {{baseUrl}}/api/v1/notifications/{{CreateNotification.response.body.id}}/read
+Authorization: Bearer {{token}}
+
+### Mark All Notifications as Read
+PATCH {{baseUrl}}/api/v1/notifications/read-all
+Authorization: Bearer {{token}}
+
+### Filter by Type
+GET {{baseUrl}}/api/v1/notifications?type=booking_confirmed&page=1&limit=10
+Authorization: Bearer {{token}}
+
+### Filter by Read Status (Unread)
+GET {{baseUrl}}/api/v1/notifications?is_read=false&page=1&limit=10
+Authorization: Bearer {{token}}
+
+### Filter by Read Status (Read)
+GET {{baseUrl}}/api/v1/notifications?is_read=true&page=1&limit=10
+Authorization: Bearer {{token}}
+
+
+

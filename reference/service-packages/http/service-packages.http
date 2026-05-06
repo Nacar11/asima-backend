@@ -1,0 +1,100 @@
+# @name login
+POST {{baseUrl}}/api/v1/auth/email/login
+accept: application/json
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+# @name createServiceCategory
+POST {{baseUrl}}/api/v1/service-categories
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Packages Cat {{timestamp}}",
+  "slug": "packages-cat-{{timestamp}}",
+  "description": "Category for service packages"
+}
+
+###
+# @name createService
+POST {{baseUrl}}/api/v1/services
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "seller_id": 1,
+  "category_id": "{{createServiceCategory.response.body.id}}",
+  "title": "Cleaning Service {{timestamp}}",
+  "slug": "cleaning-service-{{timestamp}}",
+  "pricing_type": "fixed",
+  "base_price": 1000,
+  "estimated_duration_minutes": 120,
+  "service_radius_km": 10,
+  "is_remote_available": false,
+  "max_bookings_per_day": 5,
+  "advance_booking_days": 30,
+  "minimum_notice_hours": 24,
+  "status": "draft",
+  "is_featured": false,
+  "requires_quote": false,
+  "instant_booking": true
+}
+
+###
+# @name createServicePackage
+POST {{baseUrl}}/api/v1/service-packages
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "service_id": "{{createService.response.body.id}}",
+  "name": "Standard Package {{timestamp}}",
+  "description": "Standard cleaning package",
+  "price": 1999.99,
+  "compare_at_price": 2499.99,
+  "duration_minutes": 120,
+  "inclusions": [
+    { "name": "Deep cleaning", "quantity": 1 },
+    { "name": "Disinfection", "quantity": 1 }
+  ],
+  "max_bookings_per_day": 5,
+  "is_popular": true,
+  "display_order": 1,
+  "status": "active"
+}
+
+###
+# @name listServicePackages
+GET {{baseUrl}}/api/v1/service-packages?take=10&skip=0
+Authorization: Bearer {{login.response.body.token}}
+
+###
+# @name getServicePackage
+GET {{baseUrl}}/api/v1/service-packages/{{createServicePackage.response.body.id}}
+Authorization: Bearer {{login.response.body.token}}
+
+###
+# @name updateServicePackage
+PATCH {{baseUrl}}/api/v1/service-packages/{{createServicePackage.response.body.id}}
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "status": "inactive",
+  "is_popular": false,
+  "display_order": 2
+}
+
+###
+# @name deleteServicePackage
+DELETE {{baseUrl}}/api/v1/service-packages/{{createServicePackage.response.body.id}}
+Authorization: Bearer {{login.response.body.token}}
+
+
+
+

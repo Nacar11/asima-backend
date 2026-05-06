@@ -1,0 +1,63 @@
+# @name Login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+###
+
+# @name CreateStoreUnavailability
+# @requires Login
+POST {{BACKEND_DOMAIN}}/api/v1/store-unavailability
+Authorization: Bearer {{Login.response.body.token}}
+Content-Type: application/json
+
+{
+  "seller_id": 1,
+  "unavailable_date": "2025-12-24",
+  "is_full_day": true,
+  "reason": "Holiday"
+}
+
+###
+
+# @name ListStoreUnavailability
+# @requires Login
+GET {{BACKEND_DOMAIN}}/api/v1/store-unavailability?seller_id=1
+Authorization: Bearer {{Login.response.body.token}}
+
+###
+
+# @name GetStoreUnavailability
+# @requires Login
+GET {{BACKEND_DOMAIN}}/api/v1/store-unavailability/{{CreateStoreUnavailability.response.body.id}}
+Authorization: Bearer {{Login.response.body.token}}
+
+###
+
+# @name UpdateStoreUnavailability
+# @requires Login
+PATCH {{BACKEND_DOMAIN}}/api/v1/store-unavailability/{{CreateStoreUnavailability.response.body.id}}
+Authorization: Bearer {{Login.response.body.token}}
+Content-Type: application/json
+
+{
+  "is_full_day": false,
+  "start_time": "10:00:00",
+  "end_time": "14:00:00",
+  "reason": "Half-day maintenance"
+}
+
+###
+
+# @name DeleteStoreUnavailability
+# @requires Login
+DELETE {{BACKEND_DOMAIN}}/api/v1/store-unavailability/{{CreateStoreUnavailability.response.body.id}}
+Authorization: Bearer {{Login.response.body.token}}
+
+
+
+

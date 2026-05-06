@@ -1,0 +1,55 @@
+# @name login
+POST {{baseUrl}}/api/v1/auth/email/login
+accept: application/json
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+# @name getLogs
+GET {{baseUrl}}/api/v1/admin/logs?limit=50
+Authorization: Bearer {{login.response.body.token}}
+
+###
+# @name getLogsWithFilters
+GET {{baseUrl}}/api/v1/admin/logs?level=ERROR&limit=20&start_date=2025-12-01T00:00:00Z&end_date=2025-12-31T23:59:59Z
+Authorization: Bearer {{login.response.body.token}}
+
+###
+# @name getLogsByUser
+GET {{baseUrl}}/api/v1/admin/logs?user_id=1&limit=50
+Authorization: Bearer {{login.response.body.token}}
+
+###
+# @name getLogsByEndpoint
+GET {{baseUrl}}/api/v1/admin/logs?endpoint=/api/v1/services&limit=50
+Authorization: Bearer {{login.response.body.token}}
+
+###
+# @name getErrors
+GET {{baseUrl}}/api/v1/admin/errors?limit=50
+Authorization: Bearer {{login.response.body.token}}
+
+###
+# @name getMetrics
+GET {{baseUrl}}/api/v1/admin/metrics?limit=100
+Authorization: Bearer {{login.response.body.token}}
+
+###
+# @name getMetricsWithDateRange
+GET {{baseUrl}}/api/v1/admin/metrics?limit=50&start_date=2025-12-01T00:00:00Z&end_date=2025-12-31T23:59:59Z
+Authorization: Bearer {{login.response.body.token}}
+
+###
+# @name getHealth
+GET {{baseUrl}}/api/v1/admin/health
+Authorization: Bearer {{login.response.body.token}}
+
+###
+# @name getLogStats
+GET {{baseUrl}}/api/v1/admin/logs/stats
+Authorization: Bearer {{login.response.body.token}}
+

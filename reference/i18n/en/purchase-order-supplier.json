@@ -1,0 +1,9 @@
+{
+  "title": "{control_no}: Cody Web Development Inc. Orders ",
+  "attention": "ATTN: {supplier}",
+  "salutation": "Dear {recipient},",
+  "intro1": "Please find the attached Purchase Order (PDF) for your reference.",
+  "intro2": "Should you have any questions or require further clarification regarding this transaction, please do not hesitate to contact us. We would appreciate your immediate confirmation upon receipt.",
+  "closing": "Thank you, and we look forward to your prompt response.",
+  "signOff": "Best Regards,"
+}

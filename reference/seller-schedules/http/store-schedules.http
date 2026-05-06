@@ -1,0 +1,70 @@
+# @name Login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+###
+
+# @name CreateStoreSchedule
+# @requires Login
+POST {{BACKEND_DOMAIN}}/api/v1/store-schedules
+Authorization: Bearer {{Login.response.body.token}}
+Content-Type: application/json
+
+{
+  "seller_id": 1,
+  "day_of_week": 1,
+  "start_time": "09:00:00",
+  "end_time": "18:00:00",
+  "break_start": "12:00:00",
+  "break_end": "13:00:00",
+  "is_available": true
+}
+
+###
+
+# @name ListStoreSchedules
+# @requires Login
+GET {{BACKEND_DOMAIN}}/api/v1/store-schedules?seller_id=1
+Authorization: Bearer {{Login.response.body.token}}
+
+###
+
+# @name CheckAvailability
+# @requires Login
+GET {{BACKEND_DOMAIN}}/api/v1/store-schedules/availability?seller_id=1&date=2025-12-15&start_time=14:00:00&end_time=15:00:00
+Authorization: Bearer {{Login.response.body.token}}
+
+###
+
+# @name GetStoreSchedule
+# @requires Login
+GET {{BACKEND_DOMAIN}}/api/v1/store-schedules/{{CreateStoreSchedule.response.body.id}}
+Authorization: Bearer {{Login.response.body.token}}
+
+###
+
+# @name UpdateStoreSchedule
+# @requires Login
+PATCH {{BACKEND_DOMAIN}}/api/v1/store-schedules/{{CreateStoreSchedule.response.body.id}}
+Authorization: Bearer {{Login.response.body.token}}
+Content-Type: application/json
+
+{
+  "is_available": false
+}
+
+###
+
+# @name DeleteStoreSchedule
+# @requires Login
+DELETE {{BACKEND_DOMAIN}}/api/v1/store-schedules/{{CreateStoreSchedule.response.body.id}}
+Authorization: Bearer {{Login.response.body.token}}
+
+
+
+

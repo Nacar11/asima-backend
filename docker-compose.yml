@@ -1,0 +1,21 @@
+services:
+  asima-postgres:
+    image: postgres:16-alpine
+    container_name: asima-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME:-asima}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-asima}
+      POSTGRES_DB: ${DATABASE_NAME:-asima}
+    ports:
+      - '${DATABASE_PORT:-5432}:5432'
+    volumes:
+      - asima-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  asima-pgdata:

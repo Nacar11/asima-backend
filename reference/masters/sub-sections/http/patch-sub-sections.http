@@ -1,0 +1,60 @@
+### Get Auth Token
+# @name login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+### Set token variable from login response
+@token = {{login.token}}
+
+### ===========================================
+### PATCH SUB-SECTIONS ENDPOINTS (UPDATE)
+### ===========================================
+
+### Update Sub-Section (Basic Fields)
+PATCH {{BACKEND_DOMAIN}}/api/v1/sub-sections/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "sub_section_name": "Updated Backend Development",
+  "remarks": "Updated remarks for backend development team"
+}
+
+### Update Sub-Section (Status Change)
+PATCH {{BACKEND_DOMAIN}}/api/v1/sub-sections/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "Active"
+}
+
+### Update Sub-Section (Complete Update)
+PATCH {{BACKEND_DOMAIN}}/api/v1/sub-sections/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "01",
+  "department": "01",
+  "section": "01",
+  "sub_section_code": "01",
+  "sub_section_name": "Advanced Backend Development",
+  "remarks": "Updated backend development team with enhanced capabilities",
+  "status": "Active"
+}
+
+### Update Sub-Section (Multiple Fields)
+PATCH {{BACKEND_DOMAIN}}/api/v1/sub-sections/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "sub_section_name": "Strategic Backend Development",
+  "remarks": "Updated strategic backend development team"
+}

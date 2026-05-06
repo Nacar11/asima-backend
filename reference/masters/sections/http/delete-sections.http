@@ -1,0 +1,33 @@
+### Get Auth Token
+# @name login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+### Set token variable from login response
+@token = {{login.token}}
+
+### ===========================================
+### DELETE SECTIONS ENDPOINTS
+### ===========================================
+
+### Delete Section by ID
+DELETE {{BACKEND_DOMAIN}}/api/v1/sections/1
+Authorization: Bearer {{token}}
+
+### ===========================================
+### BULK DELETE SECTIONS ENDPOINTS
+### ===========================================
+
+### Bulk Delete Sections (Small Batch)
+DELETE {{BACKEND_DOMAIN}}/api/v1/sections/bulk-delete
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "ids": [10, 11, 12]
+}

@@ -1,0 +1,28 @@
+### Get Auth Token
+# @name login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+### Set token variable from login response
+@token = {{login.token}}
+
+### ===========================================
+### POST DIVISIONS ENDPOINTS (CREATE)
+### ===========================================
+
+### Create Division
+POST {{BACKEND_DOMAIN}}/api/v1/divisions
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division_code": "01",
+  "division_name": "Technology Division",
+  "remarks": "Main technology and innovation division",
+  "status": "Active"
+}

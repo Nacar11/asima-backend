@@ -1,0 +1,30 @@
+### Get Auth Token
+# @name login
+POST {{BACKEND_DOMAIN}}/api/v1/auth/email/login
+Content-Type: application/json
+
+{
+  "email": "{{TEST_EMAIL}}",
+  "password": "{{TEST_PASSWORD}}"
+}
+
+### Set token variable from login response
+@token = {{login.token}}
+
+### ===========================================
+### POST COST CENTERS ENDPOINTS (CREATE)
+### ===========================================
+
+### Create Cost Center
+POST {{BACKEND_DOMAIN}}/api/v1/cost-centers
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "division": "01",
+  "department": "01",
+  "section": "01",
+  "sub_section": "01",
+  "remarks": "Backend Development Team - Full Stack Engineers",
+  "status": "Active"
+}
