@@ -1,0 +1,50 @@
+{
+  "_doc": "Seed directory of users. Email is unique and lowercase-normalized at write time. Every entry resolves a role by name; roles must be seeded first. Password for ALL seeded users comes from process.env.SEED_DEFAULT_PASSWORD (default 'Asima@1234'). Reseeding is idempotent: existing users are left as-is — passwords are NOT reset on re-run, so changing SEED_DEFAULT_PASSWORD only affects newly created rows. Substitution note: linda_miller appears in the original spec for both PROJECT_MANAGER and TECHNICAL_DIRECTOR; kept as PM, replaced TD slot with karen_taylor. Swap the entries below if you wanted it the other way around.",
+
+  "users": [
+    {
+      "email": "admin@asima.inc",
+      "first_name": "Asima",
+      "last_name": "Admin",
+      "title": "System Administrator",
+      "role_name": "SUPER_ADMIN",
+      "system_admin": true
+    },
+
+    { "email": "jane_smith@asima.inc",  "first_name": "Jane",  "last_name": "Smith", "title": "HR Administrator", "role_name": "HR_ADMIN" },
+    { "email": "john_doe@asima.inc",    "first_name": "John",  "last_name": "Doe",   "title": "HR Administrator", "role_name": "HR_ADMIN" },
+
+    { "email": "mary_brown@asima.inc",  "first_name": "Mary",  "last_name": "Brown", "title": "Operations Manager", "role_name": "OPERATIONS_MANAGER" },
+
+    { "email": "james_wilson@asima.inc",   "first_name": "James",   "last_name": "Wilson",   "title": "Project Manager", "role_name": "PROJECT_MANAGER" },
+    { "email": "robert_johnson@asima.inc", "first_name": "Robert",  "last_name": "Johnson",  "title": "Project Manager", "role_name": "PROJECT_MANAGER" },
+    { "email": "linda_miller@asima.inc",   "first_name": "Linda",   "last_name": "Miller",   "title": "Project Manager", "role_name": "PROJECT_MANAGER" },
+
+    { "email": "karen_taylor@asima.inc",  "first_name": "Karen",   "last_name": "Taylor",   "title": "Technical Director", "role_name": "TECHNICAL_DIRECTOR" },
+    { "email": "michael_jones@asima.inc", "first_name": "Michael", "last_name": "Jones",    "title": "Technical Director", "role_name": "TECHNICAL_DIRECTOR" },
+    { "email": "fred_bloggs@asima.inc",   "first_name": "Fred",    "last_name": "Bloggs",   "title": "Technical Director", "role_name": "TECHNICAL_DIRECTOR" },
+    { "email": "joe_bloggs@asima.inc",    "first_name": "Joe",     "last_name": "Bloggs",   "title": "Technical Director", "role_name": "TECHNICAL_DIRECTOR" },
+    { "email": "alice_bob@asima.inc",     "first_name": "Alice",   "last_name": "Bob",      "title": "Technical Director", "role_name": "TECHNICAL_DIRECTOR" },
+
+    { "email": "emma_thompson@asima.inc",   "first_name": "Emma",      "last_name": "Thompson",  "title": "Software Engineer",         "role_name": "EMPLOYEE" },
+    { "email": "liam_garcia@asima.inc",     "first_name": "Liam",      "last_name": "Garcia",    "title": "Senior Software Engineer",  "role_name": "EMPLOYEE" },
+    { "email": "olivia_martinez@asima.inc", "first_name": "Olivia",    "last_name": "Martinez",  "title": "Product Designer",          "role_name": "EMPLOYEE" },
+    { "email": "noah_rodriguez@asima.inc",  "first_name": "Noah",      "last_name": "Rodriguez", "title": "QA Engineer",               "role_name": "EMPLOYEE" },
+    { "email": "ava_hernandez@asima.inc",   "first_name": "Ava",       "last_name": "Hernandez", "title": "DevOps Engineer",           "role_name": "EMPLOYEE" },
+    { "email": "william_lopez@asima.inc",   "first_name": "William",   "last_name": "Lopez",     "title": "Backend Engineer",          "role_name": "EMPLOYEE" },
+    { "email": "sophia_gonzalez@asima.inc", "first_name": "Sophia",    "last_name": "Gonzalez",  "title": "Frontend Engineer",         "role_name": "EMPLOYEE" },
+    { "email": "ethan_perez@asima.inc",     "first_name": "Ethan",     "last_name": "Perez",     "title": "Data Analyst",              "role_name": "EMPLOYEE" },
+    { "email": "isabella_torres@asima.inc", "first_name": "Isabella",  "last_name": "Torres",    "title": "UX Researcher",             "role_name": "EMPLOYEE" },
+    { "email": "mason_ramirez@asima.inc",   "first_name": "Mason",     "last_name": "Ramirez",   "title": "Mobile Engineer",           "role_name": "EMPLOYEE" },
+    { "email": "mia_flores@asima.inc",      "first_name": "Mia",       "last_name": "Flores",    "title": "Technical Writer",          "role_name": "EMPLOYEE" },
+    { "email": "lucas_rivera@asima.inc",    "first_name": "Lucas",     "last_name": "Rivera",    "title": "Software Engineer",         "role_name": "EMPLOYEE" },
+    { "email": "charlotte_morales@asima.inc","first_name": "Charlotte","last_name": "Morales",   "title": "Business Analyst",          "role_name": "EMPLOYEE" },
+    { "email": "henry_ortiz@asima.inc",     "first_name": "Henry",     "last_name": "Ortiz",     "title": "Site Reliability Engineer", "role_name": "EMPLOYEE" },
+    { "email": "amelia_gutierrez@asima.inc","first_name": "Amelia",    "last_name": "Gutierrez", "title": "Product Designer",          "role_name": "EMPLOYEE" },
+    { "email": "jackson_castro@asima.inc",  "first_name": "Jackson",   "last_name": "Castro",    "title": "Software Engineer",         "role_name": "EMPLOYEE" },
+    { "email": "harper_vargas@asima.inc",   "first_name": "Harper",    "last_name": "Vargas",    "title": "QA Engineer",               "role_name": "EMPLOYEE" },
+    { "email": "sebastian_mendoza@asima.inc","first_name": "Sebastian","last_name": "Mendoza",   "title": "Backend Engineer",          "role_name": "EMPLOYEE" },
+    { "email": "evelyn_reyes@asima.inc",    "first_name": "Evelyn",    "last_name": "Reyes",     "title": "Data Engineer",             "role_name": "EMPLOYEE" },
+    { "email": "daniel_aguilar@asima.inc",  "first_name": "Daniel",    "last_name": "Aguilar",   "title": "Software Engineer",         "role_name": "EMPLOYEE" }
+  ]
+}
