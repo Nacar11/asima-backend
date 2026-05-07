@@ -3,6 +3,8 @@ export const PERMISSION_RESOURCES = {
   USER: 'USER',
   ROLE: 'ROLE',
   PERMISSION: 'PERMISSION',
+  TIME: 'TIME',
+  SCHEDULE: 'SCHEDULE',
 } as const;
 
 /** Action axis values for permission codes. */

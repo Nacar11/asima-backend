@@ -10,5 +10,15 @@
   { "code": "ROLE:Delete", "resource": "ROLE", "action": "Delete", "description": "Remove roles" },
 
   { "code": "PERMISSION:View", "resource": "PERMISSION", "action": "View", "description": "View the permission catalog" },
-  { "code": "PERMISSION:Update", "resource": "PERMISSION", "action": "Update", "description": "Edit permission descriptions" }
+  { "code": "PERMISSION:Update", "resource": "PERMISSION", "action": "Update", "description": "Edit permission descriptions" },
+
+  { "code": "TIME:Create", "resource": "TIME", "action": "Create", "description": "Create time entries on behalf of any employee" },
+  { "code": "TIME:View", "resource": "TIME", "action": "View", "description": "View time entries for any employee" },
+  { "code": "TIME:Update", "resource": "TIME", "action": "Update", "description": "Edit time entries for any employee" },
+  { "code": "TIME:Delete", "resource": "TIME", "action": "Delete", "description": "Soft-delete time entries for any employee" },
+
+  { "code": "SCHEDULE:Create", "resource": "SCHEDULE", "action": "Create", "description": "Create work schedules for any employee" },
+  { "code": "SCHEDULE:View", "resource": "SCHEDULE", "action": "View", "description": "View work schedules for any employee" },
+  { "code": "SCHEDULE:Update", "resource": "SCHEDULE", "action": "Update", "description": "Edit work schedules for any employee" },
+  { "code": "SCHEDULE:Delete", "resource": "SCHEDULE", "action": "Delete", "description": "End (logical-delete) work schedules — sets effective_to" }
 ]

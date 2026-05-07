@@ -7,12 +7,29 @@
   },
   {
     "name": "HR_ADMIN",
-    "description": "HR back office. Manages users, sees roles + permissions, overrides approvals.",
+    "description": "HR back office. Manages users, sees roles + permissions, manages time entries and work schedules for any employee.",
     "permission_codes": [
       "USER:Create",
       "USER:View",
       "USER:Update",
       "USER:Delete",
+      "ROLE:View",
+      "PERMISSION:View",
+      "TIME:Create",
+      "TIME:View",
+      "TIME:Update",
+      "TIME:Delete",
+      "SCHEDULE:Create",
+      "SCHEDULE:View",
+      "SCHEDULE:Update",
+      "SCHEDULE:Delete"
+    ]
+  },
+  {
+    "name": "OPERATIONS_MANAGER",
+    "description": "Bridges HR Admin and Project Management. Read access to people and roles for staffing and capacity visibility. Approval-chain placement determines whether they're an approver for a specific request (see ADR 0001).",
+    "permission_codes": [
+      "USER:View",
       "ROLE:View",
       "PERMISSION:View"
     ]
