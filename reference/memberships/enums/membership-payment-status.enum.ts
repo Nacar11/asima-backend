@@ -1,7 +1,0 @@
-export enum MembershipPaymentStatusEnum {
-  PENDING = 'PENDING',
-  AWAITING_CONFIRMATION = 'AWAITING_CONFIRMATION',
-  PAID = 'PAID',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-}

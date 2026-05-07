@@ -1,1 +1,0 @@
-export const MEMBERSHIP_PAYMENT_CURRENCY = 'PHP';
