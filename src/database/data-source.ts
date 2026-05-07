@@ -14,8 +14,7 @@ export const AppDataSource = new DataSource({
   logging: false,
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
-  ssl:
-    process.env.DATABASE_SSL_ENABLED === 'true' ? { rejectUnauthorized: false } : false,
+  ssl: process.env.DATABASE_SSL_ENABLED === 'true' ? { rejectUnauthorized: false } : false,
   extra: {
     max: process.env.DATABASE_MAX_CONNECTIONS
       ? parseInt(process.env.DATABASE_MAX_CONNECTIONS, 10)

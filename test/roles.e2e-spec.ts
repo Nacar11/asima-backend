@@ -75,8 +75,6 @@ describe('Roles admin (e2e)', () => {
   });
 
   it('GET /admin/roles/:id returns 404 for unknown id', async () => {
-    await request(app.getHttpServer())
-      .get(`/api/v${API_VERSION}/admin/roles/99999`)
-      .expect(404);
+    await request(app.getHttpServer()).get(`/api/v${API_VERSION}/admin/roles/99999`).expect(404);
   });
 });

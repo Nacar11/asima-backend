@@ -1,10 +1,14 @@
 import { Controller, Get, HttpCode, HttpStatus, HttpException } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { InjectDataSource } from '@nestjs/typeorm';
+import { SkipThrottle } from '@nestjs/throttler';
 import { DataSource } from 'typeorm';
+import { Public } from '@/utils/decorators/public.decorator';
 import { API_VERSION } from '@/utils/constants/api.constants';
 
 @ApiTags('Health')
+@Public()
+@SkipThrottle()
 @Controller({ path: 'health', version: API_VERSION })
 export class HealthController {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}

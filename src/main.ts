@@ -9,6 +9,7 @@ import { AppModule } from './app.module';
 import { AllConfigType } from '@/config/config.type';
 import validationOptions from '@/utils/validation-options';
 import { QueryFailedFilter } from '@/utils/helpers/exception.helper';
+import { applySwaggerSchemaGroups } from '@/utils/swagger/schema-groups';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: false });
@@ -18,11 +19,10 @@ async function bootstrap() {
   const port = configService.getOrThrow('app.port', { infer: true });
   const nodeEnv = configService.getOrThrow('app.nodeEnv', { infer: true });
   const corsRaw = configService.get('app.corsAllowedOrigins', { infer: true });
-  const allowedOrigins =
-    corsRaw
-      ?.split(',')
-      .map((s: string) => s.trim())
-      .filter(Boolean) ?? ['http://localhost:3000'];
+  const allowedOrigins = corsRaw
+    ?.split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean) ?? ['http://localhost:3000'];
 
   app.use(helmet());
   app.enableCors({
@@ -45,7 +45,15 @@ async function bootstrap() {
       .setVersion('0.1.0')
       .addBearerAuth()
       .build();
-    SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, docs));
+    const document = applySwaggerSchemaGroups(SwaggerModule.createDocument(app, docs), [
+      { name: 'Auth', schemas: ['LoginDto', 'LoginResponseDto', 'RefreshResponseDto'] },
+      {
+        name: 'Admin - User',
+        schemas: ['User', 'CreateUserDto', 'UpdateUserDto', 'ResetUserPasswordDto'],
+      },
+      { name: 'User', schemas: ['UpdateMeDto', 'ChangeMyPasswordDto'] },
+    ]);
+    SwaggerModule.setup('docs', app, document);
   }
 
   await app.listen(port, '0.0.0.0');
