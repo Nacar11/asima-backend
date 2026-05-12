@@ -3,38 +3,43 @@ import { IsBoolean, IsInt, IsOptional, IsString, Max, Min } from 'class-validato
 import validateConfig from '@/utils/validate-config';
 import { DatabaseConfig } from './database-config.type';
 
+/**
+ * Env-var validator — populated by `class-transformer` from
+ * `process.env`. Definite-assignment per the hexagonal data-class rule
+ * in CLAUDE.md.
+ */
 class EnvironmentVariablesValidator {
   @IsString()
-  DATABASE_TYPE: string;
+  DATABASE_TYPE!: string;
 
   @IsString()
-  DATABASE_HOST: string;
+  DATABASE_HOST!: string;
 
   @IsInt()
   @Min(0)
   @Max(65535)
-  DATABASE_PORT: number;
+  DATABASE_PORT!: number;
 
   @IsString()
-  DATABASE_USERNAME: string;
+  DATABASE_USERNAME!: string;
 
   @IsString()
-  DATABASE_PASSWORD: string;
+  DATABASE_PASSWORD!: string;
 
   @IsString()
-  DATABASE_NAME: string;
+  DATABASE_NAME!: string;
 
   @IsBoolean()
   @IsOptional()
-  DATABASE_SYNCHRONIZE: boolean;
+  DATABASE_SYNCHRONIZE!: boolean;
 
   @IsInt()
   @IsOptional()
-  DATABASE_MAX_CONNECTIONS: number;
+  DATABASE_MAX_CONNECTIONS!: number;
 
   @IsBoolean()
   @IsOptional()
-  DATABASE_SSL_ENABLED: boolean;
+  DATABASE_SSL_ENABLED!: boolean;
 }
 
 export default registerAs<DatabaseConfig>('database', () => {

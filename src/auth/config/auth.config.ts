@@ -3,18 +3,23 @@ import { IsString } from 'class-validator';
 import validateConfig from '@/utils/validate-config';
 import { AuthConfig } from './auth-config.type';
 
+/**
+ * Env-var validator — populated by `class-transformer` from
+ * `process.env`. Definite-assignment per the hexagonal data-class rule
+ * in CLAUDE.md.
+ */
 class EnvironmentVariablesValidator {
   @IsString()
-  AUTH_JWT_SECRET: string;
+  AUTH_JWT_SECRET!: string;
 
   @IsString()
-  AUTH_JWT_TOKEN_EXPIRES_IN: string;
+  AUTH_JWT_TOKEN_EXPIRES_IN!: string;
 
   @IsString()
-  AUTH_REFRESH_SECRET: string;
+  AUTH_REFRESH_SECRET!: string;
 
   @IsString()
-  AUTH_REFRESH_TOKEN_EXPIRES_IN: string;
+  AUTH_REFRESH_TOKEN_EXPIRES_IN!: string;
 }
 
 export default registerAs<AuthConfig>('auth', () => {

@@ -11,22 +11,25 @@ import { TimeEntrySource, TimeEntryStatus } from '@/time-entries/time-entries.co
  * was deliberately dropped in v0 (see Phase 6 plan, Q7); a future migration
  * can re-introduce it as a generated column from `time_in::time` if
  * reporting demands it.
+ *
+ * Every field uses definite-assignment (`!`) — see the hexagonal rules
+ * in `asima-backend/CLAUDE.md`.
  */
 export class TimeEntry {
   @ApiProperty({ example: 1 })
-  id: number;
+  id!: number;
 
   @ApiProperty({ example: 12, description: 'FK to users.id (the employee, not the actor)' })
-  employee_id: number;
+  employee_id!: number;
 
   @ApiProperty({
     example: '2026-04-27',
     description: 'The calendar date this segment counts toward — handles overnight shifts',
   })
-  work_date: string;
+  work_date!: string;
 
   @ApiProperty({ type: String, format: 'date-time', example: '2026-04-27T09:00:00Z' })
-  time_in: Date;
+  time_in!: Date;
 
   @ApiPropertyOptional({
     type: String,
@@ -34,40 +37,40 @@ export class TimeEntry {
     nullable: true,
     description: 'NULL while status=open (employee still clocked in)',
   })
-  time_out: Date | null;
+  time_out!: Date | null;
 
   @ApiProperty({
     enum: ['manual', 'biometric', 'admin'],
     example: 'manual',
     description: 'How this row was created — see TIME_ENTRY_SOURCES',
   })
-  source: TimeEntrySource;
+  source!: TimeEntrySource;
 
   @ApiProperty({
     enum: ['open', 'confirmed'],
     example: 'confirmed',
     description: 'Lifecycle — only one open row per employee is allowed (DB partial index)',
   })
-  status: TimeEntryStatus;
+  status!: TimeEntryStatus;
 
   @ApiPropertyOptional({ example: 'Forgot to punch out at lunch', nullable: true })
-  notes: string | null;
+  notes!: string | null;
 
   @ApiPropertyOptional({ example: 1, nullable: true })
-  created_by: number | null;
+  created_by!: number | null;
 
   @ApiPropertyOptional({ example: 1, nullable: true })
-  updated_by: number | null;
+  updated_by!: number | null;
 
   @ApiPropertyOptional({ example: null, nullable: true })
-  deleted_by: number | null;
+  deleted_by!: number | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  created_at: Date;
+  created_at!: Date;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  updated_at: Date;
+  updated_at!: Date;
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
-  deleted_at: Date | null;
+  deleted_at!: Date | null;
 }

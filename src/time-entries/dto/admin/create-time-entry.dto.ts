@@ -24,17 +24,20 @@ const ALLOWED_SOURCES = Object.values(TIME_ENTRY_SOURCES) as TimeEntrySource[];
 export class CreateTimeEntryDto {
   @ApiProperty({ example: 12, description: 'Target employee (users.id) — NOT the actor.' })
   @IsInt()
-  employee_id: number;
+  employee_id!: number;
 
-  @ApiProperty({ example: '2026-04-27', description: 'Calendar date the segment counts toward (YYYY-MM-DD).' })
+  @ApiProperty({
+    example: '2026-04-27',
+    description: 'Calendar date the segment counts toward (YYYY-MM-DD).',
+  })
   @IsISO8601({ strict: true })
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'work_date must be YYYY-MM-DD' })
-  work_date: string;
+  work_date!: string;
 
   @ApiProperty({ type: String, format: 'date-time', example: '2026-04-27T09:00:00Z' })
   @Type(() => Date)
   @IsDate()
-  time_in: Date;
+  time_in!: Date;
 
   @ApiPropertyOptional({
     type: String,

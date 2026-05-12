@@ -53,6 +53,32 @@ deeper pattern source — read but never import from `reference/`.
    `deleted_by` (FK to users). Soft delete via `deleted_at`. Adding these
    later is a painful migration. Permissions are the only exception — they
    are seed-managed configuration, not user data.
+6. **Definite-assignment (`!`) on every field of a data class.**
+   Domain classes, TypeORM entities, and DTOs are populated by mappers,
+   `class-transformer`, or TypeORM's reflective `repo.create()` — never
+   by a constructor. TypeScript can't see those assignments, so
+   `strictPropertyInitialization` (correctly) flags every field whose
+   type doesn't already include `undefined`. The fix is `!`, applied at
+   the field — not turning the check off:
+
+   ```ts
+   id!: number;                    // non-nullable    → needs !
+   email!: string;                 // non-nullable    → needs !
+   title!: string | null;          // nullable        → STILL needs ! (null ≠ undefined)
+   last_login_at?: Date;           // optional        → no ! (the ? makes it undefined-able)
+   ```
+
+   Critical nuance: `field: string | null` does NOT include `undefined`,
+   so it still requires `!`. `field?: string` is the only shape that
+   doesn't — and we rarely use it on domain classes because the wire
+   contract is "the field is always present, sometimes null."
+
+   Why `!` and not turn the flag off: the flag is the safety net for
+   real classes (services, factories, guards) where forgetting to
+   initialize a field IS a bug. `!` says "a framework populates this" —
+   which is true for entities/DTOs/domain, and false everywhere else.
+   `tsconfig.json` keeps `strictPropertyInitialization: true` so CI
+   catches anyone who skips `!` on a new field.
 
 ## Path alias
 

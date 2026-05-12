@@ -13,23 +13,23 @@ import { EntityHelper } from '@/utils/entity-helper';
 @Index(['resource'])
 export class PermissionEntity extends EntityHelper {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ type: 'varchar', length: 100, unique: true })
-  code: string;
+  code!: string;
 
   @Column({ type: 'varchar', length: 50 })
-  resource: string;
+  resource!: string;
 
   @Column({ type: 'varchar', length: 30 })
-  action: string;
+  action!: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  description: string | null;
+  description!: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
-  created_at: Date;
+  created_at!: Date;
 
   @UpdateDateColumn({ type: 'timestamptz' })
-  updated_at: Date;
+  updated_at!: Date;
 }

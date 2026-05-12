@@ -13,26 +13,29 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
  * NOTE: This file must not import from `@nestjs/*` runtime packages or
  * `typeorm`. `@nestjs/swagger` is acceptable because it only provides
  * decorators that are stripped at runtime in domain classes.
+ *
+ * Every field uses definite-assignment (`!`) — see the hexagonal rules
+ * in `asima-backend/CLAUDE.md`.
  */
 export class Permission {
   @ApiProperty({ example: 1 })
-  id: number;
+  id!: number;
 
   @ApiProperty({ example: 'USER:Create' })
-  code: string;
+  code!: string;
 
   @ApiProperty({ example: 'USER' })
-  resource: string;
+  resource!: string;
 
   @ApiProperty({ example: 'Create' })
-  action: string;
+  action!: string;
 
   @ApiPropertyOptional({ example: 'Create new user accounts' })
-  description: string | null;
+  description!: string | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  created_at: Date;
+  created_at!: Date;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  updated_at: Date;
+  updated_at!: Date;
 }

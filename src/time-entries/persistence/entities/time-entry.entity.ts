@@ -19,27 +19,27 @@ import { TimeEntrySource, TimeEntryStatus } from '@/time-entries/time-entries.co
 @Index(['work_date'])
 export class TimeEntryEntity extends EntityHelper {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ type: 'int' })
-  employee_id: number;
+  employee_id!: number;
 
   @ManyToOne(() => UserEntity, { eager: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'employee_id' })
-  employee: UserEntity;
+  employee!: UserEntity;
 
   @Column({ type: 'date' })
-  work_date: string;
+  work_date!: string;
 
   @Column({ type: 'timestamptz' })
-  time_in: Date;
+  time_in!: Date;
 
   /** NULL while status='open'. CHECK constraint ensures time_out > time_in. */
   @Column({ type: 'timestamptz', nullable: true })
-  time_out: Date | null;
+  time_out!: Date | null;
 
   @Column({ type: 'enum', enum: ['manual', 'biometric', 'admin'], enumName: 'time_source' })
-  source: TimeEntrySource;
+  source!: TimeEntrySource;
 
   @Column({
     type: 'enum',
@@ -47,26 +47,26 @@ export class TimeEntryEntity extends EntityHelper {
     enumName: 'time_entry_status',
     default: 'open',
   })
-  status: TimeEntryStatus;
+  status!: TimeEntryStatus;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
-  notes: string | null;
+  notes!: string | null;
 
   @Column({ type: 'int', nullable: true })
-  created_by: number | null;
+  created_by!: number | null;
 
   @Column({ type: 'int', nullable: true })
-  updated_by: number | null;
+  updated_by!: number | null;
 
   @Column({ type: 'int', nullable: true })
-  deleted_by: number | null;
+  deleted_by!: number | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
-  created_at: Date;
+  created_at!: Date;
 
   @UpdateDateColumn({ type: 'timestamptz' })
-  updated_at: Date;
+  updated_at!: Date;
 
   @DeleteDateColumn({ type: 'timestamptz', nullable: true })
-  deleted_at: Date | null;
+  deleted_at!: Date | null;
 }

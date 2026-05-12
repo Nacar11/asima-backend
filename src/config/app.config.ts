@@ -9,32 +9,37 @@ enum Environment {
   Test = 'test',
 }
 
+/**
+ * Env-var validator — `class-transformer` populates fields from
+ * `process.env`. Definite-assignment (`!`) per the hexagonal data-class
+ * rule in CLAUDE.md.
+ */
 class EnvironmentVariablesValidator {
   @IsEnum(Environment)
   @IsOptional()
-  NODE_ENV: Environment;
+  NODE_ENV!: Environment;
 
   @IsInt()
   @Min(0)
   @Max(65535)
   @IsOptional()
-  APP_PORT: number;
+  APP_PORT!: number;
 
   @IsString()
   @IsOptional()
-  APP_NAME: string;
+  APP_NAME!: string;
 
   @IsString()
   @IsOptional()
-  API_PREFIX: string;
+  API_PREFIX!: string;
 
   @IsString()
   @IsOptional()
-  FRONTEND_DOMAIN: string;
+  FRONTEND_DOMAIN!: string;
 
   @IsString()
   @IsOptional()
-  CORS_ALLOWED_ORIGINS: string;
+  CORS_ALLOWED_ORIGINS!: string;
 }
 
 export default registerAs<AppConfig>('app', () => {

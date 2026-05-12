@@ -3,12 +3,12 @@ import { IsInt, IsString, Max, Min } from 'class-validator';
 
 class TestEnv {
   @IsString()
-  REQUIRED_STRING: string;
+  REQUIRED_STRING!: string;
 
   @IsInt()
   @Min(0)
   @Max(65535)
-  PORT: number;
+  PORT!: number;
 }
 
 describe('validateConfig', () => {

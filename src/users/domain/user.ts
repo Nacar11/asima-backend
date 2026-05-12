@@ -13,53 +13,53 @@ import { Role } from '@/roles/domain/role';
  */
 export class User {
   @ApiProperty({ example: 1 })
-  id: number;
+  id!: number;
 
   @ApiProperty({ example: 'jane_smith@asima.inc' })
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'Jane' })
-  first_name: string;
+  first_name!: string;
 
   @ApiProperty({ example: 'Smith' })
-  last_name: string;
+  last_name!: string;
 
   @ApiPropertyOptional({
     example: 'Senior HR Administrator',
     description: 'Freeform display string. NEVER drives auth or routing — see ADR 0001.',
   })
-  title: string | null;
+  title!: string | null;
 
   @ApiProperty({ type: () => Role })
-  role: Role;
+  role!: Role;
 
   @ApiProperty({ example: 2 })
-  role_id: number;
+  role_id!: number;
 
   @ApiProperty({ example: false, description: 'true short-circuits PermissionsGuard' })
-  system_admin: boolean;
+  system_admin!: boolean;
 
   @ApiProperty({ example: true })
-  is_active: boolean;
+  is_active!: boolean;
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
-  last_login_at: Date | null;
+  last_login_at!: Date | null;
 
   @ApiPropertyOptional({ example: 1, nullable: true })
-  created_by: number | null;
+  created_by!: number | null;
 
   @ApiPropertyOptional({ example: 1, nullable: true })
-  updated_by: number | null;
+  updated_by!: number | null;
 
   @ApiPropertyOptional({ example: null, nullable: true })
-  deleted_by: number | null;
+  deleted_by!: number | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  created_at: Date;
+  created_at!: Date;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  updated_at: Date;
+  updated_at!: Date;
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
-  deleted_at: Date | null;
+  deleted_at!: Date | null;
 }

@@ -16,13 +16,13 @@ import { PermissionEntity } from '@/permissions/persistence/entities/permission.
 @Index(['name'], { unique: true })
 export class RoleEntity extends EntityHelper {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ type: 'varchar', length: 50, unique: true })
-  name: string;
+  name!: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  description: string | null;
+  description!: string | null;
 
   @ManyToMany(() => PermissionEntity, { eager: false })
   @JoinTable({
@@ -30,7 +30,7 @@ export class RoleEntity extends EntityHelper {
     joinColumn: { name: 'role_id', referencedColumnName: 'id' },
     inverseJoinColumn: { name: 'permission_id', referencedColumnName: 'id' },
   })
-  permissions: PermissionEntity[];
+  permissions!: PermissionEntity[];
 
   /**
    * Audit columns. Stored as nullable INT now (no FK constraint) because the
@@ -38,20 +38,20 @@ export class RoleEntity extends EntityHelper {
    * migration once UserEntity lands. See tasks/plan.md §architecture decision 9.
    */
   @Column({ type: 'int', nullable: true })
-  created_by: number | null;
+  created_by!: number | null;
 
   @Column({ type: 'int', nullable: true })
-  updated_by: number | null;
+  updated_by!: number | null;
 
   @Column({ type: 'int', nullable: true })
-  deleted_by: number | null;
+  deleted_by!: number | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
-  created_at: Date;
+  created_at!: Date;
 
   @UpdateDateColumn({ type: 'timestamptz' })
-  updated_at: Date;
+  updated_at!: Date;
 
   @DeleteDateColumn({ type: 'timestamptz', nullable: true })
-  deleted_at: Date | null;
+  deleted_at!: Date | null;
 }
