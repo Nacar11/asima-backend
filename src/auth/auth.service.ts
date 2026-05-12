@@ -7,6 +7,7 @@ import { User } from '@/users/domain/user';
 import { AllConfigType } from '@/config/config.type';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
+import { AuthUserDto } from './dto/auth-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -31,7 +32,7 @@ export class AuthService {
     const tokens = await this.signTokens(user);
     await this.userRepository.recordLogin(user.id, new Date());
 
-    return { ...tokens, user };
+    return { ...tokens, user: AuthUserDto.from(user) };
   }
 
   /**

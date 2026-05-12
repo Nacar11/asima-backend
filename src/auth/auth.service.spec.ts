@@ -72,7 +72,8 @@ describe('AuthService', () => {
       expect(result.access_token).toBe('signed-with-access-secret');
       expect(result.refresh_token).toBe('signed-with-refresh-secret');
       expect(result.token_expires_in).toBe(900);
-      expect(result.user).toBe(fakeUser);
+      expect(result.user).toEqual({ ...fakeUser, role: { id: 1, name: 'SUPER_ADMIN' } });
+      expect(result.user.role).not.toHaveProperty('permissions');
       expect(userRepo.recordLogin).toHaveBeenCalledWith(fakeUser.id, expect.any(Date));
     });
 

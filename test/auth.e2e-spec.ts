@@ -61,6 +61,8 @@ describe('Auth (e2e)', () => {
       expect(res.body.token_expires_in).toBeGreaterThan(0);
       expect(res.body.user.email).toBe(ADMIN.email);
       expect(res.body.user).not.toHaveProperty('password_hash');
+      expect(res.body.user.role).toEqual({ id: expect.any(Number), name: expect.any(String) });
+      expect(res.body.user.role).not.toHaveProperty('permissions');
     });
 
     it('rejects wrong password with 401', async () => {
@@ -86,7 +88,7 @@ describe('Auth (e2e)', () => {
   });
 
   describe('GET /auth/me', () => {
-    it('returns the authenticated user with role + permissions', async () => {
+    it('returns the authenticated user with a slim role (no permissions tree)', async () => {
       const login = await request(app.getHttpServer())
         .post(url('/auth/login'))
         .send(ADMIN)
@@ -99,8 +101,8 @@ describe('Auth (e2e)', () => {
         .expect(200);
 
       expect(me.body.email).toBe(ADMIN.email);
-      expect(me.body.role).toBeDefined();
-      expect(Array.isArray(me.body.role.permissions)).toBe(true);
+      expect(me.body.role).toEqual({ id: expect.any(Number), name: expect.any(String) });
+      expect(me.body.role).not.toHaveProperty('permissions');
     });
 
     it('rejects requests without a token with 401', async () => {

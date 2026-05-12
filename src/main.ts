@@ -46,7 +46,16 @@ async function bootstrap() {
       .addBearerAuth()
       .build();
     const document = applySwaggerSchemaGroups(SwaggerModule.createDocument(app, docs), [
-      { name: 'Auth', schemas: ['LoginDto', 'LoginResponseDto', 'RefreshResponseDto'] },
+      {
+        name: 'Auth',
+        schemas: [
+          'LoginDto',
+          'LoginResponseDto',
+          'RefreshResponseDto',
+          'AuthUserDto',
+          'AuthRoleDto',
+        ],
+      },
       {
         name: 'Admin - User',
         schemas: ['User', 'CreateUserDto', 'UpdateUserDto', 'ResetUserPasswordDto'],

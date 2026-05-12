@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
+import { AuthUserDto } from './dto/auth-user.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { Public } from '@/utils/decorators/public.decorator';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
@@ -35,10 +36,15 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('me')
-  @ApiOperation({ summary: 'Return the authenticated user (with role + permissions)' })
-  @ApiResponse({ status: 200, type: User })
-  me(@CurrentUser() actor: User): User {
-    return actor;
+  @ApiOperation({
+    summary: 'Return the authenticated user (identity + role, no permissions)',
+    description:
+      'Returns the user with a slim role (id + name). Permission codes for UI gating ' +
+      'live at GET /users/me/permissions — never parse role.permissions client-side.',
+  })
+  @ApiResponse({ status: 200, type: AuthUserDto })
+  me(@CurrentUser() actor: User): AuthUserDto {
+    return AuthUserDto.from(actor);
   }
 
   /**
