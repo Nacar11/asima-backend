@@ -8,8 +8,22 @@ export class UserMapper {
    *
    * Never copies `password_hash`. Even if the entity was loaded with
    * credentials (via `addSelect`), the hash stops at this layer.
+   *
+   * The mapper fails fast if `raw.role` is missing — every read path in
+   * `UserRepository` joins `role` + `role.permissions`, and downstream
+   * code (e.g. `MeUsersController.permissions`) relies on the relation
+   * being present. A future caller that forgets the join should see
+   * this error at the seam, not a `Cannot read 'permissions' of
+   * undefined` further down.
    */
   static toDomain(raw: UserEntity): User {
+    if (!raw.role) {
+      throw new Error(
+        `UserMapper.toDomain: role relation was not loaded for user id=${raw.id}. ` +
+          `All read paths must join "role" and "role.permissions".`,
+      );
+    }
+
     const user = new User();
     user.id = raw.id;
     user.email = raw.email;
@@ -17,7 +31,7 @@ export class UserMapper {
     user.last_name = raw.last_name;
     user.title = raw.title;
     user.role_id = raw.role_id;
-    user.role = raw.role ? RoleMapper.toDomain(raw.role) : (undefined as never);
+    user.role = RoleMapper.toDomain(raw.role);
     user.system_admin = raw.system_admin;
     user.is_active = raw.is_active;
     user.last_login_at = raw.last_login_at;
@@ -28,29 +42,5 @@ export class UserMapper {
     user.updated_at = raw.updated_at;
     user.deleted_at = raw.deleted_at;
     return user;
-  }
-
-  /**
-   * Domain → persistence.
-   *
-   * Does NOT accept a `password_hash` (the User domain class doesn't
-   * expose it). Pass the hash separately to repository methods that
-   * write credentials (create / changePassword).
-   */
-  static toPersistence(domain: Partial<User>): UserEntity {
-    const entity = new UserEntity();
-    if (domain.id !== undefined) entity.id = domain.id;
-    if (domain.email !== undefined) entity.email = domain.email;
-    if (domain.first_name !== undefined) entity.first_name = domain.first_name;
-    if (domain.last_name !== undefined) entity.last_name = domain.last_name;
-    if (domain.title !== undefined) entity.title = domain.title;
-    if (domain.role_id !== undefined) entity.role_id = domain.role_id;
-    if (domain.system_admin !== undefined) entity.system_admin = domain.system_admin;
-    if (domain.is_active !== undefined) entity.is_active = domain.is_active;
-    if (domain.last_login_at !== undefined) entity.last_login_at = domain.last_login_at;
-    if (domain.created_by !== undefined) entity.created_by = domain.created_by;
-    if (domain.updated_by !== undefined) entity.updated_by = domain.updated_by;
-    if (domain.deleted_by !== undefined) entity.deleted_by = domain.deleted_by;
-    return entity;
   }
 }

@@ -7,6 +7,7 @@ import { UserMapper } from '@/users/persistence/mappers/user.mapper';
 import { User } from '@/users/domain/user';
 import { UserSearchCriteria } from '@/users/domain/user-search-criteria';
 import { FindAllUser } from '@/users/domain/find-all-user';
+import { CreateUserPersistence, UpdateUserPatch } from '@/users/domain/user-inputs';
 import { PAGINATION_DEFAULTS } from '@/utils/constants/api.constants';
 
 @Injectable()
@@ -64,10 +65,13 @@ export class UserRepository extends BaseUserRepository {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const entity = await this.repo.findOne({
-      where: { email: email.toLowerCase() },
-      relations: ['role', 'role.permissions'],
-    });
+    const entity = await this.repo
+      .createQueryBuilder('u')
+      .leftJoinAndSelect('u.role', 'r')
+      .leftJoinAndSelect('r.permissions', 'p')
+      .where('LOWER(u.email) = LOWER(:email)', { email })
+      .andWhere('u.deleted_at IS NULL')
+      .getOne();
     return entity ? UserMapper.toDomain(entity) : null;
   }
 
@@ -107,21 +111,12 @@ export class UserRepository extends BaseUserRepository {
     const count = await this.repo
       .createQueryBuilder('u')
       .where('LOWER(u.email) = LOWER(:email)', { email })
+      .andWhere('u.deleted_at IS NULL')
       .getCount();
     return count > 0;
   }
 
-  async create(input: {
-    email: string;
-    password_hash: string;
-    first_name: string;
-    last_name: string;
-    title?: string | null;
-    role_id: number;
-    system_admin?: boolean;
-    is_active?: boolean;
-    created_by?: number | null;
-  }): Promise<User> {
+  async create(input: CreateUserPersistence): Promise<User> {
     const entity = this.repo.create({
       email: input.email.toLowerCase(),
       password_hash: input.password_hash,
@@ -138,21 +133,8 @@ export class UserRepository extends BaseUserRepository {
     return this.requireById(saved.id);
   }
 
-  async update(
-    id: number,
-    patch: {
-      email?: string;
-      first_name?: string;
-      last_name?: string;
-      title?: string | null;
-      role_id?: number;
-      system_admin?: boolean;
-      is_active?: boolean;
-      updated_by?: number | null;
-    },
-  ): Promise<User> {
+  async update(id: number, patch: UpdateUserPatch): Promise<User> {
     const existing = await this.repo.findOneOrFail({ where: { id } });
-    if (patch.email !== undefined) existing.email = patch.email.toLowerCase();
     if (patch.first_name !== undefined) existing.first_name = patch.first_name;
     if (patch.last_name !== undefined) existing.last_name = patch.last_name;
     if (patch.title !== undefined) existing.title = patch.title;
@@ -164,23 +146,41 @@ export class UserRepository extends BaseUserRepository {
     return this.requireById(id);
   }
 
+  /**
+   * Direct `.update()` bypasses `@UpdateDateColumn` listeners (TypeORM
+   * quirk — only `.save()` fires them), so we set `updated_at`
+   * explicitly to keep the "last modified" signal honest after a
+   * password rotation.
+   */
   async updatePasswordHash(
     id: number,
     password_hash: string,
     updated_by: number | null,
   ): Promise<void> {
-    await this.repo.update({ id }, { password_hash, updated_by });
+    await this.repo.update({ id }, { password_hash, updated_by, updated_at: new Date() });
   }
 
+  /**
+   * Sets both `last_login_at` and `updated_at`. `.update()` doesn't
+   * trigger lifecycle listeners — see `updatePasswordHash`.
+   * `updated_by` is intentionally not set: a login has no human actor.
+   */
   async recordLogin(id: number, at: Date): Promise<void> {
-    await this.repo.update({ id }, { last_login_at: at });
+    await this.repo.update({ id }, { last_login_at: at, updated_at: at });
   }
 
+  /**
+   * Atomic soft-delete: one statement sets both `deleted_at` and
+   * `deleted_by`. The previous two-call form (`save` then `softDelete`)
+   * could leave the row half-deleted if the second call failed.
+   */
   async softDelete(id: number, deleted_by: number | null): Promise<void> {
-    const existing = await this.repo.findOneOrFail({ where: { id } });
-    existing.deleted_by = deleted_by;
-    await this.repo.save(existing);
-    await this.repo.softDelete(id);
+    await this.repo
+      .createQueryBuilder()
+      .update(UserEntity)
+      .set({ deleted_at: () => 'NOW()', deleted_by })
+      .where('id = :id', { id })
+      .execute();
   }
 
   private async requireById(id: number): Promise<User> {

@@ -12,16 +12,26 @@ import {
 import { EntityHelper } from '@/utils/entity-helper';
 import { RoleEntity } from '@/roles/persistence/entities/role.entity';
 
+/**
+ * Uniqueness on `email` is enforced by a partial functional unique
+ * index — `CREATE UNIQUE INDEX users_email_lower_uq ON users (LOWER(email)) WHERE deleted_at IS NULL`
+ * — declared in the `AlterUsersTableAddEmailLowerUniqueIndex` migration.
+ *
+ * No `unique: true` on the column and no `@Index(['email'], { unique: true })`
+ * here: a plain BTree index on the raw `email` value would treat
+ * `'Jane@…'` and `'jane@…'` as distinct rows and would also block
+ * email re-use after soft-delete. The partial functional index avoids
+ * both pitfalls.
+ */
 @Entity({ name: 'users' })
-@Index(['email'], { unique: true })
 @Index(['role_id'])
 @Index(['is_active'])
 export class UserEntity extends EntityHelper {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
-  email: string;
+  @Column({ type: 'varchar', length: 255 })
+  email!: string;
 
   /**
    * Bcrypt hash. `select: false` means TypeORM excludes this column from
@@ -29,40 +39,40 @@ export class UserEntity extends EntityHelper {
    * `findByEmailWithCredentials` repo method which calls `addSelect`.
    */
   @Column({ type: 'varchar', length: 255, select: false })
-  password_hash: string;
+  password_hash!: string;
 
   @Column({ type: 'varchar', length: 100 })
-  first_name: string;
+  first_name!: string;
 
   @Column({ type: 'varchar', length: 100 })
-  last_name: string;
+  last_name!: string;
 
   /**
    * Freeform display title (e.g. "Senior PM", "Acting TD"). Per ADR 0001
    * this column must NEVER be read by auth or approval-routing logic.
    */
   @Column({ type: 'varchar', length: 100, nullable: true })
-  title: string | null;
+  title!: string | null;
 
   @Column({ type: 'int' })
-  role_id: number;
+  role_id!: number;
 
   @ManyToOne(() => RoleEntity, { eager: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'role_id' })
-  role: RoleEntity;
+  role!: RoleEntity;
 
   /**
    * Bypass flag — `PermissionsGuard` short-circuits when this is true.
    * Reserved for ops/infra (the seeded `admin@asima.inc`).
    */
   @Column({ type: 'boolean', default: false })
-  system_admin: boolean;
+  system_admin!: boolean;
 
   @Column({ type: 'boolean', default: true })
-  is_active: boolean;
+  is_active!: boolean;
 
   @Column({ type: 'timestamptz', nullable: true })
-  last_login_at: Date | null;
+  last_login_at!: Date | null;
 
   /**
    * Audit columns. Stored as nullable INT without an explicit FK
@@ -71,20 +81,20 @@ export class UserEntity extends EntityHelper {
    * `created_by`). Deferred until a clear need shows up.
    */
   @Column({ type: 'int', nullable: true })
-  created_by: number | null;
+  created_by!: number | null;
 
   @Column({ type: 'int', nullable: true })
-  updated_by: number | null;
+  updated_by!: number | null;
 
   @Column({ type: 'int', nullable: true })
-  deleted_by: number | null;
+  deleted_by!: number | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
-  created_at: Date;
+  created_at!: Date;
 
   @UpdateDateColumn({ type: 'timestamptz' })
-  updated_at: Date;
+  updated_at!: Date;
 
   @DeleteDateColumn({ type: 'timestamptz', nullable: true })
-  deleted_at: Date | null;
+  deleted_at!: Date | null;
 }

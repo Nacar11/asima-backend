@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Patch } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from '@/users/users.service';
 import { User } from '@/users/domain/user';
 import { UpdateMeDto } from '@/users/dto/me/update-me.dto';
@@ -69,6 +70,7 @@ export class MeUsersController {
   }
 
   @Patch('password')
+  @Throttle({ password: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Change my own password',

@@ -36,6 +36,11 @@ export class UserSeedService {
 
   async run(): Promise<void> {
     const rows = this.loadManifest();
+    // `Asima@1234` satisfies the PASSWORD_COMPLEXITY_REGEX policy
+    // applied to runtime DTOs (lower + upper + digit + symbol). When
+    // overriding via SEED_DEFAULT_PASSWORD, keep the same shape so a
+    // seeded user can immediately log in and rotate via
+    // PATCH /users/me/password.
     const password = process.env.SEED_DEFAULT_PASSWORD ?? 'Asima@1234';
     const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
@@ -54,7 +59,17 @@ export class UserSeedService {
       }
 
       const email = row.email.trim().toLowerCase();
-      const existing = await this.userRepo.findOne({ where: { email } });
+      // Uniqueness is case-insensitive at the DB level
+      // (`users_email_lower_uq … WHERE deleted_at IS NULL`). Match the
+      // same predicate here so re-runs after a soft-delete don't try
+      // to re-insert a row the partial index still permits but the
+      // operator probably didn't mean to recreate. `withDeleted: true`
+      // keeps the seed conservative — if a soft-deleted row carries
+      // the same email, leave it alone.
+      const existing = await this.userRepo.findOne({
+        where: { email },
+        withDeleted: true,
+      });
       if (existing) {
         skipped += 1;
         continue;

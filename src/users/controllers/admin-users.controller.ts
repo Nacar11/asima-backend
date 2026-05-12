@@ -12,6 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from '@/users/users.service';
 import { User } from '@/users/domain/user';
 import { FindAllUser } from '@/users/domain/find-all-user';
@@ -75,6 +76,7 @@ export class AdminUsersController {
 
   @Post(':id/reset-password')
   @Permissions({ USER: 'Update' })
+  @Throttle({ password: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Force-reset another user’s password',

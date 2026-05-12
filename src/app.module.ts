@@ -29,13 +29,17 @@ import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
       useClass: TypeOrmConfigService,
       dataSourceFactory: async (options) => new DataSource(options!).initialize(),
     }),
-    // Three named tiers — see asima-backend/CLAUDE.md "Auth & guards".
-    // `default` covers everything globally; `login` and `refresh` are
-    // applied per-route via @Throttle on AuthController.
+    // Named tiers — see asima-backend/CLAUDE.md "Auth & guards".
+    // `default` covers everything globally; the named tiers are
+    // applied per-route via @Throttle. `password` covers any endpoint
+    // that does a password compare or rotation (PATCH /users/me/password,
+    // POST /admin/users/:id/reset-password) to throttle session-hijack
+    // brute-force.
     ThrottlerModule.forRoot([
       { name: 'default', ttl: 60_000, limit: 60 },
       { name: 'login', ttl: 60_000, limit: 10 },
       { name: 'refresh', ttl: 60_000, limit: 20 },
+      { name: 'password', ttl: 60_000, limit: 5 },
     ]),
     AuthModule,
     HealthModule,

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { PASSWORD_COMPLEXITY_MESSAGE, PASSWORD_COMPLEXITY_REGEX } from '@/users/users.constants';
 
 /**
  * Admin force-reset of another user's password. No `current_password`
@@ -13,5 +14,6 @@ export class ResetUserPasswordDto {
   @IsString()
   @MinLength(8)
   @MaxLength(128)
-  new_password: string;
+  @Matches(PASSWORD_COMPLEXITY_REGEX, { message: PASSWORD_COMPLEXITY_MESSAGE })
+  new_password!: string;
 }

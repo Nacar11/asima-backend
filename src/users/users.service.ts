@@ -10,6 +10,7 @@ import { BaseRoleRepository } from '@/roles/persistence/base-role.repository';
 import { User } from '@/users/domain/user';
 import { UserSearchCriteria } from '@/users/domain/user-search-criteria';
 import { FindAllUser } from '@/users/domain/find-all-user';
+import { CreateUserInput, UpdateUserPatch } from '@/users/domain/user-inputs';
 import { BCRYPT_ROUNDS } from '@/users/users.constants';
 
 @Injectable()
@@ -33,17 +34,7 @@ export class UsersService {
     return this.repository.findByEmail(email);
   }
 
-  async create(input: {
-    email: string;
-    password: string;
-    first_name: string;
-    last_name: string;
-    title?: string | null;
-    role_id: number;
-    system_admin?: boolean;
-    is_active?: boolean;
-    created_by?: number | null;
-  }): Promise<User> {
+  async create(input: CreateUserInput): Promise<User> {
     const email = input.email.trim().toLowerCase();
 
     if (await this.repository.existsByEmail(email)) {
@@ -76,33 +67,15 @@ export class UsersService {
     });
   }
 
-  async update(
-    id: number,
-    patch: {
-      email?: string;
-      first_name?: string;
-      last_name?: string;
-      title?: string | null;
-      role_id?: number;
-      system_admin?: boolean;
-      is_active?: boolean;
-      updated_by?: number | null;
-    },
-  ): Promise<User> {
-    const existing = await this.findById(id);
+  /**
+   * Service is the sole owner of the not-found check — the repo
+   * trusts the caller. `email` is intentionally NOT in `UpdateUserPatch`;
+   * see `BaseUserRepository.update` for the rationale.
+   */
+  async update(id: number, patch: UpdateUserPatch): Promise<User> {
+    await this.findById(id);
 
-    if (patch.email && patch.email.toLowerCase() !== existing.email) {
-      const email = patch.email.trim().toLowerCase();
-      if (await this.repository.existsByEmail(email)) {
-        throw new UnprocessableEntityException({
-          status: 422,
-          errors: { email: `User with email '${email}' already exists` },
-        });
-      }
-      patch = { ...patch, email };
-    }
-
-    if (patch.role_id !== undefined && patch.role_id !== existing.role_id) {
+    if (patch.role_id !== undefined) {
       const role = await this.roleRepository.findById(patch.role_id);
       if (!role) {
         throw new UnprocessableEntityException({

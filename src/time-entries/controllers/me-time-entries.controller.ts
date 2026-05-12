@@ -55,7 +55,7 @@ export class MeTimeEntriesController {
   @ApiOperation({
     summary: 'List my time entries for today (server-side date)',
     description:
-      "Convenience endpoint — equivalent to GET /users/me/time-entries?from=<today>&to=<today>. " +
+      'Convenience endpoint — equivalent to GET /users/me/time-entries?from=<today>&to=<today>. ' +
       'Uses the server clock so all employees agree on what "today" means.',
   })
   @ApiResponse({ status: 200 })
