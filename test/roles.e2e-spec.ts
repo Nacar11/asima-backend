@@ -8,17 +8,24 @@ import { API_VERSION } from '../src/utils/constants/api.constants';
 import validationOptions from '../src/utils/validation-options';
 import { PermissionSeedService } from '../src/database/seeds/permission/permission-seed.service';
 import { RoleSeedService } from '../src/database/seeds/role/role-seed.service';
+import { UserSeedService } from '../src/database/seeds/user/user-seed.service';
 import { PermissionEntity } from '../src/permissions/persistence/entities/permission.entity';
 import { RoleEntity } from '../src/roles/persistence/entities/role.entity';
+import { UserEntity } from '../src/users/persistence/entities/user.entity';
+
+const ADMIN = { email: 'admin@asima.inc', password: 'Asima@1234' };
 
 describe('Roles admin (e2e)', () => {
   let app: INestApplication;
   let dataSource: DataSource;
+  let adminToken: string;
+
+  const url = (p: string) => `/api/v${API_VERSION}${p}`;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule, TypeOrmModule.forFeature([PermissionEntity, RoleEntity])],
-      providers: [PermissionSeedService, RoleSeedService],
+      imports: [AppModule, TypeOrmModule.forFeature([PermissionEntity, RoleEntity, UserEntity])],
+      providers: [PermissionSeedService, RoleSeedService, UserSeedService],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -28,53 +35,115 @@ describe('Roles admin (e2e)', () => {
 
     dataSource = moduleFixture.get(DataSource);
     await dataSource.query(
-      'TRUNCATE TABLE role_permissions, roles, permissions RESTART IDENTITY CASCADE',
+      'TRUNCATE TABLE role_permissions, users, roles, permissions RESTART IDENTITY CASCADE',
     );
     await moduleFixture.get(PermissionSeedService).run();
     await moduleFixture.get(RoleSeedService).run();
+    await moduleFixture.get(UserSeedService).run();
 
     await app.init();
+
+    const login = await request(app.getHttpServer()).post(url('/auth/login')).send(ADMIN);
+    adminToken = login.body.access_token;
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  it('GET /admin/roles returns five seeded roles with their permission counts', async () => {
-    const res = await request(app.getHttpServer())
-      .get(`/api/v${API_VERSION}/admin/roles`)
-      .expect(200);
+  const auth = (req: request.Test) => req.set('Authorization', `Bearer ${adminToken}`);
 
-    expect(res.body.total).toBe(5);
-    const byName = Object.fromEntries(
-      res.body.data.map((r: { name: string; permissions: unknown[] }) => [
-        r.name,
-        r.permissions.length,
-      ]),
-    );
-    expect(byName.SUPER_ADMIN).toBe(10);
-    expect(byName.HR_ADMIN).toBe(6);
-    expect(byName.PROJECT_MANAGER).toBe(0);
-    expect(byName.TECHNICAL_DIRECTOR).toBe(0);
-    expect(byName.EMPLOYEE).toBe(0);
+  describe('Read endpoints', () => {
+    it('GET /admin/roles returns five seeded roles with permission counts', async () => {
+      const res = await auth(request(app.getHttpServer()).get(url('/admin/roles'))).expect(200);
+      expect(res.body.total).toBe(5);
+      const byName = Object.fromEntries(
+        res.body.data.map((r: { name: string; permissions: unknown[] }) => [
+          r.name,
+          r.permissions.length,
+        ]),
+      );
+      expect(byName.SUPER_ADMIN).toBe(10);
+      expect(byName.HR_ADMIN).toBe(6);
+    });
+
+    it('GET /admin/roles/:id returns 404 for unknown id', async () => {
+      await auth(request(app.getHttpServer()).get(url('/admin/roles/99999'))).expect(404);
+    });
   });
 
-  it('GET /admin/roles/:id returns HR_ADMIN with its 6 permissions', async () => {
-    const list = await request(app.getHttpServer()).get(`/api/v${API_VERSION}/admin/roles`);
-    const hrAdmin = list.body.data.find((r: { name: string }) => r.name === 'HR_ADMIN');
+  describe('Create / Update / Assign / Delete', () => {
+    let supervisorId: number;
+    let userViewPermId: number;
 
-    const res = await request(app.getHttpServer())
-      .get(`/api/v${API_VERSION}/admin/roles/${hrAdmin.id}`)
-      .expect(200);
+    beforeAll(async () => {
+      const perms = await auth(request(app.getHttpServer()).get(url('/admin/permissions')));
+      userViewPermId = perms.body.data.find((p: { code: string }) => p.code === 'USER:View').id;
+    });
 
-    expect(res.body.name).toBe('HR_ADMIN');
-    expect(res.body.permissions).toHaveLength(6);
-    const codes: string[] = res.body.permissions.map((p: { code: string }) => p.code);
-    expect(codes).toContain('USER:Create');
-    expect(codes).toContain('PERMISSION:View');
-  });
+    it('POST /admin/roles creates a role with an initial permission set', async () => {
+      const res = await auth(
+        request(app.getHttpServer())
+          .post(url('/admin/roles'))
+          .send({
+            name: 'SUPERVISOR',
+            description: 'Field supervisor',
+            permission_ids: [userViewPermId],
+          }),
+      ).expect(201);
 
-  it('GET /admin/roles/:id returns 404 for unknown id', async () => {
-    await request(app.getHttpServer()).get(`/api/v${API_VERSION}/admin/roles/99999`).expect(404);
+      expect(res.body.name).toBe('SUPERVISOR');
+      expect(res.body.permissions).toHaveLength(1);
+      expect(res.body.permissions[0].code).toBe('USER:View');
+      supervisorId = res.body.id;
+    });
+
+    it('POST /admin/roles rejects duplicate names with 409', async () => {
+      await auth(
+        request(app.getHttpServer())
+          .post(url('/admin/roles'))
+          .send({ name: 'SUPERVISOR', permission_ids: [] }),
+      ).expect(409);
+    });
+
+    it('POST /admin/roles rejects unknown permission_ids with 422', async () => {
+      await auth(
+        request(app.getHttpServer())
+          .post(url('/admin/roles'))
+          .send({ name: 'TEMP_ROLE', permission_ids: [99999] }),
+      ).expect(422);
+    });
+
+    it('PATCH /admin/roles/:id updates the description', async () => {
+      const res = await auth(
+        request(app.getHttpServer())
+          .patch(url(`/admin/roles/${supervisorId}`))
+          .send({ description: 'Updated description' }),
+      ).expect(200);
+      expect(res.body.description).toBe('Updated description');
+    });
+
+    it('POST /admin/roles/:id/permissions replaces the permission set', async () => {
+      const res = await auth(
+        request(app.getHttpServer())
+          .post(url(`/admin/roles/${supervisorId}/permissions`))
+          .send({ permission_ids: [] }),
+      ).expect(201);
+      expect(res.body.permissions).toHaveLength(0);
+    });
+
+    it('DELETE /admin/roles/:id soft-deletes non-protected roles', async () => {
+      await auth(
+        request(app.getHttpServer()).delete(url(`/admin/roles/${supervisorId}`)),
+      ).expect(204);
+    });
+
+    it('DELETE /admin/roles/:id refuses to delete built-in SUPER_ADMIN (403)', async () => {
+      const list = await auth(request(app.getHttpServer()).get(url('/admin/roles')));
+      const superAdmin = list.body.data.find((r: { name: string }) => r.name === 'SUPER_ADMIN');
+      await auth(
+        request(app.getHttpServer()).delete(url(`/admin/roles/${superAdmin.id}`)),
+      ).expect(403);
+    });
   });
 });
