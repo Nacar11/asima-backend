@@ -133,17 +133,17 @@ describe('Roles admin (e2e)', () => {
     });
 
     it('DELETE /admin/roles/:id soft-deletes non-protected roles', async () => {
-      await auth(
-        request(app.getHttpServer()).delete(url(`/admin/roles/${supervisorId}`)),
-      ).expect(204);
+      await auth(request(app.getHttpServer()).delete(url(`/admin/roles/${supervisorId}`))).expect(
+        204,
+      );
     });
 
     it('DELETE /admin/roles/:id refuses to delete built-in SUPER_ADMIN (403)', async () => {
       const list = await auth(request(app.getHttpServer()).get(url('/admin/roles')));
       const superAdmin = list.body.data.find((r: { name: string }) => r.name === 'SUPER_ADMIN');
-      await auth(
-        request(app.getHttpServer()).delete(url(`/admin/roles/${superAdmin.id}`)),
-      ).expect(403);
+      await auth(request(app.getHttpServer()).delete(url(`/admin/roles/${superAdmin.id}`))).expect(
+        403,
+      );
     });
   });
 });

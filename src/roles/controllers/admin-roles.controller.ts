@@ -93,14 +93,10 @@ export class AdminRolesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Soft-delete a role',
-    description:
-      'Built-in roles (SUPER_ADMIN, HR_ADMIN, etc.) are protected — returns 403.',
+    description: 'Built-in roles (SUPER_ADMIN, HR_ADMIN, etc.) are protected — returns 403.',
   })
   @ApiResponse({ status: 204 })
-  async remove(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() actor: User,
-  ): Promise<void> {
+  async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: User): Promise<void> {
     await this.service.softDelete(id, actor.id);
   }
 }

@@ -93,9 +93,7 @@ describe('RolesService', () => {
     it('rejects rename to existing role name', async () => {
       repo.findById.mockResolvedValue(fakeRole);
       repo.findByName.mockResolvedValue({ ...fakeRole, id: 7, name: 'ADMIN' });
-      await expect(service.update(99, { name: 'ADMIN' })).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(service.update(99, { name: 'ADMIN' })).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('updates description without conflict check', async () => {
