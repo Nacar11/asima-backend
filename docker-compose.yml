@@ -17,5 +17,34 @@ services:
       timeout: 3s
       retries: 10
 
+  asima-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: asima-api
+    restart: unless-stopped
+    depends_on:
+      asima-postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Override host to use the docker network alias, not localhost.
+      # .env's DATABASE_HOST is for host-mode dev (`npm run start:dev`).
+      DATABASE_HOST: asima-postgres
+      DATABASE_PORT: 5432
+      # First boot of a fresh stack should seed; subsequent restarts skip.
+      # `.env` may override this (e.g. local devs running compose may
+      # want SEED_ON_BOOT=true once, then revert to false).
+      SEED_ON_BOOT: ${SEED_ON_BOOT:-true}
+    ports:
+      - '${APP_PORT:-3000}:3000'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:3000/api/v1/health || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
 volumes:
   asima-pgdata:
