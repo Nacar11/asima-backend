@@ -89,15 +89,9 @@ describe('Auth (e2e)', () => {
 
   describe('GET /auth/me', () => {
     it('returns the authenticated user with a slim role (no permissions tree)', async () => {
-      const login = await request(app.getHttpServer())
-        .post(url('/auth/login'))
-        .send(ADMIN)
-        .expect(200);
-      const access = login.body.access_token;
-
       const me = await request(app.getHttpServer())
         .get(url('/auth/me'))
-        .set('Authorization', `Bearer ${access}`)
+        .set('Authorization', `Bearer ${adminAccess}`)
         .expect(200);
 
       expect(me.body.email).toBe(ADMIN.email);
@@ -110,91 +104,76 @@ describe('Auth (e2e)', () => {
     });
   });
 
+  /*
+   * Cache one login per (test user) to stay well under the 10/min login
+   * throttle. The tests that explicitly exercise login still call it
+   * directly above; everything else uses these shared tokens.
+   */
+  let adminAccess: string;
+  let adminRefresh: string;
+  let employeeAccess: string;
+
+  beforeAll(async () => {
+    const adminLogin = await request(app.getHttpServer()).post(url('/auth/login')).send(ADMIN);
+    adminAccess = adminLogin.body.access_token;
+    adminRefresh = adminLogin.body.refresh_token;
+
+    const empLogin = await request(app.getHttpServer()).post(url('/auth/login')).send(EMPLOYEE);
+    employeeAccess = empLogin.body.access_token;
+  });
+
   describe('POST /auth/refresh', () => {
     it('rotates tokens — new pair is different from the previous', async () => {
-      const login = await request(app.getHttpServer())
-        .post(url('/auth/login'))
-        .send(ADMIN)
-        .expect(200);
-      const refreshToken = login.body.refresh_token;
-      const oldAccess = login.body.access_token;
-
       // Wait 1.1s so iat differs (JWT exp/iat are second-precision).
       await new Promise((r) => setTimeout(r, 1100));
 
       const refreshed = await request(app.getHttpServer())
         .post(url('/auth/refresh'))
-        .set('Authorization', `Bearer ${refreshToken}`)
+        .set('Authorization', `Bearer ${adminRefresh}`)
         .expect(200);
 
       expect(refreshed.body.access_token).toEqual(expect.any(String));
       expect(refreshed.body.refresh_token).toEqual(expect.any(String));
-      expect(refreshed.body.access_token).not.toBe(oldAccess);
-      expect(refreshed.body.refresh_token).not.toBe(refreshToken);
+      expect(refreshed.body.access_token).not.toBe(adminAccess);
+      expect(refreshed.body.refresh_token).not.toBe(adminRefresh);
     });
 
     it('rejects an access token sent to /auth/refresh with 401 (wrong secret)', async () => {
-      const login = await request(app.getHttpServer())
-        .post(url('/auth/login'))
-        .send(ADMIN)
-        .expect(200);
-      const access = login.body.access_token;
-
       await request(app.getHttpServer())
         .post(url('/auth/refresh'))
-        .set('Authorization', `Bearer ${access}`)
+        .set('Authorization', `Bearer ${adminAccess}`)
         .expect(401);
     });
   });
 
   describe('POST /auth/logout', () => {
     it('returns 204 (stateless)', async () => {
-      const login = await request(app.getHttpServer())
-        .post(url('/auth/login'))
-        .send(ADMIN)
-        .expect(200);
-
       await request(app.getHttpServer())
         .post(url('/auth/logout'))
-        .set('Authorization', `Bearer ${login.body.access_token}`)
+        .set('Authorization', `Bearer ${adminAccess}`)
         .expect(204);
     });
   });
 
   describe('PermissionsGuard', () => {
     it('SUPER_ADMIN can hit /admin/users (system_admin bypass)', async () => {
-      const login = await request(app.getHttpServer())
-        .post(url('/auth/login'))
-        .send(ADMIN)
-        .expect(200);
-
       await request(app.getHttpServer())
         .get(url('/admin/users'))
-        .set('Authorization', `Bearer ${login.body.access_token}`)
+        .set('Authorization', `Bearer ${adminAccess}`)
         .expect(200);
     });
 
     it('EMPLOYEE gets 403 on /admin/users', async () => {
-      const login = await request(app.getHttpServer())
-        .post(url('/auth/login'))
-        .send(EMPLOYEE)
-        .expect(200);
-
       await request(app.getHttpServer())
         .get(url('/admin/users'))
-        .set('Authorization', `Bearer ${login.body.access_token}`)
+        .set('Authorization', `Bearer ${employeeAccess}`)
         .expect(403);
     });
 
     it('EMPLOYEE can still hit /users/me (identity-only gate)', async () => {
-      const login = await request(app.getHttpServer())
-        .post(url('/auth/login'))
-        .send(EMPLOYEE)
-        .expect(200);
-
       const me = await request(app.getHttpServer())
         .get(url('/users/me'))
-        .set('Authorization', `Bearer ${login.body.access_token}`)
+        .set('Authorization', `Bearer ${employeeAccess}`)
         .expect(200);
 
       expect(me.body.email).toBe(EMPLOYEE.email);

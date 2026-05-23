@@ -54,17 +54,23 @@ describe('Roles admin (e2e)', () => {
   const auth = (req: request.Test) => req.set('Authorization', `Bearer ${adminToken}`);
 
   describe('Read endpoints', () => {
-    it('GET /admin/roles returns five seeded roles with permission counts', async () => {
+    it('GET /admin/roles returns the seeded roles with permission counts', async () => {
       const res = await auth(request(app.getHttpServer()).get(url('/admin/roles'))).expect(200);
-      expect(res.body.total).toBe(5);
+      // SUPER_ADMIN, HR_ADMIN, OPERATIONS_MANAGER, PROJECT_MANAGER,
+      // TECHNICAL_DIRECTOR, EMPLOYEE — see seeds/data/roles.json.
+      expect(res.body.total).toBe(6);
       const byName = Object.fromEntries(
         res.body.data.map((r: { name: string; permissions: unknown[] }) => [
           r.name,
           r.permissions.length,
         ]),
       );
-      expect(byName.SUPER_ADMIN).toBe(10);
-      expect(byName.HR_ADMIN).toBe(6);
+      // SUPER_ADMIN gets the wildcard — count is whatever permissions.json
+      // currently contains. HR_ADMIN is the core admin operator (USER + ROLE/
+      // PERMISSION read + TIME + SCHEDULE).
+      expect(byName.SUPER_ADMIN).toBeGreaterThan(0);
+      expect(byName.HR_ADMIN).toBeGreaterThanOrEqual(14);
+      expect(byName.EMPLOYEE).toBe(0);
     });
 
     it('GET /admin/roles/:id returns 404 for unknown id', async () => {

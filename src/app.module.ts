@@ -36,12 +36,21 @@ import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
     // that does a password compare or rotation (PATCH /users/me/password,
     // POST /admin/users/:id/reset-password) to throttle session-hijack
     // brute-force.
-    ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60_000, limit: 60 },
-      { name: 'login', ttl: 60_000, limit: 10 },
-      { name: 'refresh', ttl: 60_000, limit: 20 },
-      { name: 'password', ttl: 60_000, limit: 5 },
-    ]),
+    //
+    // E2E tests against the global JwtAuthGuard need to log in repeatedly
+    // and would otherwise hit the 10/min login wall. When THROTTLE_DISABLED
+    // is set (CI + local e2e), every tier is bumped to an effectively
+    // unreachable limit. Production must NEVER set this.
+    ThrottlerModule.forRoot(
+      process.env.THROTTLE_DISABLED === 'true'
+        ? [{ name: 'default', ttl: 60_000, limit: 100_000 }]
+        : [
+            { name: 'default', ttl: 60_000, limit: 60 },
+            { name: 'login', ttl: 60_000, limit: 10 },
+            { name: 'refresh', ttl: 60_000, limit: 20 },
+            { name: 'password', ttl: 60_000, limit: 5 },
+          ],
+    ),
     AuthModule,
     HealthModule,
     PermissionsModule,
