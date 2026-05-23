@@ -6,6 +6,7 @@ import { PermissionSeedService } from './permission/permission-seed.service';
 import { RoleSeedService } from './role/role-seed.service';
 import { UserSeedService } from './user/user-seed.service';
 import { TimeEntrySeedService } from './time-entry/time-entry-seed.service';
+import { WorkScheduleSeedService } from './work-schedule/work-schedule-seed.service';
 
 async function runSeed() {
   const logger = new Logger('Seed');
@@ -18,6 +19,7 @@ async function runSeed() {
     await app.get(RoleSeedService).run();
     await app.get(UserSeedService).run();
     await app.get(TimeEntrySeedService).run();
+    await app.get(WorkScheduleSeedService).run();
     logger.log('All seeds complete');
   } catch (err) {
     logger.error('Seed failed', err instanceof Error ? err.stack : String(err));
