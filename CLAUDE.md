@@ -441,6 +441,77 @@ npm run test:cov
 npm run build              # nest build → dist/
 ```
 
+## Time-tracking module
+
+Two modules — `src/time-entries/` and `src/work-schedules/` — both follow
+the standard hexagonal layout above. A few invariants that exist at the
+DB level, not just in the service, and matter when you change anything
+in this area:
+
+### Time entries — at most one OPEN entry per employee
+
+Enforced by a **partial unique index** on `time_entries(employee_id)`
+`WHERE status = 'open' AND deleted_at IS NULL`. Service-layer code in
+`TimeEntriesService.punch` and `.create` checks first and surfaces a
+clearer 409, but the index is the **source of truth** for the
+concurrent-write race. If you remove or weaken the index, the
+toggle-punch endpoint becomes racy — two simultaneous punches can both
+create open rows.
+
+Other DB-level guards on the same table:
+- `CHECK (time_out IS NULL OR time_out > time_in)` — punch-out cannot
+  precede punch-in.
+- `time_source` enum is narrow (`manual` / `biometric` / `admin`).
+  `correction` is intentionally absent — that workflow depends on
+  `approval_chains` and lands with the leave module.
+- `time_entry_status` enum is `open` / `confirmed`. `pending` / `locked`
+  belong to a day-close / payroll workflow not exposed in v0.
+
+### Work schedules — at most one ACTIVE row per (employee, weekday)
+
+Enforced by a **partial unique index** on
+`work_schedules(employee_id, day_of_week)`
+`WHERE effective_to IS NULL AND deleted_at IS NULL`. To change a
+schedule, **never UPDATE the active row destructively** — historical
+DTRs need the schedule that was in effect on past dates. The pattern is:
+
+1. Stamp `effective_to = <day before new schedule>` on the existing row
+   (the "logical end" — `WorkSchedulesService.endLogically`).
+2. Insert a new row with `effective_from = <new start>` and
+   `effective_to = NULL`.
+
+The admin `DELETE /admin/work-schedules/:id` endpoint maps to step (1)
+above, **not** to physical row removal or soft-delete. Use the soft-
+delete (`deleted_at`) only for rows that were created in error.
+
+Other DB-level guards:
+- `CHECK (day_of_week BETWEEN 0 AND 6)` — 0 = Sunday … 6 = Saturday.
+- `CHECK (break_minutes >= 0)`.
+- `CHECK (expected_out > expected_in)`.
+- `CHECK (effective_to IS NULL OR effective_to >= effective_from)`.
+
+### Seed idempotency — natural keys
+
+| Seed | Natural key | Behavior on re-run |
+|---|---|---|
+| `TimeEntrySeedService` | `(employee_id, work_date)` | Skip existing rows |
+| `WorkScheduleSeedService` | `(employee_id, day_of_week, effective_from)` + `effective_to IS NULL` | Skip existing rows |
+
+If you change the seed's effective dates or work-dates, the OLD seed
+rows stay (correct — we don't want to delete schedules that were active
+in past pay periods). The NEW dates will insert fresh rows. This is
+intentional.
+
+### Out of scope for the timesheet module (defer to leave/approval-chain work)
+
+- `time_correction_requests` — the correction-request approval flow
+  depends on `approval_chains`. Lands with the leave module.
+- DTR aggregation endpoints (sum hours per day / per period).
+- Tardiness flagging (compare `time_in` against `expected_in`).
+- Overnight shift handling — `work_date` is set explicitly so the
+  schema supports it, but seeds and tests don't exercise it.
+- Real-time presence (`/admin/time-entries/active`).
+
 ## Where to look first
 
 - `tasks/plan.md` — phase plan, current task, acceptance criteria.

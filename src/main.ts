@@ -61,6 +61,28 @@ async function bootstrap() {
         schemas: ['User', 'CreateUserDto', 'UpdateUserDto', 'ResetUserPasswordDto'],
       },
       { name: 'User', schemas: ['UpdateMeDto', 'ChangeMyPasswordDto'] },
+      {
+        name: 'Admin - Role',
+        schemas: ['Role', 'CreateRoleDto', 'UpdateRoleDto', 'AssignPermissionsDto'],
+      },
+      {
+        name: 'Admin - Permission',
+        schemas: ['Permission', 'UpdatePermissionDto'],
+      },
+      {
+        name: 'Admin - Time Entry',
+        schemas: ['TimeEntry', 'CreateTimeEntryDto', 'UpdateTimeEntryDto', 'QueryTimeEntryDto'],
+      },
+      { name: 'Time Entry', schemas: ['QueryMyTimeEntryDto'] },
+      {
+        name: 'Admin - Work Schedule',
+        schemas: [
+          'WorkSchedule',
+          'CreateWorkScheduleDto',
+          'UpdateWorkScheduleDto',
+          'QueryWorkScheduleDto',
+        ],
+      },
     ]);
     SwaggerModule.setup('docs', app, document);
   }
