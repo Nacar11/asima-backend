@@ -26,6 +26,8 @@
     "schema:drop": "npm run typeorm -- schema:drop",
     "db:fresh": "npm run schema:drop && npm run migration:run && npm run seed",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts",
+    "migration:run:prod": "node ./node_modules/typeorm/cli.js migration:run -d ./dist/database/data-source.js",
+    "seed:prod": "node dist/database/seeds/run-seed.js",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f asima-api"
