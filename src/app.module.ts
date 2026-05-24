@@ -45,7 +45,7 @@ import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
       process.env.THROTTLE_DISABLED === 'true'
         ? [{ name: 'default', ttl: 60_000, limit: 100_000 }]
         : [
-            { name: 'default', ttl: 60_000, limit: 60 },
+            { name: 'default', ttl: 60_000, limit: 300 },
             { name: 'login', ttl: 60_000, limit: 10 },
             { name: 'refresh', ttl: 60_000, limit: 20 },
             { name: 'password', ttl: 60_000, limit: 5 },
