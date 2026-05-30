@@ -55,7 +55,11 @@ describe('Permissions admin (e2e)', () => {
   const auth = (req: request.Test) => req.set('Authorization', `Bearer ${adminToken}`);
 
   it(`GET /api/v${API_VERSION}/admin/permissions returns the seeded codes`, async () => {
-    const res = await auth(request(app.getHttpServer()).get(url('/admin/permissions'))).expect(200);
+    // Request a page large enough to hold the whole catalog — defaults to 20
+    // rows, and the catalog now exceeds that after Phase 0 of the leave plan.
+    const res = await auth(
+      request(app.getHttpServer()).get(url('/admin/permissions?limit=100')),
+    ).expect(200);
 
     // The catalog grows as new modules add codes — assert lower bound and
     // presence of representative codes from each resource family.

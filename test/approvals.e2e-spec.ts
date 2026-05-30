@@ -53,9 +53,7 @@ describe('Approvals (e2e)', () => {
     await app.init();
 
     const login = async (key: string, creds: { email: string; password: string }) => {
-      const res = await request(app.getHttpServer())
-        .post(url('/auth/login'))
-        .send(creds);
+      const res = await request(app.getHttpServer()).post(url('/auth/login')).send(creds);
       if (!res.body.access_token) {
         throw new Error(
           `login failed for ${key} (${creds.email}): status=${res.status} body=${JSON.stringify(res.body)}`,

@@ -50,12 +50,26 @@ describe('Seed grant matrix', () => {
 
     it('includes every legacy code that existing modules depend on', () => {
       const legacy = [
-        'USER:Create', 'USER:View', 'USER:Update', 'USER:Delete',
-        'ROLE:Create', 'ROLE:View', 'ROLE:Update', 'ROLE:Delete',
-        'PERMISSION:View', 'PERMISSION:Update',
-        'TIME:Create', 'TIME:View', 'TIME:Update', 'TIME:Delete',
-        'SCHEDULE:Create', 'SCHEDULE:View', 'SCHEDULE:Update', 'SCHEDULE:Delete',
-        'APPROVAL:View', 'APPROVAL:ApproveAny',
+        'USER:Create',
+        'USER:View',
+        'USER:Update',
+        'USER:Delete',
+        'ROLE:Create',
+        'ROLE:View',
+        'ROLE:Update',
+        'ROLE:Delete',
+        'PERMISSION:View',
+        'PERMISSION:Update',
+        'TIME:Create',
+        'TIME:View',
+        'TIME:Update',
+        'TIME:Delete',
+        'SCHEDULE:Create',
+        'SCHEDULE:View',
+        'SCHEDULE:Update',
+        'SCHEDULE:Delete',
+        'APPROVAL:View',
+        'APPROVAL:ApproveAny',
       ];
       for (const code of legacy) {
         expect(codes.has(code)).toBe(true);

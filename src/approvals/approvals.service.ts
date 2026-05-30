@@ -21,10 +21,7 @@ import { QueryPendingApprovalsDto } from './dto/query-pending-approvals.dto';
  */
 @Injectable()
 export class ApprovalsService {
-  async findPending(
-    user: User,
-    query: QueryPendingApprovalsDto,
-  ): Promise<FindPendingApprovals> {
+  async findPending(user: User, query: QueryPendingApprovalsDto): Promise<FindPendingApprovals> {
     const canSeeAll = this.canSeeAll(user);
 
     // Branch is wired now so the leave module only adds the data fetch,
@@ -32,10 +29,7 @@ export class ApprovalsService {
     void canSeeAll;
 
     const page = query.page ?? PAGINATION_DEFAULTS.page;
-    const limit = Math.min(
-      query.limit ?? PAGINATION_DEFAULTS.limit,
-      PAGINATION_DEFAULTS.maxLimit,
-    );
+    const limit = Math.min(query.limit ?? PAGINATION_DEFAULTS.limit, PAGINATION_DEFAULTS.maxLimit);
 
     return { data: [], total: 0, page, limit, has_more: false };
   }
