@@ -23,5 +23,24 @@
   { "code": "SCHEDULE:Delete", "resource": "SCHEDULE", "action": "Delete", "description": "End (logical-delete) work schedules — sets effective_to" },
 
   { "code": "APPROVAL:View", "resource": "APPROVAL", "action": "View", "description": "View pending approvals where the caller is the current approver" },
-  { "code": "APPROVAL:ApproveAny", "resource": "APPROVAL", "action": "ApproveAny", "description": "Override: see every pending approval regardless of approval-chain placement" }
+  { "code": "APPROVAL:ApproveAny", "resource": "APPROVAL", "action": "ApproveAny", "description": "Override: see every pending approval regardless of approval-chain placement" },
+
+  { "code": "LEAVE:Create", "resource": "LEAVE", "action": "Create", "description": "Submit a leave request for myself" },
+  { "code": "LEAVE:ViewOwn", "resource": "LEAVE", "action": "ViewOwn", "description": "See my own leave requests" },
+  { "code": "LEAVE:ViewAll", "resource": "LEAVE", "action": "ViewAll", "description": "See every leave request across the org (HR scope)" },
+  { "code": "LEAVE:Update", "resource": "LEAVE", "action": "Update", "description": "Edit a pending leave request (HR only; approved rows are immutable per Q3)" },
+  { "code": "LEAVE:Delete", "resource": "LEAVE", "action": "Delete", "description": "Cancel any leave request (HR override)" },
+  { "code": "LEAVE:Approve", "resource": "LEAVE", "action": "Approve", "description": "Capability to approve leave requests — service additionally enforces chain placement (ADR 0001)" },
+  { "code": "LEAVE:ApproveAny", "resource": "LEAVE", "action": "ApproveAny", "description": "Override: approve any leave request regardless of chain placement (HR / system_admin)" },
+
+  { "code": "TIME_CORRECTION:Create", "resource": "TIME_CORRECTION", "action": "Create", "description": "Submit a time-correction request for myself" },
+  { "code": "TIME_CORRECTION:ViewOwn", "resource": "TIME_CORRECTION", "action": "ViewOwn", "description": "See my own time-correction requests" },
+  { "code": "TIME_CORRECTION:ViewAll", "resource": "TIME_CORRECTION", "action": "ViewAll", "description": "See every time-correction request across the org (HR scope)" },
+  { "code": "TIME_CORRECTION:Update", "resource": "TIME_CORRECTION", "action": "Update", "description": "Edit a pending time-correction request (HR only; approved rows are immutable)" },
+  { "code": "TIME_CORRECTION:Delete", "resource": "TIME_CORRECTION", "action": "Delete", "description": "Cancel any time-correction request (HR override)" },
+  { "code": "TIME_CORRECTION:Approve", "resource": "TIME_CORRECTION", "action": "Approve", "description": "Capability to approve corrections — service additionally enforces chain placement" },
+  { "code": "TIME_CORRECTION:ApproveAny", "resource": "TIME_CORRECTION", "action": "ApproveAny", "description": "Override: approve any correction regardless of chain placement" },
+
+  { "code": "APPROVAL_CHAIN:View", "resource": "APPROVAL_CHAIN", "action": "View", "description": "See who is whose approver" },
+  { "code": "APPROVAL_CHAIN:Update", "resource": "APPROVAL_CHAIN", "action": "Update", "description": "Assign / reassign / repair approvers in approval chains" }
 ]

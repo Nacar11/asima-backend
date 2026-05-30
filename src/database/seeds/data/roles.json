@@ -7,7 +7,7 @@
   },
   {
     "name": "HR_ADMIN",
-    "description": "HR back office. Manages users, sees roles + permissions, manages time entries and work schedules for any employee.",
+    "description": "HR back office. Manages users, sees roles + permissions, manages time entries and work schedules for any employee. Holds the ApproveAny override for leave + time-correction; never sits ON a chain (no Approve / Create).",
     "permission_codes": [
       "USER:Create",
       "USER:View",
@@ -24,12 +24,24 @@
       "SCHEDULE:Update",
       "SCHEDULE:Delete",
       "APPROVAL:View",
-      "APPROVAL:ApproveAny"
+      "APPROVAL:ApproveAny",
+      "LEAVE:ViewOwn",
+      "LEAVE:ViewAll",
+      "LEAVE:Update",
+      "LEAVE:Delete",
+      "LEAVE:ApproveAny",
+      "TIME_CORRECTION:ViewOwn",
+      "TIME_CORRECTION:ViewAll",
+      "TIME_CORRECTION:Update",
+      "TIME_CORRECTION:Delete",
+      "TIME_CORRECTION:ApproveAny",
+      "APPROVAL_CHAIN:View",
+      "APPROVAL_CHAIN:Update"
     ]
   },
   {
     "name": "OPERATIONS_MANAGER",
-    "description": "Bridges HR Admin and Project Management. Read access to people and roles for staffing and capacity visibility. Approval-chain placement determines whether they're an approver for a specific request (see ADR 0001).",
+    "description": "Bridges HR and PM. Read access to people and roles for staffing visibility. Chain placement determines whether they approve a specific request (ADR 0001). Q7 (2026-05-30): no leave / correction / chain admin grants in v1.",
     "permission_codes": [
       "USER:View",
       "ROLE:View",
@@ -39,17 +51,34 @@
   },
   {
     "name": "PROJECT_MANAGER",
-    "description": "2nd-level approver in employee leave chains. Authority over a specific request requires being on that employee's approval chain (see ADR 0001). Permissions limited to APPROVAL:View in v0; LEAVE:* codes land with the leave module.",
-    "permission_codes": ["APPROVAL:View"]
+    "description": "2nd-level approver in employee leave chains. Authority over a specific request requires being on that employee's approval chain (see ADR 0001). PM/TD distinction lives in chain placement, not in role permissions.",
+    "permission_codes": [
+      "APPROVAL:View",
+      "LEAVE:Approve",
+      "LEAVE:ViewOwn",
+      "TIME_CORRECTION:Approve",
+      "TIME_CORRECTION:ViewOwn"
+    ]
   },
   {
     "name": "TECHNICAL_DIRECTOR",
-    "description": "1st-level approver in employee leave chains. Same permission set as PROJECT_MANAGER; the PM/TD distinction lives in the approval chain step, not in role permissions. See ADR 0001.",
-    "permission_codes": ["APPROVAL:View"]
+    "description": "1st-level approver in employee leave chains. Identical permission set to PROJECT_MANAGER; the PM/TD distinction lives in the approval chain step (see ADR 0001).",
+    "permission_codes": [
+      "APPROVAL:View",
+      "LEAVE:Approve",
+      "LEAVE:ViewOwn",
+      "TIME_CORRECTION:Approve",
+      "TIME_CORRECTION:ViewOwn"
+    ]
   },
   {
     "name": "EMPLOYEE",
-    "description": "Default role for new registrations. Self-service routes only.",
-    "permission_codes": []
+    "description": "Default role for new registrations. Self-service routes only — can submit leave + correction requests and see their own.",
+    "permission_codes": [
+      "LEAVE:Create",
+      "LEAVE:ViewOwn",
+      "TIME_CORRECTION:Create",
+      "TIME_CORRECTION:ViewOwn"
+    ]
   }
 ]
