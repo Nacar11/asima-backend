@@ -5,6 +5,7 @@ export const PERMISSION_RESOURCES = {
   PERMISSION: 'PERMISSION',
   TIME: 'TIME',
   SCHEDULE: 'SCHEDULE',
+  APPROVAL: 'APPROVAL',
 } as const;
 
 /** Action axis values for permission codes. */
@@ -13,4 +14,5 @@ export const PERMISSION_ACTIONS = {
   View: 'View',
   Update: 'Update',
   Delete: 'Delete',
+  ApproveAny: 'ApproveAny',
 } as const;

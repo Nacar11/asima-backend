@@ -83,6 +83,10 @@ async function bootstrap() {
           'QueryWorkScheduleDto',
         ],
       },
+      {
+        name: 'Approvals',
+        schemas: ['PendingApproval', 'QueryPendingApprovalsDto'],
+      },
     ]);
     SwaggerModule.setup('docs', app, document);
   }

@@ -17,6 +17,7 @@ import { RolesModule } from '@/roles/roles.module';
 import { UsersModule } from '@/users/users.module';
 import { TimeEntriesModule } from '@/time-entries/time-entries.module';
 import { WorkSchedulesModule } from '@/work-schedules/work-schedules.module';
+import { ApprovalsModule } from '@/approvals/approvals.module';
 import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
 
 @Module({
@@ -58,6 +59,7 @@ import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
     UsersModule,
     TimeEntriesModule,
     WorkSchedulesModule,
+    ApprovalsModule,
   ],
   // Guard pipeline runs in declared order:
   //   1. ThrottlerGuard   — rate limit before paying any auth cost

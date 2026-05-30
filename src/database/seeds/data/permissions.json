@@ -20,5 +20,8 @@
   { "code": "SCHEDULE:Create", "resource": "SCHEDULE", "action": "Create", "description": "Create work schedules for any employee" },
   { "code": "SCHEDULE:View", "resource": "SCHEDULE", "action": "View", "description": "View work schedules for any employee" },
   { "code": "SCHEDULE:Update", "resource": "SCHEDULE", "action": "Update", "description": "Edit work schedules for any employee" },
-  { "code": "SCHEDULE:Delete", "resource": "SCHEDULE", "action": "Delete", "description": "End (logical-delete) work schedules — sets effective_to" }
+  { "code": "SCHEDULE:Delete", "resource": "SCHEDULE", "action": "Delete", "description": "End (logical-delete) work schedules — sets effective_to" },
+
+  { "code": "APPROVAL:View", "resource": "APPROVAL", "action": "View", "description": "View pending approvals where the caller is the current approver" },
+  { "code": "APPROVAL:ApproveAny", "resource": "APPROVAL", "action": "ApproveAny", "description": "Override: see every pending approval regardless of approval-chain placement" }
 ]

@@ -22,7 +22,9 @@
       "SCHEDULE:Create",
       "SCHEDULE:View",
       "SCHEDULE:Update",
-      "SCHEDULE:Delete"
+      "SCHEDULE:Delete",
+      "APPROVAL:View",
+      "APPROVAL:ApproveAny"
     ]
   },
   {
@@ -31,18 +33,19 @@
     "permission_codes": [
       "USER:View",
       "ROLE:View",
-      "PERMISSION:View"
+      "PERMISSION:View",
+      "APPROVAL:View"
     ]
   },
   {
     "name": "PROJECT_MANAGER",
-    "description": "2nd-level approver in employee leave chains. Authority over a specific request requires being on that employee's approval chain (see ADR 0001). Permissions empty in v0; LEAVE:* codes land with the leave module.",
-    "permission_codes": []
+    "description": "2nd-level approver in employee leave chains. Authority over a specific request requires being on that employee's approval chain (see ADR 0001). Permissions limited to APPROVAL:View in v0; LEAVE:* codes land with the leave module.",
+    "permission_codes": ["APPROVAL:View"]
   },
   {
     "name": "TECHNICAL_DIRECTOR",
     "description": "1st-level approver in employee leave chains. Same permission set as PROJECT_MANAGER; the PM/TD distinction lives in the approval chain step, not in role permissions. See ADR 0001.",
-    "permission_codes": []
+    "permission_codes": ["APPROVAL:View"]
   },
   {
     "name": "EMPLOYEE",
