@@ -171,6 +171,97 @@ export class TimeEntriesService {
     await this.findById(id);
     await this.repository.softDelete(id, deleted_by);
   }
+
+  /**
+   * Apply an approved time-correction request to the timesheet (plan §10,
+   * Q6). The time-correction module owns the request lifecycle; this
+   * module owns the `time_entries` write. Called from inside the
+   * correction-approval transaction so the status flip and the entry
+   * mutation commit together.
+   *
+   * - `target_entry_id` set   → update that row (source = 'correction').
+   * - `target_entry_id` NULL  → create a new row (missed-punch).
+   *
+   * Pre-checks the one-open-entry invariant and throws a friendly 409
+   * before the DB raises 23505 from inside the approve flow (C7 fix).
+   */
+  async applyCorrection(input: {
+    employee_id: number;
+    target_entry_id: number | null;
+    work_date: string;
+    proposed_time_in: Date;
+    proposed_time_out: Date | null;
+    decided_by: number | null;
+  }): Promise<TimeEntry> {
+    if (input.proposed_time_out && input.proposed_time_out <= input.proposed_time_in) {
+      throw new UnprocessableEntityException({
+        status: 422,
+        errors: { proposed_time_out: 'proposed_time_out must be strictly after proposed_time_in' },
+      });
+    }
+
+    const willBeOpen = input.proposed_time_out == null;
+    const status = willBeOpen ? TIME_ENTRY_STATUSES.open : TIME_ENTRY_STATUSES.confirmed;
+
+    if (input.target_entry_id != null) {
+      const target = await this.repository.findById(input.target_entry_id);
+      if (!target || target.deleted_at) {
+        throw new NotFoundException(
+          `Target time entry ${input.target_entry_id} not found or deleted`,
+        );
+      }
+      if (willBeOpen) await this.assertNoOtherOpenEntry(input.employee_id, input.target_entry_id);
+
+      return this.repository.update(input.target_entry_id, {
+        work_date: input.work_date,
+        time_in: input.proposed_time_in,
+        time_out: input.proposed_time_out,
+        source: TIME_ENTRY_SOURCES.correction,
+        status,
+        updated_by: input.decided_by,
+      });
+    }
+
+    if (willBeOpen) await this.assertNoOtherOpenEntry(input.employee_id, null);
+
+    try {
+      return await this.repository.create({
+        employee_id: input.employee_id,
+        work_date: input.work_date,
+        time_in: input.proposed_time_in,
+        time_out: input.proposed_time_out ?? null,
+        source: TIME_ENTRY_SOURCES.correction,
+        status,
+        created_by: input.decided_by,
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictException({
+          status: 409,
+          errors: {
+            conflict: `Employee ${input.employee_id} already has an open time entry on this date.`,
+          },
+        });
+      }
+      throw err;
+    }
+  }
+
+  /** 409 if the employee has an open entry other than `exceptId`. */
+  private async assertNoOtherOpenEntry(
+    employee_id: number,
+    exceptId: number | null,
+  ): Promise<void> {
+    const open = await this.repository.findOpenForEmployee(employee_id);
+    if (open && open.id !== exceptId) {
+      throw new ConflictException({
+        status: 409,
+        errors: {
+          conflict: `Employee ${employee_id} already has an open time entry (id ${open.id}).`,
+        },
+      });
+    }
+  }
 }
 
 /**

@@ -5,6 +5,9 @@ import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
 import { LeaveRequest } from '@/leave-requests/domain/leave-request';
 import { LEAVE_REQUEST_STATUSES } from '@/leave-requests/leave-requests.constants';
+import { TimeCorrectionRequestsService } from '@/time-correction-requests/time-correction-requests.service';
+import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
+import { TIME_CORRECTION_STATUSES } from '@/time-correction-requests/time-correction-requests.constants';
 import { FindPendingApprovals } from './domain/find-pending-approvals';
 import { PendingApproval } from './domain/pending-approval';
 import { QueryPendingApprovalsDto } from './dto/query-pending-approvals.dto';
@@ -22,22 +25,30 @@ import { QueryPendingApprovalsDto } from './dto/query-pending-approvals.dto';
 export class ApprovalsService {
   constructor(
     private readonly leave: LeaveRequestsService,
+    private readonly corrections: TimeCorrectionRequestsService,
     private readonly users: BaseUserRepository,
   ) {}
 
   async findPending(user: User, query: QueryPendingApprovalsDto): Promise<FindPendingApprovals> {
     const page = query.page ?? PAGINATION_DEFAULTS.page;
     const limit = Math.min(query.limit ?? PAGINATION_DEFAULTS.limit, PAGINATION_DEFAULTS.maxLimit);
+    const seeAll = this.canSeeAll(user);
 
     let items: PendingApproval[] = [];
 
     if (!query.type || query.type === 'leave') {
-      const leaves = this.canSeeAll(user)
+      const leaves = seeAll
         ? await this.leave.findAllPending()
         : await this.leave.findInboxForApprover(user.id);
       items = items.concat(await this.mapLeaves(leaves));
     }
-    // time_correction items are appended here in Phase 5.
+
+    if (!query.type || query.type === 'time_correction') {
+      const tcs = seeAll
+        ? await this.corrections.findAllPending()
+        : await this.corrections.findInboxForApprover(user.id);
+      items = items.concat(await this.mapCorrections(tcs));
+    }
 
     items.sort((a, b) => a.requested_at.getTime() - b.requested_at.getTime());
 
@@ -60,6 +71,23 @@ export class ApprovalsService {
       item.current_step = isL1 ? 1 : 2;
       item.current_approver_id = (isL1 ? l.l1_approver_id : l.l2_approver_id) ?? l.l1_approver_id;
       item.summary = `${l.leave_type} leave, ${l.start_date} to ${l.end_date}`;
+      return item;
+    });
+  }
+
+  private async mapCorrections(tcs: TimeCorrectionRequest[]): Promise<PendingApproval[]> {
+    const names = await this.resolveNames(tcs.map((t) => t.employee_id));
+    return tcs.map((t) => {
+      const isL1 = t.status === TIME_CORRECTION_STATUSES.pending_l1;
+      const item = new PendingApproval();
+      item.id = t.id;
+      item.kind = 'time_correction';
+      item.employee_id = t.employee_id;
+      item.employee_name = names.get(t.employee_id) ?? `User #${t.employee_id}`;
+      item.requested_at = t.submitted_at;
+      item.current_step = isL1 ? 1 : 2;
+      item.current_approver_id = (isL1 ? t.l1_approver_id : t.l2_approver_id) ?? t.l1_approver_id;
+      item.summary = `Time correction for ${t.work_date}`;
       return item;
     });
   }
