@@ -11,6 +11,13 @@ export abstract class BaseApprovalChainRepository {
   /** Active rows (ended_at IS NULL) for one employee, ordered by step. */
   abstract findActiveForEmployee(employee_id: number): Promise<ApprovalChain[]>;
 
+  /**
+   * Active rows (ended_at IS NULL) for a SET of employees, in one query.
+   * Used by `bulkAssign` to compute per-employee changes without N round
+   * trips. Empty input returns `[]` without hitting the DB.
+   */
+  abstract findActiveForEmployees(employee_ids: number[]): Promise<ApprovalChain[]>;
+
   /** Active rows (ended_at IS NULL) where a given user is the approver. */
   abstract findActiveByApprover(approver_id: number): Promise<ApprovalChain[]>;
 

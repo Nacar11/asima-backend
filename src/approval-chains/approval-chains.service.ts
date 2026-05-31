@@ -7,6 +7,7 @@ import { FindAllApprovalChain } from '@/approval-chains/domain/find-all-approval
 import {
   ActiveChain,
   BulkReassignResult,
+  ChainInsert,
   SetChainInput,
 } from '@/approval-chains/domain/approval-chain-inputs';
 import { APPROVAL_STEP, ApprovalStep } from '@/approval-chains/approval-chains.constants';
@@ -78,7 +79,29 @@ export class ApprovalChainsService {
     }
 
     const active = await this.repository.findActiveForEmployee(employee_id);
-    const byStep = new Map(active.map((r) => [r.step, r]));
+    const { ends, inserts } = this.computeStepChanges(employee_id, active, input, actor_id);
+
+    if (ends.length > 0 || inserts.length > 0) {
+      await this.repository.applyStepChanges({ ends, inserts, actor_id });
+    }
+    return this.getActive(employee_id);
+  }
+
+  /**
+   * Pure compute: given an employee's current active rows and a tri-state
+   * patch, produce the `ends`/`inserts` needed to reach the desired chain.
+   * No repo/DB access — both `setChain` (single employee) and `bulkAssign`
+   * (accumulate across many employees, one transaction) call this so the
+   * end-superseded-then-insert + no-op + L1-before-L2 rules live in ONE
+   * place. Throws 422 if the resulting state would have L2 without L1.
+   */
+  private computeStepChanges(
+    employee_id: number,
+    currentRows: ApprovalChain[],
+    input: SetChainInput,
+    actor_id: number | null,
+  ): { ends: number[]; inserts: ChainInsert[] } {
+    const byStep = new Map(currentRows.map((r) => [r.step, r]));
 
     // Resulting state after the patch — used to enforce the L1-before-L2
     // invariant regardless of which fields the caller actually sent.
@@ -99,12 +122,7 @@ export class ApprovalChainsService {
     }
 
     const ends: number[] = [];
-    const inserts: {
-      employee_id: number;
-      step: number;
-      approver_id: number;
-      created_by: number | null;
-    }[] = [];
+    const inserts: ChainInsert[] = [];
 
     for (const [step, value] of [
       [APPROVAL_STEP.L1, input.l1_approver_id],
@@ -121,10 +139,7 @@ export class ApprovalChainsService {
       inserts.push({ employee_id, step, approver_id: value, created_by: actor_id });
     }
 
-    if (ends.length > 0 || inserts.length > 0) {
-      await this.repository.applyStepChanges({ ends, inserts, actor_id });
-    }
-    return this.getActive(employee_id);
+    return { ends, inserts };
   }
 
   /** End one step without replacing it (the chain shrinks). */
@@ -166,12 +181,7 @@ export class ApprovalChainsService {
 
     const rows = await this.repository.findActiveByApprover(from_approver_id);
     const ends: number[] = [];
-    const inserts: {
-      employee_id: number;
-      step: number;
-      approver_id: number;
-      created_by: number | null;
-    }[] = [];
+    const inserts: ChainInsert[] = [];
     const skipped: number[] = [];
 
     for (const row of rows) {

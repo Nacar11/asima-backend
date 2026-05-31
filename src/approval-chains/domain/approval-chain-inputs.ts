@@ -20,6 +20,14 @@ export type ActiveChain = {
   l2_approver_id: number | null;
 };
 
+/** One new chain row to insert (the `inserts` element of `applyStepChanges`). */
+export type ChainInsert = {
+  employee_id: number;
+  step: number;
+  approver_id: number;
+  created_by: number | null;
+};
+
 /** Result of a bulk reassignment. */
 export type BulkReassignResult = {
   reassigned: number;

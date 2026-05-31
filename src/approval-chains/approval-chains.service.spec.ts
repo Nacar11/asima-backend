@@ -35,6 +35,7 @@ describe('ApprovalChainsService', () => {
   beforeEach(() => {
     repo = {
       findActiveForEmployee: jest.fn().mockResolvedValue([]),
+      findActiveForEmployees: jest.fn().mockResolvedValue([]),
       findActiveByApprover: jest.fn().mockResolvedValue([]),
       findAllForEmployee: jest.fn().mockResolvedValue([]),
       listEmployeesWithChains: jest.fn(),

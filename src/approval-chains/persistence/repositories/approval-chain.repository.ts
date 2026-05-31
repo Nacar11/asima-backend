@@ -28,6 +28,15 @@ export class ApprovalChainRepository extends BaseApprovalChainRepository {
     return rows.map(ApprovalChainMapper.toDomain);
   }
 
+  async findActiveForEmployees(employee_ids: number[]): Promise<ApprovalChain[]> {
+    if (employee_ids.length === 0) return [];
+    const rows = await this.repo.find({
+      where: { employee_id: In(employee_ids), ended_at: IsNull() },
+      order: { employee_id: 'ASC', step: 'ASC' },
+    });
+    return rows.map(ApprovalChainMapper.toDomain);
+  }
+
   async findActiveByApprover(approver_id: number): Promise<ApprovalChain[]> {
     const rows = await this.repo.find({
       where: { approver_id, ended_at: IsNull() },
