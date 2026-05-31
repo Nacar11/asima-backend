@@ -15,7 +15,8 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from '@/users/users.service';
 import { User } from '@/users/domain/user';
-import { FindAllUser } from '@/users/domain/find-all-user';
+import { UserResponseDto } from '@/users/dto/user-response.dto';
+import { PaginatedResponse } from '@/utils/types/paginated-response.type';
 import { CreateUserDto } from '@/users/dto/admin/create-user.dto';
 import { UpdateUserDto } from '@/users/dto/admin/update-user.dto';
 import { QueryUserDto } from '@/users/dto/admin/query-user.dto';
@@ -43,35 +44,41 @@ export class AdminUsersController {
   @Get()
   @Permissions({ USER: 'View' })
   @ApiOperation({ summary: 'List users (paginated, filterable)' })
-  @ApiResponse({ status: 200, description: 'Paginated list of users with role + permissions' })
-  findAll(@Query() query: QueryUserDto): Promise<FindAllUser> {
-    return this.service.findAll(query);
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of users, each with a slim role (id + name, no permissions tree)',
+  })
+  async findAll(@Query() query: QueryUserDto): Promise<PaginatedResponse<UserResponseDto>> {
+    const result = await this.service.findAll(query);
+    return { ...result, data: result.data.map(UserResponseDto.from) };
   }
 
   @Get(':id')
   @Permissions({ USER: 'View' })
-  @ApiOperation({ summary: 'Get a single user by id (with role + permissions)' })
-  findOne(@Param('id', ParseIntPipe) id: number): Promise<User> {
-    return this.service.findById(id);
+  @ApiOperation({ summary: 'Get a single user by id (with a slim role — no permissions tree)' })
+  @ApiResponse({ status: 200, type: UserResponseDto })
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<UserResponseDto> {
+    return UserResponseDto.from(await this.service.findById(id));
   }
 
   @Post()
   @Permissions({ USER: 'Create' })
   @ApiOperation({ summary: 'Create a user' })
-  @ApiResponse({ status: 201 })
-  create(@Body() dto: CreateUserDto, @CurrentUser() actor: User): Promise<User> {
-    return this.service.create({ ...dto, created_by: actor.id });
+  @ApiResponse({ status: 201, type: UserResponseDto })
+  async create(@Body() dto: CreateUserDto, @CurrentUser() actor: User): Promise<UserResponseDto> {
+    return UserResponseDto.from(await this.service.create({ ...dto, created_by: actor.id }));
   }
 
   @Patch(':id')
   @Permissions({ USER: 'Update' })
   @ApiOperation({ summary: 'Update a user (any field except password)' })
-  update(
+  @ApiResponse({ status: 200, type: UserResponseDto })
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateUserDto,
     @CurrentUser() actor: User,
-  ): Promise<User> {
-    return this.service.update(id, { ...dto, updated_by: actor.id });
+  ): Promise<UserResponseDto> {
+    return UserResponseDto.from(await this.service.update(id, { ...dto, updated_by: actor.id }));
   }
 
   @Post(':id/reset-password')
