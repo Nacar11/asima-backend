@@ -10,6 +10,7 @@ export class LeaveRequestMapper {
     lr.leave_type = raw.leave_type;
     lr.start_date = raw.start_date;
     lr.end_date = raw.end_date;
+    lr.working_days = raw.working_days;
     lr.reason = raw.reason;
     lr.status = raw.status;
     lr.submitted_at = raw.submitted_at;

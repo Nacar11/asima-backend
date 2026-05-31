@@ -114,6 +114,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
     leave_type: LeaveType;
     start_date: string;
     end_date: string;
+    working_days: number;
     reason?: string | null;
     status: LeaveRequestStatus;
     l1_approver_id: number;
@@ -125,6 +126,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       leave_type: input.leave_type,
       start_date: input.start_date,
       end_date: input.end_date,
+      working_days: input.working_days,
       reason: input.reason ?? null,
       status: input.status,
       l1_approver_id: input.l1_approver_id,

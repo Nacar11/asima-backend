@@ -40,6 +40,9 @@ export class LeaveRequestEntity extends EntityHelper {
   @Column({ type: 'date' })
   end_date!: string;
 
+  @Column({ type: 'int' })
+  working_days!: number;
+
   @Column({ type: 'varchar', length: 500, nullable: true })
   reason!: string | null;
 

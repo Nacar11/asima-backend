@@ -4,6 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { LeaveRequestsService } from './leave-requests.service';
+import { LeaveDayCountService } from './leave-day-count.service';
 import { BaseLeaveRequestRepository } from './persistence/base-leave-request.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
@@ -17,6 +18,7 @@ function leave(partial: Partial<LeaveRequest>): LeaveRequest {
     leave_type: 'vacation',
     start_date: '2026-06-01',
     end_date: '2026-06-05',
+    working_days: 5,
     reason: null,
     status: 'pending_l1',
     submitted_at: new Date('2026-05-30'),
@@ -55,6 +57,7 @@ describe('LeaveRequestsService', () => {
   let repo: jest.Mocked<BaseLeaveRequestRepository>;
   let chains: jest.Mocked<ApprovalChainsService>;
   let users: jest.Mocked<BaseUserRepository>;
+  let dayCount: jest.Mocked<LeaveDayCountService>;
 
   beforeEach(() => {
     repo = {
@@ -72,7 +75,10 @@ describe('LeaveRequestsService', () => {
     users = {
       findById: jest.fn().mockImplementation((id: number) => Promise.resolve(user(id))),
     } as unknown as jest.Mocked<BaseUserRepository>;
-    service = new LeaveRequestsService(repo, chains, users);
+    dayCount = {
+      assertSubmittableRange: jest.fn().mockResolvedValue(3),
+    } as unknown as jest.Mocked<LeaveDayCountService>;
+    service = new LeaveRequestsService(repo, chains, users, dayCount);
   });
 
   describe('submit', () => {
@@ -95,6 +101,13 @@ describe('LeaveRequestsService', () => {
       );
     });
 
+    it('snapshots the schedule-aware working_days returned by the day-count service', async () => {
+      dayCount.assertSubmittableRange.mockResolvedValue(2);
+      await service.submit(input, user(12, { codes: ['LEAVE:Create'] }));
+      expect(dayCount.assertSubmittableRange).toHaveBeenCalledWith(12, '2026-06-01', '2026-06-05');
+      expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ working_days: 2 }));
+    });
+
     it('hard-blocks submission when no L1 is assigned (422 approval_chain)', async () => {
       chains.getActive.mockResolvedValue({ l1_approver_id: null, l2_approver_id: null });
       await expect(service.submit(input, user(12))).rejects.toBeInstanceOf(
@@ -111,10 +124,14 @@ describe('LeaveRequestsService', () => {
       expect(repo.create).not.toHaveBeenCalled();
     });
 
-    it('rejects end_date before start_date', async () => {
-      await expect(
-        service.submit({ ...input, start_date: '2026-06-10', end_date: '2026-06-05' }, user(12)),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    it('propagates a D8 date-rule rejection from the day-count service and does not create', async () => {
+      dayCount.assertSubmittableRange.mockRejectedValue(
+        new UnprocessableEntityException({ status: 422, errors: { start_date: 'past' } }),
+      );
+      await expect(service.submit(input, user(12))).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      expect(repo.create).not.toHaveBeenCalled();
     });
   });
 

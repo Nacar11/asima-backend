@@ -36,6 +36,7 @@ export abstract class BaseLeaveRequestRepository {
     leave_type: LeaveType;
     start_date: string;
     end_date: string;
+    working_days: number;
     reason?: string | null;
     status: LeaveRequestStatus;
     l1_approver_id: number;

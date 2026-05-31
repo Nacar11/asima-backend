@@ -34,6 +34,12 @@ export class LeaveRequest {
   @ApiProperty({ example: '2026-06-05', description: 'YYYY-MM-DD, inclusive (>= start_date)' })
   end_date!: string;
 
+  @ApiProperty({
+    example: 2,
+    description: 'Scheduled working days in [start_date, end_date] — snapshot at submit time',
+  })
+  working_days!: number;
+
   @ApiPropertyOptional({ example: 'Family trip', nullable: true })
   reason!: string | null;
 

@@ -29,6 +29,7 @@ export class CreateLeaveRequestsTable1778400000000 implements MigrationInterface
         "leave_type" "leave_type" NOT NULL,
         "start_date" date NOT NULL,
         "end_date" date NOT NULL,
+        "working_days" integer NOT NULL,
         "reason" character varying(500),
         "status" "leave_request_status" NOT NULL DEFAULT 'pending_l1',
         "submitted_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -48,7 +49,9 @@ export class CreateLeaveRequestsTable1778400000000 implements MigrationInterface
         "deleted_at" TIMESTAMP WITH TIME ZONE,
         CONSTRAINT "PK_leave_requests" PRIMARY KEY ("id"),
         CONSTRAINT "CHK_leave_requests_date_range"
-          CHECK ("end_date" >= "start_date")
+          CHECK ("end_date" >= "start_date"),
+        CONSTRAINT "CHK_leave_requests_working_days"
+          CHECK ("working_days" >= 1)
       )
     `);
 

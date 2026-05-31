@@ -6,6 +6,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { BaseLeaveRequestRepository } from '@/leave-requests/persistence/base-leave-request.repository';
+import { LeaveDayCountService } from '@/leave-requests/leave-day-count.service';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
 import { LeaveRequest } from '@/leave-requests/domain/leave-request';
@@ -32,6 +33,7 @@ export class LeaveRequestsService {
     private readonly repository: BaseLeaveRequestRepository,
     private readonly chains: ApprovalChainsService,
     private readonly users: BaseUserRepository,
+    private readonly dayCount: LeaveDayCountService,
   ) {}
 
   findAll(criteria: LeaveRequestSearchCriteria): Promise<FindAllLeaveRequest> {
@@ -68,9 +70,14 @@ export class LeaveRequestsService {
    * overlap an existing pending/approved request (Q4).
    */
   async submit(input: SubmitLeaveInput, actor: User): Promise<LeaveRequest> {
-    if (input.end_date < input.start_date) {
-      throw unprocessable('end_date', 'end_date must be on or after start_date.');
-    }
+    // D8: end >= start, no past dates, start & end must be scheduled
+    // workdays. Returns the schedule-aware working-day count, snapshotted
+    // onto the request so balance reserve/use math stays stable.
+    const working_days = await this.dayCount.assertSubmittableRange(
+      input.employee_id,
+      input.start_date,
+      input.end_date,
+    );
 
     const chain = await this.chains.getActive(input.employee_id);
     if (chain.l1_approver_id == null) {
@@ -91,6 +98,7 @@ export class LeaveRequestsService {
       leave_type: input.leave_type,
       start_date: input.start_date,
       end_date: input.end_date,
+      working_days,
       reason: input.reason ?? null,
       status: LEAVE_REQUEST_STATUSES.pending_l1,
       l1_approver_id: chain.l1_approver_id,
