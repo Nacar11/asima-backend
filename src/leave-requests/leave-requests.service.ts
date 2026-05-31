@@ -142,6 +142,24 @@ export class LeaveRequestsService {
     });
   }
 
+  /**
+   * Preview the chargeable working days for a prospective request, running the
+   * same D8 date rules as submit. Throws the same per-field 422 on a past date
+   * or non-workday boundary, so the apply drawer validates exactly as submit.
+   */
+  async previewWorkingDays(
+    employee_id: number,
+    start_date: string,
+    end_date: string,
+  ): Promise<{ working_days: number }> {
+    const working_days = await this.dayCount.assertSubmittableRange(
+      employee_id,
+      start_date,
+      end_date,
+    );
+    return { working_days };
+  }
+
   /** Cancel a still-pending request. Allowed for the requester or a `LEAVE:Delete` holder. */
   async cancel(id: number, caller: User): Promise<LeaveRequest> {
     const row = await this.findById(id);
