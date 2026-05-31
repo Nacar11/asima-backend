@@ -7,7 +7,7 @@ function rawEntity(overrides: Partial<LeaveRequestEntity> = {}): LeaveRequestEnt
   return {
     id: 1,
     employee_id: 12,
-    leave_type: 'annual',
+    leave_type: 'vacation',
     start_date: '2026-06-01',
     end_date: '2026-06-05',
     reason: null,
@@ -39,7 +39,7 @@ describe('LeaveRequestMapper.toListItem', () => {
     const item = LeaveRequestMapper.toListItem(raw);
     expect(item.employee_name).toBe('Ada Lovelace');
     expect(item.id).toBe(1);
-    expect(item.leave_type).toBe('annual');
+    expect(item.leave_type).toBe('vacation');
   });
 
   it('falls back to null when the employee relation is not loaded', () => {

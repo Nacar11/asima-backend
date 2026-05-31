@@ -155,7 +155,7 @@ describe('ApprovalsService', () => {
         {
           id: 42,
           employee_id: 12,
-          leave_type: 'annual',
+          leave_type: 'vacation',
           start_date: '2026-06-01',
           end_date: '2026-06-05',
           status: 'pending_l1',

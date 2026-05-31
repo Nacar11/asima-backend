@@ -14,7 +14,7 @@ function leave(partial: Partial<LeaveRequest>): LeaveRequest {
   return {
     id: 1,
     employee_id: 12,
-    leave_type: 'annual',
+    leave_type: 'vacation',
     start_date: '2026-06-01',
     end_date: '2026-06-05',
     reason: null,
@@ -78,7 +78,7 @@ describe('LeaveRequestsService', () => {
   describe('submit', () => {
     const input = {
       employee_id: 12,
-      leave_type: 'annual' as const,
+      leave_type: 'vacation' as const,
       start_date: '2026-06-01',
       end_date: '2026-06-05',
     };

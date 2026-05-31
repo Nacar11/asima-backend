@@ -1,14 +1,16 @@
 /**
  * Leave-request enums. Postgres enum + const-object pattern (mirrors
- * `TIME_ENTRY_STATUSES`). No `leave_types` lookup table in v0 — quotas,
- * accrual, and balances are a v1 conversation (2026-05-30 plan §3.4 / §13).
+ * `TIME_ENTRY_STATUSES`). Balances/quotas land via the `leave_allocations`
+ * ledger (2026-05-31 leave-balances plan). `vacation` + `sick` carry a 10-day
+ * default per employee; `bereavement` / `birthday` / `emergency` are
+ * admin-granted only.
  */
 export const LEAVE_TYPES = {
-  annual: 'annual',
+  vacation: 'vacation',
   sick: 'sick',
   bereavement: 'bereavement',
-  unpaid: 'unpaid',
-  other: 'other',
+  birthday: 'birthday',
+  emergency: 'emergency',
 } as const;
 
 export type LeaveType = (typeof LEAVE_TYPES)[keyof typeof LEAVE_TYPES];

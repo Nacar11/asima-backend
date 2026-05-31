@@ -12,7 +12,7 @@ const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
  * snapshot, and decision fields are server-owned and absent here.
  */
 export class SubmitLeaveRequestDto {
-  @ApiProperty({ example: 'annual', enum: Object.values(LEAVE_TYPES) })
+  @ApiProperty({ example: 'vacation', enum: Object.values(LEAVE_TYPES) })
   @IsIn(Object.values(LEAVE_TYPES))
   leave_type!: LeaveType;
 

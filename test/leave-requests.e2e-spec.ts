@@ -81,7 +81,7 @@ describe('Leave Requests (e2e)', () => {
       const res = await auth(tokens.liam)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'annual', start_date: '2026-07-01', end_date: '2026-07-03' }),
+          .send({ leave_type: 'vacation', start_date: '2026-07-01', end_date: '2026-07-03' }),
       ).expect(422);
       expect(res.body.errors.approval_chain).toBeDefined();
     });
@@ -89,7 +89,7 @@ describe('Leave Requests (e2e)', () => {
     it('snapshots the chain and starts at pending_l1', async () => {
       const res = await auth(tokens.emma)(
         request(app.getHttpServer()).post(url('/users/me/leave-requests')).send({
-          leave_type: 'annual',
+          leave_type: 'vacation',
           start_date: '2026-07-01',
           end_date: '2026-07-05',
           reason: 'Family trip',
@@ -168,7 +168,7 @@ describe('Leave Requests (e2e)', () => {
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'unpaid', start_date: '2026-08-01', end_date: '2026-08-03' }),
+          .send({ leave_type: 'sick', start_date: '2026-08-01', end_date: '2026-08-03' }),
       ).expect(201);
 
       const res = await auth(tokens.hr)(
@@ -184,7 +184,7 @@ describe('Leave Requests (e2e)', () => {
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'other', start_date: '2026-09-01', end_date: '2026-09-02' }),
+          .send({ leave_type: 'emergency', start_date: '2026-09-01', end_date: '2026-09-02' }),
       ).expect(201);
 
       const res = await auth(tokens.karen)(
@@ -200,7 +200,7 @@ describe('Leave Requests (e2e)', () => {
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'other', start_date: '2026-10-01', end_date: '2026-10-02' }),
+          .send({ leave_type: 'emergency', start_date: '2026-10-01', end_date: '2026-10-02' }),
       ).expect(201);
 
       const res = await auth(tokens.karen)(
@@ -215,7 +215,7 @@ describe('Leave Requests (e2e)', () => {
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'annual', start_date: '2026-11-01', end_date: '2026-11-02' }),
+          .send({ leave_type: 'vacation', start_date: '2026-11-01', end_date: '2026-11-02' }),
       ).expect(201);
 
       const res = await auth(tokens.emma)(

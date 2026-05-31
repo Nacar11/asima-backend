@@ -31,7 +31,7 @@ export class LeaveRequestEntity extends EntityHelper {
   @JoinColumn({ name: 'employee_id' })
   employee!: UserEntity;
 
-  @Column({ type: 'enum', enum: ['annual', 'sick', 'bereavement', 'unpaid', 'other'] })
+  @Column({ type: 'enum', enum: ['vacation', 'sick', 'bereavement', 'birthday', 'emergency'] })
   leave_type!: LeaveType;
 
   @Column({ type: 'date' })

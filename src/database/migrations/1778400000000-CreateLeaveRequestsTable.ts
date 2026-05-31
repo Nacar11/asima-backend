@@ -15,7 +15,7 @@ export class CreateLeaveRequestsTable1778400000000 implements MigrationInterface
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `CREATE TYPE "leave_type" AS ENUM ('annual', 'sick', 'bereavement', 'unpaid', 'other')`,
+      `CREATE TYPE "leave_type" AS ENUM ('vacation', 'sick', 'bereavement', 'birthday', 'emergency')`,
     );
     await queryRunner.query(
       `CREATE TYPE "leave_request_status" AS ENUM ('pending_l1', 'pending_l2', 'approved', 'rejected', 'cancelled')`,

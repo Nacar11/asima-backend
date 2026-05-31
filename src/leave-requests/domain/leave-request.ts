@@ -25,7 +25,7 @@ export class LeaveRequest {
   @ApiProperty({ example: 12, description: 'FK to users.id — the requester' })
   employee_id!: number;
 
-  @ApiProperty({ example: 'annual', enum: ['annual', 'sick', 'bereavement', 'unpaid', 'other'] })
+  @ApiProperty({ example: 'vacation', enum: ['vacation', 'sick', 'bereavement', 'birthday', 'emergency'] })
   leave_type!: LeaveType;
 
   @ApiProperty({ example: '2026-06-01', description: 'YYYY-MM-DD, inclusive' })
