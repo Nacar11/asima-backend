@@ -11,6 +11,13 @@ export abstract class BaseLeaveAllocationRepository {
   abstract sumByEmployeeAndType(employee_id: number, leave_type: LeaveType): Promise<number>;
 
   /**
+   * All non-deleted grant sums for an employee, grouped by leave type, in one
+   * query. Types with no grants are simply absent from the map (the balance
+   * service defaults them to 0). Backs the balance read (plan C2).
+   */
+  abstract sumsByEmployee(employee_id: number): Promise<Partial<Record<LeaveType, number>>>;
+
+  /**
    * Same sum, but inside `manager`'s transaction with `SELECT … FOR UPDATE`
    * on the matched rows. This is the serialization point for reserve-on-submit
    * (plan C3): two concurrent submits of the same (employee, type) contend on

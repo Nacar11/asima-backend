@@ -5,8 +5,10 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import { BaseLeaveRequestRepository } from '@/leave-requests/persistence/base-leave-request.repository';
 import { LeaveDayCountService } from '@/leave-requests/leave-day-count.service';
+import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
 import { LeaveRequest } from '@/leave-requests/domain/leave-request';
@@ -34,6 +36,8 @@ export class LeaveRequestsService {
     private readonly chains: ApprovalChainsService,
     private readonly users: BaseUserRepository,
     private readonly dayCount: LeaveDayCountService,
+    private readonly allocations: BaseLeaveAllocationRepository,
+    private readonly dataSource: DataSource,
   ) {}
 
   findAll(criteria: LeaveRequestSearchCriteria): Promise<FindAllLeaveRequest> {
@@ -83,6 +87,10 @@ export class LeaveRequestsService {
     if (chain.l1_approver_id == null) {
       throw unprocessable('approval_chain', 'No approver assigned. Contact HR.');
     }
+    // Capture the narrowed (non-null) value — TS loses the narrowing inside
+    // the transaction closure below.
+    const l1_approver_id = chain.l1_approver_id;
+    const l2_approver_id = chain.l2_approver_id;
 
     const overlaps = await this.repository.findOverlapping(
       input.employee_id,
@@ -93,17 +101,44 @@ export class LeaveRequestsService {
       throw unprocessable('dates', `Overlaps existing request #${overlaps[0].id}.`);
     }
 
-    return this.repository.create({
-      employee_id: input.employee_id,
-      leave_type: input.leave_type,
-      start_date: input.start_date,
-      end_date: input.end_date,
-      working_days,
-      reason: input.reason ?? null,
-      status: LEAVE_REQUEST_STATUSES.pending_l1,
-      l1_approver_id: chain.l1_approver_id,
-      l2_approver_id: chain.l2_approver_id,
-      created_by: actor.id,
+    // Reserve-on-submit (plan C3): inside one transaction, lock this
+    // (employee, type)'s allocation rows FOR UPDATE, then check
+    // available = allowance − (used + reserved). The lock serializes
+    // concurrent same-type submits, so two can't both pass the check.
+    return this.dataSource.transaction(async (manager) => {
+      const allowance = await this.allocations.sumForUpdate(
+        manager,
+        input.employee_id,
+        input.leave_type,
+      );
+      const consumed = await this.repository.sumConsumedForEmployeeType(
+        manager,
+        input.employee_id,
+        input.leave_type,
+      );
+      const available = allowance - consumed;
+      if (available < working_days) {
+        throw unprocessable(
+          'balance',
+          `Only ${available} day(s) of ${input.leave_type} leave available; this request needs ${working_days}.`,
+        );
+      }
+
+      return this.repository.create(
+        {
+          employee_id: input.employee_id,
+          leave_type: input.leave_type,
+          start_date: input.start_date,
+          end_date: input.end_date,
+          working_days,
+          reason: input.reason ?? null,
+          status: LEAVE_REQUEST_STATUSES.pending_l1,
+          l1_approver_id,
+          l2_approver_id,
+          created_by: actor.id,
+        },
+        manager,
+      );
     });
   }
 

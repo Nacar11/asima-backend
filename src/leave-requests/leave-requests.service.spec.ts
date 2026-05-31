@@ -8,6 +8,7 @@ import { LeaveDayCountService } from './leave-day-count.service';
 import { BaseLeaveRequestRepository } from './persistence/base-leave-request.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
+import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
 import { LeaveRequest } from './domain/leave-request';
 import { User } from '@/users/domain/user';
 
@@ -58,6 +59,8 @@ describe('LeaveRequestsService', () => {
   let chains: jest.Mocked<ApprovalChainsService>;
   let users: jest.Mocked<BaseUserRepository>;
   let dayCount: jest.Mocked<LeaveDayCountService>;
+  let allocations: jest.Mocked<BaseLeaveAllocationRepository>;
+  let dataSource: { transaction: jest.Mock };
 
   beforeEach(() => {
     repo = {
@@ -66,6 +69,7 @@ describe('LeaveRequestsService', () => {
       findOverlapping: jest.fn().mockResolvedValue([]),
       findPendingForApprover: jest.fn(),
       findAllPending: jest.fn(),
+      sumConsumedForEmployeeType: jest.fn().mockResolvedValue(0),
       create: jest.fn().mockImplementation((input) => Promise.resolve(leave(input))),
       update: jest.fn().mockImplementation((id, patch) => Promise.resolve(leave({ id, ...patch }))),
     } as unknown as jest.Mocked<BaseLeaveRequestRepository>;
@@ -78,7 +82,19 @@ describe('LeaveRequestsService', () => {
     dayCount = {
       assertSubmittableRange: jest.fn().mockResolvedValue(3),
     } as unknown as jest.Mocked<LeaveDayCountService>;
-    service = new LeaveRequestsService(repo, chains, users, dayCount);
+    allocations = {
+      sumForUpdate: jest.fn().mockResolvedValue(10),
+    } as unknown as jest.Mocked<BaseLeaveAllocationRepository>;
+    // Run the transaction callback inline with a throwaway manager.
+    dataSource = { transaction: jest.fn().mockImplementation((cb) => cb({} as never)) };
+    service = new LeaveRequestsService(
+      repo,
+      chains,
+      users,
+      dayCount,
+      allocations,
+      dataSource as never,
+    );
   });
 
   describe('submit', () => {
@@ -98,6 +114,7 @@ describe('LeaveRequestsService', () => {
           l2_approver_id: 7,
           employee_id: 12,
         }),
+        expect.anything(),
       );
     });
 
@@ -105,7 +122,10 @@ describe('LeaveRequestsService', () => {
       dayCount.assertSubmittableRange.mockResolvedValue(2);
       await service.submit(input, user(12, { codes: ['LEAVE:Create'] }));
       expect(dayCount.assertSubmittableRange).toHaveBeenCalledWith(12, '2026-06-01', '2026-06-05');
-      expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ working_days: 2 }));
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ working_days: 2 }),
+        expect.anything(),
+      );
     });
 
     it('hard-blocks submission when no L1 is assigned (422 approval_chain)', async () => {
@@ -128,6 +148,31 @@ describe('LeaveRequestsService', () => {
       dayCount.assertSubmittableRange.mockRejectedValue(
         new UnprocessableEntityException({ status: 422, errors: { start_date: 'past' } }),
       );
+      await expect(service.submit(input, user(12))).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('reserves on submit: locks allocations and creates when available >= working_days', async () => {
+      dayCount.assertSubmittableRange.mockResolvedValue(2);
+      allocations.sumForUpdate.mockResolvedValue(10);
+      repo.sumConsumedForEmployeeType.mockResolvedValue(8); // available = 2
+
+      await service.submit(input, user(12, { codes: ['LEAVE:Create'] }));
+
+      expect(allocations.sumForUpdate).toHaveBeenCalled();
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ working_days: 2 }),
+        expect.anything(), // the transaction manager
+      );
+    });
+
+    it('rejects with 422 balance when available < working_days and does not create', async () => {
+      dayCount.assertSubmittableRange.mockResolvedValue(3);
+      allocations.sumForUpdate.mockResolvedValue(10);
+      repo.sumConsumedForEmployeeType.mockResolvedValue(8); // available = 2 < 3
+
       await expect(service.submit(input, user(12))).rejects.toBeInstanceOf(
         UnprocessableEntityException,
       );

@@ -43,6 +43,20 @@ export class LeaveAllocationRepository extends BaseLeaveAllocationRepository {
     return Number(raw?.sum ?? 0);
   }
 
+  async sumsByEmployee(employee_id: number): Promise<Partial<Record<LeaveType, number>>> {
+    const rows = await this.repo
+      .createQueryBuilder('a')
+      .select('a.leave_type', 'leave_type')
+      .addSelect('COALESCE(SUM(a.amount), 0)', 'sum')
+      .where('a.employee_id = :employee_id', { employee_id })
+      .andWhere('a.deleted_at IS NULL')
+      .groupBy('a.leave_type')
+      .getRawMany<{ leave_type: LeaveType; sum: string }>();
+    const out: Partial<Record<LeaveType, number>> = {};
+    for (const row of rows) out[row.leave_type] = Number(row.sum);
+    return out;
+  }
+
   async sumForUpdate(
     manager: EntityManager,
     employee_id: number,
