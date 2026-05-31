@@ -156,11 +156,18 @@ describe('Auth (e2e)', () => {
   });
 
   describe('PermissionsGuard', () => {
-    it('SUPER_ADMIN can hit /admin/users (system_admin bypass)', async () => {
-      await request(app.getHttpServer())
+    it('SUPER_ADMIN can hit /admin/users (system_admin bypass), rows carry a slim role', async () => {
+      const res = await request(app.getHttpServer())
         .get(url('/admin/users'))
         .set('Authorization', `Bearer ${adminAccess}`)
         .expect(200);
+      expect(res.body.data.length).toBeGreaterThan(0);
+      // Role is slim (id + name) — the permissions tree must not bloat the list.
+      expect(res.body.data[0].role).toEqual({
+        id: expect.any(Number),
+        name: expect.any(String),
+      });
+      expect(res.body.data[0].role).not.toHaveProperty('permissions');
     });
 
     it('EMPLOYEE gets 403 on /admin/users', async () => {

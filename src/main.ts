@@ -58,7 +58,14 @@ async function bootstrap() {
       },
       {
         name: 'Admin - User',
-        schemas: ['User', 'CreateUserDto', 'UpdateUserDto', 'ResetUserPasswordDto'],
+        schemas: [
+          'User',
+          'UserResponseDto',
+          'UserRoleSummaryDto',
+          'CreateUserDto',
+          'UpdateUserDto',
+          'ResetUserPasswordDto',
+        ],
       },
       { name: 'User', schemas: ['UpdateMeDto', 'ChangeMyPasswordDto'] },
       {

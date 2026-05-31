@@ -11,7 +11,7 @@ import { User } from '@/users/domain/user';
 import { UserSearchCriteria } from '@/users/domain/user-search-criteria';
 import { FindAllUser } from '@/users/domain/find-all-user';
 import { CreateUserInput, UpdateUserPatch } from '@/users/domain/user-inputs';
-import { BCRYPT_ROUNDS } from '@/users/users.constants';
+import { BCRYPT_ROUNDS, capitalizeFirstLetter } from '@/users/users.constants';
 
 @Injectable()
 export class UsersService {
@@ -57,8 +57,8 @@ export class UsersService {
     return this.repository.create({
       email,
       password_hash,
-      first_name: input.first_name,
-      last_name: input.last_name,
+      first_name: capitalizeFirstLetter(input.first_name),
+      last_name: capitalizeFirstLetter(input.last_name),
       title: input.title ?? null,
       role_id: input.role_id,
       system_admin: input.system_admin ?? false,
@@ -85,7 +85,17 @@ export class UsersService {
       }
     }
 
-    return this.repository.update(id, patch);
+    // Capitalize only the name fields that are actually present — an
+    // omitted field means "leave unchanged", so it must not be touched.
+    const normalized: UpdateUserPatch = { ...patch };
+    if (normalized.first_name !== undefined) {
+      normalized.first_name = capitalizeFirstLetter(normalized.first_name);
+    }
+    if (normalized.last_name !== undefined) {
+      normalized.last_name = capitalizeFirstLetter(normalized.last_name);
+    }
+
+    return this.repository.update(id, normalized);
   }
 
   /**

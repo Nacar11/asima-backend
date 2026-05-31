@@ -1,18 +1,18 @@
 /**
  * Source of a time entry — narrowed from the broader schema.dbml vision.
  *
- * v0 keeps three values:
- *   - manual    : self-entered via the toggle-punch endpoint
- *   - biometric : reserved for future hardware integrations (fingerprint, RFID)
- *   - admin     : created or edited on behalf of an employee by HR
- *
- * `correction` is intentionally absent — the correction-request workflow
- * depends on approval_chains and lands with the leave module.
+ * Values:
+ *   - manual     : self-entered via the toggle-punch endpoint
+ *   - biometric  : reserved for future hardware integrations (fingerprint, RFID)
+ *   - admin      : created or edited on behalf of an employee by HR
+ *   - correction : written by an approved time-correction request
+ *                  (TimeEntriesService.applyCorrection — 2026-05-30 plan §10)
  */
 export const TIME_ENTRY_SOURCES = {
   manual: 'manual',
   biometric: 'biometric',
   admin: 'admin',
+  correction: 'correction',
 } as const;
 
 export type TimeEntrySource = (typeof TIME_ENTRY_SOURCES)[keyof typeof TIME_ENTRY_SOURCES];

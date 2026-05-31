@@ -2,6 +2,11 @@ import { ApprovalsService } from './approvals.service';
 import { User } from '@/users/domain/user';
 import { Role } from '@/roles/domain/role';
 import { Permission } from '@/permissions/domain/permission';
+import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
+import { TimeCorrectionRequestsService } from '@/time-correction-requests/time-correction-requests.service';
+import { BaseUserRepository } from '@/users/persistence/base-user.repository';
+import { LeaveRequest } from '@/leave-requests/domain/leave-request';
+import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
 
 function buildPermission(code: string): Permission {
   return {
@@ -52,9 +57,23 @@ function buildUser(overrides: Partial<User> & { permission_codes?: string[] }): 
 
 describe('ApprovalsService', () => {
   let service: ApprovalsService;
+  let leave: jest.Mocked<LeaveRequestsService>;
+  let corrections: jest.Mocked<TimeCorrectionRequestsService>;
+  let users: jest.Mocked<BaseUserRepository>;
 
   beforeEach(() => {
-    service = new ApprovalsService();
+    leave = {
+      findAllPending: jest.fn().mockResolvedValue([]),
+      findInboxForApprover: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<LeaveRequestsService>;
+    corrections = {
+      findAllPending: jest.fn().mockResolvedValue([]),
+      findInboxForApprover: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<TimeCorrectionRequestsService>;
+    users = {
+      findById: jest.fn().mockResolvedValue(null),
+    } as unknown as jest.Mocked<BaseUserRepository>;
+    service = new ApprovalsService(leave, corrections, users);
   });
 
   describe('canSeeAll', () => {
@@ -128,6 +147,70 @@ describe('ApprovalsService', () => {
       const result = await service.findPending(user, {});
       expect(result.data).toEqual([]);
       expect(result.total).toBe(0);
+    });
+
+    it('maps an approver inbox leave row into a PendingApproval', async () => {
+      const user = buildUser({ id: 5, permission_codes: ['APPROVAL:View'] });
+      leave.findInboxForApprover.mockResolvedValue([
+        {
+          id: 42,
+          employee_id: 12,
+          leave_type: 'annual',
+          start_date: '2026-06-01',
+          end_date: '2026-06-05',
+          status: 'pending_l1',
+          submitted_at: new Date('2026-05-30'),
+          l1_approver_id: 5,
+          l2_approver_id: 7,
+        } as LeaveRequest,
+      ]);
+      users.findById.mockResolvedValue({ first_name: 'Emma', last_name: 'Thompson' } as User);
+
+      const result = await service.findPending(user, {});
+
+      expect(leave.findInboxForApprover).toHaveBeenCalledWith(5);
+      expect(result.total).toBe(1);
+      expect(result.data[0]).toEqual(
+        expect.objectContaining({
+          id: 42,
+          kind: 'leave',
+          employee_id: 12,
+          employee_name: 'Emma Thompson',
+          current_step: 1,
+          current_approver_id: 5,
+        }),
+      );
+    });
+
+    it('uses the org-wide query when the caller canSeeAll', async () => {
+      const user = buildUser({ system_admin: true });
+      await service.findPending(user, {});
+      expect(leave.findAllPending).toHaveBeenCalled();
+      expect(leave.findInboxForApprover).not.toHaveBeenCalled();
+    });
+
+    it('queries only corrections (not leave) when type=time_correction', async () => {
+      const user = buildUser({ id: 5, permission_codes: ['APPROVAL:View'] });
+      corrections.findInboxForApprover.mockResolvedValue([
+        {
+          id: 7,
+          employee_id: 12,
+          work_date: '2026-06-10',
+          status: 'pending_l1',
+          submitted_at: new Date('2026-06-09'),
+          l1_approver_id: 5,
+          l2_approver_id: null,
+        } as TimeCorrectionRequest,
+      ]);
+      users.findById.mockResolvedValue({ first_name: 'Emma', last_name: 'Thompson' } as User);
+
+      const result = await service.findPending(user, { type: 'time_correction' });
+
+      expect(leave.findInboxForApprover).not.toHaveBeenCalled();
+      expect(corrections.findInboxForApprover).toHaveBeenCalledWith(5);
+      expect(result.data[0]).toEqual(
+        expect.objectContaining({ id: 7, kind: 'time_correction', current_step: 1 }),
+      );
     });
   });
 });

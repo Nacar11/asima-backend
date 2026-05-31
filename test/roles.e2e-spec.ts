@@ -67,10 +67,11 @@ describe('Roles admin (e2e)', () => {
       );
       // SUPER_ADMIN gets the wildcard — count is whatever permissions.json
       // currently contains. HR_ADMIN is the core admin operator (USER + ROLE/
-      // PERMISSION read + TIME + SCHEDULE).
+      // PERMISSION read + TIME + SCHEDULE + LEAVE/TIME_CORRECTION/APPROVAL_CHAIN).
+      // EMPLOYEE gets LEAVE:Create/ViewOwn + TIME_CORRECTION:Create/ViewOwn after Phase 0.
       expect(byName.SUPER_ADMIN).toBeGreaterThan(0);
       expect(byName.HR_ADMIN).toBeGreaterThanOrEqual(14);
-      expect(byName.EMPLOYEE).toBe(0);
+      expect(byName.EMPLOYEE).toBeGreaterThanOrEqual(4);
     });
 
     it('GET /admin/roles/:id returns 404 for unknown id', async () => {
@@ -83,7 +84,11 @@ describe('Roles admin (e2e)', () => {
     let userViewPermId: number;
 
     beforeAll(async () => {
-      const perms = await auth(request(app.getHttpServer()).get(url('/admin/permissions')));
+      // Filter to USER resource — the unfiltered catalog now exceeds the default
+      // page size after Phase 0 added LEAVE / TIME_CORRECTION / APPROVAL_CHAIN.
+      const perms = await auth(
+        request(app.getHttpServer()).get(url('/admin/permissions?resource=USER')),
+      );
       userViewPermId = perms.body.data.find((p: { code: string }) => p.code === 'USER:View').id;
     });
 

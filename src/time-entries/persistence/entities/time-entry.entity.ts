@@ -38,7 +38,11 @@ export class TimeEntryEntity extends EntityHelper {
   @Column({ type: 'timestamptz', nullable: true })
   time_out!: Date | null;
 
-  @Column({ type: 'enum', enum: ['manual', 'biometric', 'admin'], enumName: 'time_source' })
+  @Column({
+    type: 'enum',
+    enum: ['manual', 'biometric', 'admin', 'correction'],
+    enumName: 'time_source',
+  })
   source!: TimeEntrySource;
 
   @Column({

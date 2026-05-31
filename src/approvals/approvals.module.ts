@@ -1,16 +1,17 @@
 import { Module } from '@nestjs/common';
 import { ApprovalsController } from './controllers/approvals.controller';
 import { ApprovalsService } from './approvals.service';
+import { LeaveRequestsModule } from '@/leave-requests/leave-requests.module';
+import { TimeCorrectionRequestsModule } from '@/time-correction-requests/time-correction-requests.module';
+import { UserPersistenceModule } from '@/users/persistence/persistence.module';
 
 /**
- * Approvals inbox module — v0 ships the gate + the contract; data lands
- * with the leave module.
- *
- * No persistence layer in v0 (no table to map). When `approval_chains`
- * and `leave_requests` land, add `persistence/` here and inject a
- * `BasePendingApprovalRepository` into the service.
+ * Approvals inbox module. Aggregates pending leave + time-correction
+ * requests, scoped by chain placement (or ApproveAny / system_admin),
+ * with employee names resolved for display.
  */
 @Module({
+  imports: [LeaveRequestsModule, TimeCorrectionRequestsModule, UserPersistenceModule],
   controllers: [ApprovalsController],
   providers: [ApprovalsService],
 })
