@@ -1,4 +1,5 @@
 import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequestListItem } from '@/time-correction-requests/domain/time-correction-request-list-item';
 import { TimeCorrectionRequestEntity } from '@/time-correction-requests/persistence/entities/time-correction-request.entity';
 
 export class TimeCorrectionRequestMapper {
@@ -28,5 +29,17 @@ export class TimeCorrectionRequestMapper {
     tc.updated_at = raw.updated_at;
     tc.deleted_at = raw.deleted_at;
     return tc;
+  }
+
+  /**
+   * List read-model: domain fields plus the requester's display name from
+   * the joined `employee` relation. Null only if the join wasn't loaded.
+   */
+  static toListItem(raw: TimeCorrectionRequestEntity): TimeCorrectionRequestListItem {
+    const item = TimeCorrectionRequestMapper.toDomain(raw) as TimeCorrectionRequestListItem;
+    item.employee_name = raw.employee
+      ? `${raw.employee.first_name} ${raw.employee.last_name}`
+      : null;
+    return item;
   }
 }

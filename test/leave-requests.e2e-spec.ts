@@ -238,11 +238,14 @@ describe('Leave Requests (e2e)', () => {
       );
     });
 
-    it('HR with ViewAll lists every request', async () => {
+    it('HR with ViewAll lists every request, each row carrying the joined employee_name', async () => {
       const res = await auth(tokens.hr)(
         request(app.getHttpServer()).get(url('/admin/leave-requests')),
       ).expect(200);
       expect(res.body.total).toBeGreaterThanOrEqual(1);
+      // List read-model resolves the requester name in one trip (no client-side map).
+      expect(typeof res.body.data[0].employee_name).toBe('string');
+      expect(res.body.data[0].employee_name.length).toBeGreaterThan(0);
     });
   });
 });

@@ -205,5 +205,14 @@ describe('Time Correction Requests (e2e)', () => {
         request(app.getHttpServer()).get(url('/admin/time-correction-requests')),
       ).expect(403);
     });
+
+    it('HR admin list rows carry the joined employee_name', async () => {
+      const res = await auth(tokens.hr)(
+        request(app.getHttpServer()).get(url('/admin/time-correction-requests')),
+      ).expect(200);
+      expect(res.body.total).toBeGreaterThanOrEqual(1);
+      expect(typeof res.body.data[0].employee_name).toBe('string');
+      expect(res.body.data[0].employee_name.length).toBeGreaterThan(0);
+    });
   });
 });

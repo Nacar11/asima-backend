@@ -1,4 +1,5 @@
 import { LeaveRequest } from '@/leave-requests/domain/leave-request';
+import { LeaveRequestListItem } from '@/leave-requests/domain/leave-request-list-item';
 import { LeaveRequestEntity } from '@/leave-requests/persistence/entities/leave-request.entity';
 
 export class LeaveRequestMapper {
@@ -27,5 +28,19 @@ export class LeaveRequestMapper {
     lr.updated_at = raw.updated_at;
     lr.deleted_at = raw.deleted_at;
     return lr;
+  }
+
+  /**
+   * List read-model: the domain fields plus the requester's display name
+   * from the joined `employee` relation. Used by the paginated list query
+   * so the HR table resolves names without a second round-trip. Null only
+   * if the join was not loaded / the user is gone.
+   */
+  static toListItem(raw: LeaveRequestEntity): LeaveRequestListItem {
+    const item = LeaveRequestMapper.toDomain(raw) as LeaveRequestListItem;
+    item.employee_name = raw.employee
+      ? `${raw.employee.first_name} ${raw.employee.last_name}`
+      : null;
+    return item;
   }
 }

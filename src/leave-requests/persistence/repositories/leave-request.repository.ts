@@ -33,6 +33,9 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
 
     const qb = this.repo
       .createQueryBuilder('lr')
+      // 1:1 ManyToOne — no row multiplication, so pagination stays correct.
+      // Joins the requester so the list resolves employee_name in one trip.
+      .leftJoinAndSelect('lr.employee', 'employee')
       .orderBy('lr.submitted_at', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -49,7 +52,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
 
     const [entities, total] = await qb.getManyAndCount();
     return {
-      data: entities.map(LeaveRequestMapper.toDomain),
+      data: entities.map(LeaveRequestMapper.toListItem),
       total,
       page,
       limit,

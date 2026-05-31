@@ -34,6 +34,9 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
 
     const qb = this.repo
       .createQueryBuilder('tc')
+      // 1:1 ManyToOne — no row multiplication, so pagination stays correct.
+      // Joins the requester so the list resolves employee_name in one trip.
+      .leftJoinAndSelect('tc.employee', 'employee')
       .orderBy('tc.submitted_at', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -48,7 +51,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
 
     const [entities, total] = await qb.getManyAndCount();
     return {
-      data: entities.map(TimeCorrectionRequestMapper.toDomain),
+      data: entities.map(TimeCorrectionRequestMapper.toListItem),
       total,
       page,
       limit,
