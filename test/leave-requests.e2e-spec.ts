@@ -9,9 +9,12 @@ import validationOptions from '../src/utils/validation-options';
 import { PermissionSeedService } from '../src/database/seeds/permission/permission-seed.service';
 import { RoleSeedService } from '../src/database/seeds/role/role-seed.service';
 import { UserSeedService } from '../src/database/seeds/user/user-seed.service';
+import { WorkScheduleSeedService } from '../src/database/seeds/work-schedule/work-schedule-seed.service';
 import { PermissionEntity } from '../src/permissions/persistence/entities/permission.entity';
 import { RoleEntity } from '../src/roles/persistence/entities/role.entity';
 import { UserEntity } from '../src/users/persistence/entities/user.entity';
+import { WorkScheduleEntity } from '../src/work-schedules/persistence/entities/work-schedule.entity';
+import { LeaveAllocationEntity } from '../src/leave-allocations/persistence/entities/leave-allocation.entity';
 
 const SEED_PASSWORD = process.env.SEED_DEFAULT_PASSWORD ?? 'Asima@1234';
 const cred = (email: string) => ({ email, password: SEED_PASSWORD });
@@ -29,8 +32,22 @@ describe('Leave Requests (e2e)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule, TypeOrmModule.forFeature([PermissionEntity, RoleEntity, UserEntity])],
-      providers: [PermissionSeedService, RoleSeedService, UserSeedService],
+      imports: [
+        AppModule,
+        TypeOrmModule.forFeature([
+          PermissionEntity,
+          RoleEntity,
+          UserEntity,
+          WorkScheduleEntity,
+          LeaveAllocationEntity,
+        ]),
+      ],
+      providers: [
+        PermissionSeedService,
+        RoleSeedService,
+        UserSeedService,
+        WorkScheduleSeedService,
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -40,12 +57,15 @@ describe('Leave Requests (e2e)', () => {
 
     dataSource = moduleFixture.get(DataSource);
     await dataSource.query(
-      'TRUNCATE TABLE leave_requests, approval_chains, work_schedules, time_entries, role_permissions, users, roles, permissions ' +
+      'TRUNCATE TABLE leave_allocations, leave_requests, approval_chains, work_schedules, time_entries, role_permissions, users, roles, permissions ' +
         'RESTART IDENTITY CASCADE',
     );
     await moduleFixture.get(PermissionSeedService).run();
     await moduleFixture.get(RoleSeedService).run();
     await moduleFixture.get(UserSeedService).run();
+    // Work schedules are required now that submit enforces work-schedule-aware
+    // date rules (D8): every employee gets a Mon–Fri schedule.
+    await moduleFixture.get(WorkScheduleSeedService).run();
 
     await app.init();
 
@@ -70,6 +90,14 @@ describe('Leave Requests (e2e)', () => {
         .patch(url(`/admin/approvers/${ids.emma}`))
         .send({ l1_approver_id: ids.karen, l2_approver_id: ids.james }),
     ).expect(200);
+
+    // emma starts with 10 vacation + 10 sick (default). Grant emergency so the
+    // reject-flow cases below have balance — exercises the admin grant endpoint.
+    await auth(tokens.admin)(
+      request(app.getHttpServer())
+        .post(url(`/admin/users/${ids.emma}/leave-allocations`))
+        .send({ leave_type: 'emergency', amount: 20 }),
+    ).expect(201);
   });
 
   afterAll(async () => {
@@ -90,8 +118,8 @@ describe('Leave Requests (e2e)', () => {
       const res = await auth(tokens.emma)(
         request(app.getHttpServer()).post(url('/users/me/leave-requests')).send({
           leave_type: 'vacation',
-          start_date: '2026-07-01',
-          end_date: '2026-07-05',
+          start_date: '2026-07-01', // Wed
+          end_date: '2026-07-03', // Fri (both workdays; Sun end would fail D8)
           reason: 'Family trip',
         }),
       ).expect(201);
@@ -168,7 +196,7 @@ describe('Leave Requests (e2e)', () => {
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'sick', start_date: '2026-08-01', end_date: '2026-08-03' }),
+          .send({ leave_type: 'sick', start_date: '2026-08-03', end_date: '2026-08-05' }),
       ).expect(201);
 
       const res = await auth(tokens.hr)(
@@ -215,7 +243,7 @@ describe('Leave Requests (e2e)', () => {
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'vacation', start_date: '2026-11-01', end_date: '2026-11-02' }),
+          .send({ leave_type: 'vacation', start_date: '2026-11-02', end_date: '2026-11-03' }),
       ).expect(201);
 
       const res = await auth(tokens.emma)(

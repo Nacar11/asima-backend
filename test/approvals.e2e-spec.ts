@@ -12,6 +12,7 @@ import { UserSeedService } from '../src/database/seeds/user/user-seed.service';
 import { PermissionEntity } from '../src/permissions/persistence/entities/permission.entity';
 import { RoleEntity } from '../src/roles/persistence/entities/role.entity';
 import { UserEntity } from '../src/users/persistence/entities/user.entity';
+import { LeaveAllocationEntity } from '../src/leave-allocations/persistence/entities/leave-allocation.entity';
 
 // Match the seed default-password fallback so the test works regardless of
 // what a local .env sets SEED_DEFAULT_PASSWORD to (see UserSeedService).
@@ -33,7 +34,7 @@ describe('Approvals (e2e)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule, TypeOrmModule.forFeature([PermissionEntity, RoleEntity, UserEntity])],
+      imports: [AppModule, TypeOrmModule.forFeature([PermissionEntity, RoleEntity, UserEntity, LeaveAllocationEntity])],
       providers: [PermissionSeedService, RoleSeedService, UserSeedService],
     }).compile();
 
