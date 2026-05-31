@@ -185,6 +185,108 @@ describe('ApprovalChainsService', () => {
     });
   });
 
+  describe('bulkAssign', () => {
+    it('inserts an L1 row for every selected employee with no prior chain', async () => {
+      repo.findActiveForEmployees.mockResolvedValue([]);
+      const result = await service.bulkAssign([20, 21, 22], { l1_approver_id: 5 }, 1);
+
+      expect(result).toEqual({ assigned: 3, skipped: [] });
+      expect(repo.applyStepChanges).toHaveBeenCalledTimes(1);
+      const arg = repo.applyStepChanges.mock.calls[0][0];
+      expect(arg.ends).toEqual([]);
+      expect(arg.inserts).toEqual([
+        { employee_id: 20, step: 1, approver_id: 5, created_by: 1 },
+        { employee_id: 21, step: 1, approver_id: 5, created_by: 1 },
+        { employee_id: 22, step: 1, approver_id: 5, created_by: 1 },
+      ]);
+    });
+
+    it('inserts both L1 and L2 rows per employee when L2 is provided', async () => {
+      repo.findActiveForEmployees.mockResolvedValue([]);
+      const result = await service.bulkAssign(
+        [20, 21],
+        { l1_approver_id: 5, l2_approver_id: 7 },
+        1,
+      );
+
+      expect(result.assigned).toBe(2);
+      const arg = repo.applyStepChanges.mock.calls[0][0];
+      expect(arg.inserts).toEqual([
+        { employee_id: 20, step: 1, approver_id: 5, created_by: 1 },
+        { employee_id: 20, step: 2, approver_id: 7, created_by: 1 },
+        { employee_id: 21, step: 1, approver_id: 5, created_by: 1 },
+        { employee_id: 21, step: 2, approver_id: 7, created_by: 1 },
+      ]);
+    });
+
+    it('ends an existing L1 row before inserting the replacement (overwrite)', async () => {
+      repo.findActiveForEmployees.mockResolvedValue([
+        chainRow({ id: 90, employee_id: 20, step: 1, approver_id: 3 }),
+      ]);
+      await service.bulkAssign([20], { l1_approver_id: 5 }, 1);
+
+      const arg = repo.applyStepChanges.mock.calls[0][0];
+      expect(arg.ends).toEqual([90]);
+      expect(arg.inserts).toEqual([{ employee_id: 20, step: 1, approver_id: 5, created_by: 1 }]);
+    });
+
+    it('skips an employee who IS the chosen approver and reports self_approval', async () => {
+      repo.findActiveForEmployees.mockResolvedValue([]);
+      const result = await service.bulkAssign([5, 21], { l1_approver_id: 5 }, 1);
+
+      expect(result.assigned).toBe(1);
+      expect(result.skipped).toEqual([{ employee_id: 5, reason: 'self_approval' }]);
+      const arg = repo.applyStepChanges.mock.calls[0][0];
+      expect(arg.inserts).toEqual([{ employee_id: 21, step: 1, approver_id: 5, created_by: 1 }]);
+    });
+
+    it('skips an employee who equals the chosen L2 approver', async () => {
+      repo.findActiveForEmployees.mockResolvedValue([]);
+      const result = await service.bulkAssign([7, 21], { l1_approver_id: 5, l2_approver_id: 7 }, 1);
+
+      expect(result.skipped).toEqual([{ employee_id: 7, reason: 'self_approval' }]);
+      expect(result.assigned).toBe(1);
+    });
+
+    it('does not double-insert when an employee already has the chosen approver at that step', async () => {
+      repo.findActiveForEmployees.mockResolvedValue([
+        chainRow({ id: 90, employee_id: 20, step: 1, approver_id: 5 }),
+      ]);
+      const result = await service.bulkAssign([20], { l1_approver_id: 5 }, 1);
+
+      expect(result.assigned).toBe(0);
+      expect(repo.applyStepChanges).not.toHaveBeenCalled();
+    });
+
+    it('dedupes repeated employee_ids', async () => {
+      repo.findActiveForEmployees.mockResolvedValue([]);
+      await service.bulkAssign([20, 20, 21], { l1_approver_id: 5 }, 1);
+
+      expect(repo.findActiveForEmployees).toHaveBeenCalledWith([20, 21]);
+      const arg = repo.applyStepChanges.mock.calls[0][0];
+      expect(arg.inserts).toEqual([
+        { employee_id: 20, step: 1, approver_id: 5, created_by: 1 },
+        { employee_id: 21, step: 1, approver_id: 5, created_by: 1 },
+      ]);
+    });
+
+    it('rejects an inactive L1 approver with 422', async () => {
+      users.findById.mockImplementation((id: number) =>
+        Promise.resolve(id === 9 ? ({ id: 9, is_active: false } as User) : activeUser(id)),
+      );
+      await expect(service.bulkAssign([20], { l1_approver_id: 9 }, 1)).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      expect(repo.applyStepChanges).not.toHaveBeenCalled();
+    });
+
+    it('rejects an empty employee list with 422', async () => {
+      await expect(service.bulkAssign([], { l1_approver_id: 5 }, 1)).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+    });
+  });
+
   describe('getActive', () => {
     it('returns L1/L2 approver ids from the active rows', async () => {
       repo.findActiveForEmployee.mockResolvedValue([

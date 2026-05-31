@@ -35,6 +35,26 @@ export type BulkReassignResult = {
   skipped: number[];
 };
 
+/** Service input for `bulkAssign` — L1 is required, L2 optional (no clear). */
+export type BulkAssignInput = {
+  l1_approver_id: number;
+  l2_approver_id?: number;
+};
+
+/** One skipped employee in a bulk-assign, with the reason it was skipped. */
+export type BulkAssignSkip = {
+  employee_id: number;
+  reason: 'self_approval';
+};
+
+/** Result of a bulk assignment. */
+export type BulkAssignResult = {
+  /** Number of employees that received at least one new/changed row. */
+  assigned: number;
+  /** Employees skipped because they ARE one of the chosen approvers. */
+  skipped: BulkAssignSkip[];
+};
+
 /**
  * One row in the `GET /admin/approvers` list — an employee plus their
  * current L1/L2 approver, resolved for display. Names are denormalized

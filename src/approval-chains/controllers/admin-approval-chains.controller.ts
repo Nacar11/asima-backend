@@ -16,6 +16,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
 import { SetChainDto } from '@/approval-chains/dto/admin/set-chain.dto';
 import { BulkReassignDto } from '@/approval-chains/dto/admin/bulk-reassign.dto';
+import { BulkAssignDto } from '@/approval-chains/dto/admin/bulk-assign.dto';
 import { QueryApprovalChainDto } from '@/approval-chains/dto/admin/query-approval-chain.dto';
 import { APPROVAL_STEP, ApprovalStep } from '@/approval-chains/approval-chains.constants';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
@@ -54,6 +55,24 @@ export class AdminApprovalChainsController {
   @ApiResponse({ status: 200 })
   bulkReassign(@Body() dto: BulkReassignDto, @CurrentUser() actor: User) {
     return this.service.bulkReassign(dto.from_approver_id, dto.to_approver_id, actor.id);
+  }
+
+  @Post('bulk-assign')
+  @Permissions({ APPROVAL_CHAIN: 'Update' })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Assign an L1 (and optional L2) approver to a list of employees',
+    description:
+      'Overwrites any existing approver at the assigned step(s). Employees who ARE the chosen ' +
+      'approver are skipped and returned in `skipped[]`. All changes commit in one transaction.',
+  })
+  @ApiResponse({ status: 200 })
+  bulkAssign(@Body() dto: BulkAssignDto, @CurrentUser() actor: User) {
+    return this.service.bulkAssign(
+      dto.employee_ids,
+      { l1_approver_id: dto.l1_approver_id, l2_approver_id: dto.l2_approver_id },
+      actor.id,
+    );
   }
 
   @Get(':employee_id')

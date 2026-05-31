@@ -6,6 +6,9 @@ import { ApprovalChainSearchCriteria } from '@/approval-chains/domain/approval-c
 import { FindAllApprovalChain } from '@/approval-chains/domain/find-all-approval-chain';
 import {
   ActiveChain,
+  BulkAssignInput,
+  BulkAssignResult,
+  BulkAssignSkip,
   BulkReassignResult,
   ChainInsert,
   SetChainInput,
@@ -202,6 +205,63 @@ export class ApprovalChainsService {
       await this.repository.applyStepChanges({ ends, inserts, actor_id });
     }
     return { reassigned: inserts.length, skipped };
+  }
+
+  /**
+   * Assign an L1 (and optionally L2) approver to a LIST of employees in one
+   * atomic operation — the inverse of `bulkReassign` (source is an explicit
+   * employee set, not an existing approver). L1 is required (enforced by the
+   * DTO), so "L2 without L1" cannot arise. An employee who IS one of the
+   * chosen approvers is skipped (would violate the DB CHECK
+   * `approver_id <> employee_id`) and reported; everyone else commits
+   * through a single `applyStepChanges` transaction.
+   */
+  async bulkAssign(
+    employee_ids: number[],
+    input: BulkAssignInput,
+    actor_id: number | null,
+  ): Promise<BulkAssignResult> {
+    const ids = [...new Set(employee_ids)];
+    if (ids.length === 0) {
+      throw unprocessable('employee_ids', 'Select at least one employee.');
+    }
+
+    await this.assertUserActive(input.l1_approver_id);
+    if (input.l2_approver_id != null) {
+      await this.assertUserActive(input.l2_approver_id);
+    }
+
+    const activeRows = await this.repository.findActiveForEmployees(ids);
+    const rowsByEmployee = new Map<number, ApprovalChain[]>();
+    for (const row of activeRows) {
+      const list = rowsByEmployee.get(row.employee_id) ?? [];
+      list.push(row);
+      rowsByEmployee.set(row.employee_id, list);
+    }
+
+    const ends: number[] = [];
+    const inserts: ChainInsert[] = [];
+    const skipped: BulkAssignSkip[] = [];
+    let assigned = 0;
+
+    for (const employee_id of ids) {
+      if (employee_id === input.l1_approver_id || employee_id === input.l2_approver_id) {
+        skipped.push({ employee_id, reason: 'self_approval' });
+        continue;
+      }
+      const current = rowsByEmployee.get(employee_id) ?? [];
+      const change = this.computeStepChanges(employee_id, current, input, actor_id);
+      if (change.ends.length > 0 || change.inserts.length > 0) {
+        assigned += 1;
+        ends.push(...change.ends);
+        inserts.push(...change.inserts);
+      }
+    }
+
+    if (ends.length > 0 || inserts.length > 0) {
+      await this.repository.applyStepChanges({ ends, inserts, actor_id });
+    }
+    return { assigned, skipped };
   }
 
   // ── validation helpers ────────────────────────────────────────────
