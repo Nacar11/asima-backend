@@ -1,3 +1,5 @@
+import { LEAVE_TYPES, LeaveType } from '@/leave-requests/leave-requests.constants';
+
 /**
  * Leave-allocation enums. The `leave_allocations` table is an append-only
  * ledger: each row GRANTS `amount` days of a leave type to an employee, and
@@ -13,3 +15,15 @@ export const ALLOCATION_SOURCES = {
 } as const;
 
 export type AllocationSource = (typeof ALLOCATION_SOURCES)[keyof typeof ALLOCATION_SOURCES];
+
+/**
+ * Single definition of "every employee starts with these days" — granted on
+ * user creation (`UsersService.create`) AND backfilled idempotently by the
+ * user seeder. The other types (bereavement / birthday / emergency) start at
+ * zero and are admin-granted only. Import this in both places so the rule
+ * never drifts.
+ */
+export const DEFAULT_LEAVE_ALLOCATIONS: ReadonlyArray<{ leave_type: LeaveType; amount: number }> = [
+  { leave_type: LEAVE_TYPES.vacation, amount: 10 },
+  { leave_type: LEAVE_TYPES.sick, amount: 10 },
+];

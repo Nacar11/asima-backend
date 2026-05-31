@@ -6,6 +6,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { UserEntity } from '@/users/persistence/entities/user.entity';
 import { RoleEntity } from '@/roles/persistence/entities/role.entity';
+import { LeaveAllocationEntity } from '@/leave-allocations/persistence/entities/leave-allocation.entity';
+import {
+  ALLOCATION_SOURCES,
+  DEFAULT_LEAVE_ALLOCATIONS,
+} from '@/leave-allocations/leave-allocations.constants';
 import { BCRYPT_ROUNDS } from '@/users/users.constants';
 
 type UserSeedRow = {
@@ -32,6 +37,8 @@ export class UserSeedService {
     private readonly userRepo: Repository<UserEntity>,
     @InjectRepository(RoleEntity)
     private readonly roleRepo: Repository<RoleEntity>,
+    @InjectRepository(LeaveAllocationEntity)
+    private readonly allocationRepo: Repository<LeaveAllocationEntity>,
   ) {}
 
   async run(): Promise<void> {
@@ -49,6 +56,7 @@ export class UserSeedService {
 
     let inserted = 0;
     let skipped = 0;
+    let allocationsInserted = 0;
     const missingRoles = new Set<string>();
 
     for (const row of rows) {
@@ -70,24 +78,34 @@ export class UserSeedService {
         where: { email },
         withDeleted: true,
       });
+
+      let user: UserEntity;
       if (existing) {
         skipped += 1;
-        continue;
+        // Leave soft-deleted rows entirely alone (don't resurrect balances).
+        if (existing.deleted_at) continue;
+        user = existing;
+      } else {
+        user = await this.userRepo.save(
+          this.userRepo.create({
+            email,
+            password_hash: hash,
+            first_name: row.first_name,
+            last_name: row.last_name,
+            title: row.title ?? null,
+            role_id: role.id,
+            system_admin: row.system_admin ?? false,
+            is_active: row.is_active ?? true,
+          }),
+        );
+        inserted += 1;
+        this.logger.log(`  + ${email} (${row.role_name})`);
       }
 
-      const entity = this.userRepo.create({
-        email,
-        password_hash: hash,
-        first_name: row.first_name,
-        last_name: row.last_name,
-        title: row.title ?? null,
-        role_id: role.id,
-        system_admin: row.system_admin ?? false,
-        is_active: row.is_active ?? true,
-      });
-      await this.userRepo.save(entity);
-      inserted += 1;
-      this.logger.log(`  + ${email} (${row.role_name})`);
+      // Every active employee starts with the default leave balances. Backfills
+      // pre-existing users too; idempotent by (employee_id, leave_type,
+      // source='default'), so re-runs are a no-op.
+      allocationsInserted += await this.ensureDefaultAllocations(user.id);
     }
 
     if (missingRoles.size > 0) {
@@ -99,6 +117,7 @@ export class UserSeedService {
 
     this.logger.log(
       `Users seed complete: ${inserted} inserted, ${skipped} already existed, ` +
+        `${allocationsInserted} default leave allocation(s) added, ` +
         `${missingRoles.size} role(s) unresolved`,
     );
 
@@ -108,6 +127,33 @@ export class UserSeedService {
           `(falls back to 'Asima@1234'). Existing users were NOT touched.`,
       );
     }
+  }
+
+  /**
+   * Ensure the employee has the default leave allocations (10 vacation, 10
+   * sick). Idempotent by natural key `(employee_id, leave_type,
+   * source='default')` — only inserts the rows that are missing. Returns the
+   * number of rows inserted.
+   */
+  private async ensureDefaultAllocations(employee_id: number): Promise<number> {
+    let added = 0;
+    for (const { leave_type, amount } of DEFAULT_LEAVE_ALLOCATIONS) {
+      const exists = await this.allocationRepo.findOne({
+        where: { employee_id, leave_type, source: ALLOCATION_SOURCES.default },
+        withDeleted: true,
+      });
+      if (exists) continue;
+      await this.allocationRepo.save(
+        this.allocationRepo.create({
+          employee_id,
+          leave_type,
+          amount,
+          source: ALLOCATION_SOURCES.default,
+        }),
+      );
+      added += 1;
+    }
+    return added;
   }
 
   private loadManifest(): UserSeedRow[] {

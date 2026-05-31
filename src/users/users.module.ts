@@ -4,9 +4,10 @@ import { UserPersistenceModule } from '@/users/persistence/persistence.module';
 import { RolesModule } from '@/roles/roles.module';
 import { AdminUsersController } from '@/users/controllers/admin-users.controller';
 import { MeUsersController } from '@/users/controllers/me-users.controller';
+import { LeaveAllocationPersistenceModule } from '@/leave-allocations/persistence/persistence.module';
 
 @Module({
-  imports: [UserPersistenceModule, RolesModule],
+  imports: [UserPersistenceModule, RolesModule, LeaveAllocationPersistenceModule],
   controllers: [AdminUsersController, MeUsersController],
   providers: [UsersService],
   exports: [UsersService, UserPersistenceModule],
