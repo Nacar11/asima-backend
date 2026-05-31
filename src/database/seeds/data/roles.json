@@ -36,7 +36,9 @@
       "TIME_CORRECTION:Delete",
       "TIME_CORRECTION:ApproveAny",
       "APPROVAL_CHAIN:View",
-      "APPROVAL_CHAIN:Update"
+      "APPROVAL_CHAIN:Update",
+      "LEAVE_ALLOCATION:Create",
+      "LEAVE_ALLOCATION:View"
     ]
   },
   {

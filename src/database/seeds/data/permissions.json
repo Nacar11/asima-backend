@@ -42,5 +42,8 @@
   { "code": "TIME_CORRECTION:ApproveAny", "resource": "TIME_CORRECTION", "action": "ApproveAny", "description": "Override: approve any correction regardless of chain placement" },
 
   { "code": "APPROVAL_CHAIN:View", "resource": "APPROVAL_CHAIN", "action": "View", "description": "See who is whose approver" },
-  { "code": "APPROVAL_CHAIN:Update", "resource": "APPROVAL_CHAIN", "action": "Update", "description": "Assign / reassign / repair approvers in approval chains" }
+  { "code": "APPROVAL_CHAIN:Update", "resource": "APPROVAL_CHAIN", "action": "Update", "description": "Assign / reassign / repair approvers in approval chains" },
+
+  { "code": "LEAVE_ALLOCATION:Create", "resource": "LEAVE_ALLOCATION", "action": "Create", "description": "Grant leave days (sick/vacation/bereavement/birthday/emergency) to any employee" },
+  { "code": "LEAVE_ALLOCATION:View", "resource": "LEAVE_ALLOCATION", "action": "View", "description": "View an employee's leave balances and grant history" }
 ]

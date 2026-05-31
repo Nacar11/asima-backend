@@ -100,6 +100,11 @@ describe('Seed grant matrix', () => {
       }
     });
 
+    it('includes the LEAVE_ALLOCATION grant-ledger codes', () => {
+      expect(codes.has('LEAVE_ALLOCATION:Create')).toBe(true);
+      expect(codes.has('LEAVE_ALLOCATION:View')).toBe(true);
+    });
+
     it('has no duplicate codes', () => {
       const seen = new Map<string, number>();
       for (const p of perms) {
@@ -141,6 +146,9 @@ describe('Seed grant matrix', () => {
       // APPROVAL_CHAIN: both
       expect(codes.has('APPROVAL_CHAIN:View')).toBe(true);
       expect(codes.has('APPROVAL_CHAIN:Update')).toBe(true);
+      // LEAVE_ALLOCATION: grant + view balances/history
+      expect(codes.has('LEAVE_ALLOCATION:Create')).toBe(true);
+      expect(codes.has('LEAVE_ALLOCATION:View')).toBe(true);
     });
 
     it('HR_ADMIN does NOT have LEAVE:Approve or LEAVE:Create (they use ApproveAny, never submit)', () => {
@@ -184,6 +192,8 @@ describe('Seed grant matrix', () => {
       expect(codes.has('LEAVE:Update')).toBe(false);
       expect(codes.has('TIME_CORRECTION:Approve')).toBe(false);
       expect(codes.has('APPROVAL_CHAIN:View')).toBe(false);
+      expect(codes.has('LEAVE_ALLOCATION:Create')).toBe(false);
+      expect(codes.has('LEAVE_ALLOCATION:View')).toBe(false);
     });
 
     it('OPERATIONS_MANAGER gets NO new LEAVE / TIME_CORRECTION / APPROVAL_CHAIN codes (Q7 2026-05-30)', () => {
