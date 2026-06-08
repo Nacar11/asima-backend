@@ -50,6 +50,25 @@ describe('LeaveRequestMapper.toListItem', () => {
     const item = LeaveRequestMapper.toListItem(rawEntity());
     expect(item.employee_name).toBeNull();
   });
+
+  it('derives l1/l2 approver + decider names from the joined relations', () => {
+    const raw = rawEntity({
+      l1_approver: { first_name: 'Grace', last_name: 'Hopper' } as UserEntity,
+      l2_approver: { first_name: 'Alan', last_name: 'Turing' } as UserEntity,
+      decided_by_user: { first_name: 'Edsger', last_name: 'Dijkstra' } as UserEntity,
+    });
+    const item = LeaveRequestMapper.toListItem(raw);
+    expect(item.l1_approver_name).toBe('Grace Hopper');
+    expect(item.l2_approver_name).toBe('Alan Turing');
+    expect(item.decided_by_name).toBe('Edsger Dijkstra');
+  });
+
+  it('nulls approver/decider names when those relations are absent', () => {
+    const item = LeaveRequestMapper.toListItem(rawEntity());
+    expect(item.l1_approver_name).toBeNull();
+    expect(item.l2_approver_name).toBeNull();
+    expect(item.decided_by_name).toBeNull();
+  });
 });
 
 describe('LeaveRequestMapper.toDomain', () => {

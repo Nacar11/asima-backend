@@ -38,9 +38,13 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
 
     const qb = this.repo
       .createQueryBuilder('lr')
-      // 1:1 ManyToOne — no row multiplication, so pagination stays correct.
-      // Joins the requester so the list resolves employee_name in one trip.
+      // 1:1 ManyToOne joins — no row multiplication, so pagination stays correct.
+      // Resolves requester + approver + decider names in one trip (each join
+      // hits the users PK, so the page-bounded ≤100 rows make this cheap).
       .leftJoinAndSelect('lr.employee', 'employee')
+      .leftJoinAndSelect('lr.l1_approver', 'l1_approver')
+      .leftJoinAndSelect('lr.l2_approver', 'l2_approver')
+      .leftJoinAndSelect('lr.decided_by_user', 'decided_by_user')
       .orderBy('lr.submitted_at', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);

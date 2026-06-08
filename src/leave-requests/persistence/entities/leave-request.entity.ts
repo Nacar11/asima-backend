@@ -89,6 +89,10 @@ export class LeaveRequestEntity extends EntityHelper {
   @Column({ type: 'int', nullable: true })
   decided_by!: number | null;
 
+  @ManyToOne(() => UserEntity, { eager: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'decided_by' })
+  decided_by_user!: UserEntity | null;
+
   @Column({ type: 'varchar', length: 500, nullable: true })
   decision_note!: string | null;
 
@@ -104,8 +108,16 @@ export class LeaveRequestEntity extends EntityHelper {
   @Column({ type: 'int' })
   l1_approver_id!: number;
 
+  @ManyToOne(() => UserEntity, { eager: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'l1_approver_id' })
+  l1_approver!: UserEntity;
+
   @Column({ type: 'int', nullable: true })
   l2_approver_id!: number | null;
+
+  @ManyToOne(() => UserEntity, { eager: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'l2_approver_id' })
+  l2_approver!: UserEntity | null;
 
   @Column({ type: 'int', nullable: true })
   created_by!: number | null;
