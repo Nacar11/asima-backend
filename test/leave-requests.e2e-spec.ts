@@ -137,6 +137,46 @@ describe('Leave Requests (e2e)', () => {
       ).expect(422);
       expect(res.body.errors.dates).toBeDefined();
     });
+
+    // Shared across the half-day submit + the admin-recompute edit below.
+    let halfDayId: number;
+
+    it('submits a first-half day: 0.5 working day, window, and 0.5 reserved', async () => {
+      // 2026-07-06 is a Monday; emma already has 3 vacation days pending above.
+      const res = await auth(tokens.emma)(
+        request(app.getHttpServer()).post(url('/users/me/leave-requests')).send({
+          leave_type: 'vacation',
+          start_date: '2026-07-06',
+          end_date: '2026-07-06',
+          day_portion: 'first_half',
+        }),
+      ).expect(201);
+      expect(res.body.day_portion).toBe('first_half');
+      expect(res.body.working_days).toBe(0.5);
+      expect(res.body.start_time).toBe('09:00:00');
+      expect(res.body.end_time).toBe('14:00:00');
+      halfDayId = res.body.id;
+
+      const bal = await auth(tokens.emma)(
+        request(app.getHttpServer()).get(url('/users/me/leave-balances')),
+      ).expect(200);
+      const vacation = bal.body.find((b: { leave_type: string }) => b.leave_type === 'vacation');
+      expect(vacation.reserved).toBe(3.5); // 3 (pending 3-day) + 0.5 (this half day)
+    });
+
+    it('HR editing the portion recomputes working_days + clears the window', async () => {
+      // admin is system_admin (bypasses the LEAVE:Update gate). Promote the
+      // half day back to a full single day → working_days 1, window cleared.
+      const res = await auth(tokens.admin)(
+        request(app.getHttpServer())
+          .patch(url(`/admin/leave-requests/${halfDayId}`))
+          .send({ day_portion: 'full' }),
+      ).expect(200);
+      expect(res.body.day_portion).toBe('full');
+      expect(res.body.working_days).toBe(1);
+      expect(res.body.start_time).toBeNull();
+      expect(res.body.end_time).toBeNull();
+    });
   });
 
   describe('day-count preview — half day', () => {

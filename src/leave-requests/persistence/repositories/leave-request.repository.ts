@@ -11,6 +11,7 @@ import { LeaveRequest } from '@/leave-requests/domain/leave-request';
 import { LeaveRequestSearchCriteria } from '@/leave-requests/domain/leave-request-search-criteria';
 import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
 import {
+  DayPortion,
   DecisionPath,
   LEAVE_REQUEST_STATUSES,
   LeaveRequestStatus,
@@ -120,6 +121,9 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       start_date: string;
       end_date: string;
       working_days: number;
+      day_portion: DayPortion;
+      start_time?: string | null;
+      end_time?: string | null;
       reason?: string | null;
       status: LeaveRequestStatus;
       l1_approver_id: number;
@@ -137,6 +141,9 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       start_date: input.start_date,
       end_date: input.end_date,
       working_days: input.working_days,
+      day_portion: input.day_portion,
+      start_time: input.start_time ?? null,
+      end_time: input.end_time ?? null,
       reason: input.reason ?? null,
       status: input.status,
       l1_approver_id: input.l1_approver_id,
@@ -198,6 +205,10 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       leave_type?: LeaveType;
       start_date?: string;
       end_date?: string;
+      working_days?: number;
+      day_portion?: DayPortion;
+      start_time?: string | null;
+      end_time?: string | null;
       reason?: string | null;
       status?: LeaveRequestStatus;
       decided_at?: Date | null;

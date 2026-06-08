@@ -3,6 +3,7 @@ import { LeaveRequest } from '@/leave-requests/domain/leave-request';
 import { LeaveRequestSearchCriteria } from '@/leave-requests/domain/leave-request-search-criteria';
 import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
 import {
+  DayPortion,
   DecisionPath,
   LeaveRequestStatus,
   LeaveType,
@@ -60,6 +61,9 @@ export abstract class BaseLeaveRequestRepository {
       start_date: string;
       end_date: string;
       working_days: number;
+      day_portion: DayPortion;
+      start_time?: string | null;
+      end_time?: string | null;
       reason?: string | null;
       status: LeaveRequestStatus;
       l1_approver_id: number;
@@ -75,6 +79,10 @@ export abstract class BaseLeaveRequestRepository {
       leave_type?: LeaveType;
       start_date?: string;
       end_date?: string;
+      working_days?: number;
+      day_portion?: DayPortion;
+      start_time?: string | null;
+      end_time?: string | null;
       reason?: string | null;
       status?: LeaveRequestStatus;
       decided_at?: Date | null;

@@ -20,6 +20,7 @@ import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-requ
 import { SubmitLeaveInput, UpdateLeaveInput } from '@/leave-requests/domain/leave-request-inputs';
 import { User } from '@/users/domain/user';
 import {
+  DAY_PORTIONS,
   DayPortion,
   DECISION_PATHS,
   LEAVE_REQUEST_STATUSES,
@@ -82,10 +83,13 @@ export class LeaveRequestsService {
     // D8: end >= start, no past dates, start & end must be scheduled
     // workdays. Returns the schedule-aware working-day count, snapshotted
     // onto the request so balance reserve/use math stays stable.
-    const { working_days } = await this.dayCount.assertSubmittableRange(
+    const day_portion = input.day_portion ?? DAY_PORTIONS.full;
+    const { working_days, start_time, end_time } = await this.dayCount.assertSubmittableRange(
       input.employee_id,
       input.start_date,
       input.end_date,
+      day_portion,
+      input.leave_type,
     );
 
     const chain = await this.chains.getActive(input.employee_id);
@@ -136,6 +140,9 @@ export class LeaveRequestsService {
           start_date: input.start_date,
           end_date: input.end_date,
           working_days,
+          day_portion,
+          start_time,
+          end_time,
           reason: input.reason ?? null,
           status: LEAVE_REQUEST_STATUSES.pending_l1,
           l1_approver_id,
@@ -201,12 +208,40 @@ export class LeaveRequestsService {
         },
       });
     }
-    const start = patch.start_date ?? row.start_date;
-    const end = patch.end_date ?? row.end_date;
-    if (end < start) {
-      throw unprocessable('end_date', 'end_date must be on or after start_date.');
+
+    // Any edit to the dates, portion, or leave type re-runs the day-count so
+    // working_days + the half-day window snapshot can't go stale (and the new
+    // shape is re-validated: D8 rules, single-day-for-partial, half-day type).
+    const recompute =
+      patch.start_date !== undefined ||
+      patch.end_date !== undefined ||
+      patch.day_portion !== undefined ||
+      patch.leave_type !== undefined;
+
+    if (!recompute) {
+      return this.repository.update(id, { ...patch, updated_by: caller.id });
     }
-    return this.repository.update(id, { ...patch, updated_by: caller.id });
+
+    const start_date = patch.start_date ?? row.start_date;
+    const end_date = patch.end_date ?? row.end_date;
+    const day_portion = patch.day_portion ?? row.day_portion;
+    const leave_type = patch.leave_type ?? row.leave_type;
+    const { working_days, start_time, end_time } = await this.dayCount.assertSubmittableRange(
+      row.employee_id,
+      start_date,
+      end_date,
+      day_portion,
+      leave_type,
+    );
+
+    return this.repository.update(id, {
+      ...patch,
+      day_portion,
+      working_days,
+      start_time,
+      end_time,
+      updated_by: caller.id,
+    });
   }
 
   /**

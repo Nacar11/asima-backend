@@ -123,6 +123,38 @@ describe('LeaveRequestsService', () => {
       );
     });
 
+    it('persists day_portion + the half-day window and reserves 0.5 for a partial request', async () => {
+      dayCount.assertSubmittableRange.mockResolvedValue({
+        working_days: 0.5,
+        start_time: '09:00:00',
+        end_time: '14:00:00',
+      });
+      allocations.sumForUpdate.mockResolvedValue(10);
+      repo.sumConsumedForEmployeeType.mockResolvedValue(0);
+
+      await service.submit(
+        { ...input, day_portion: 'first_half' },
+        user(12, { codes: ['LEAVE:Create'] }),
+      );
+
+      expect(dayCount.assertSubmittableRange).toHaveBeenCalledWith(
+        12,
+        '2026-06-01',
+        '2026-06-05',
+        'first_half',
+        'vacation',
+      );
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          day_portion: 'first_half',
+          working_days: 0.5,
+          start_time: '09:00:00',
+          end_time: '14:00:00',
+        }),
+        expect.anything(),
+      );
+    });
+
     it('snapshots the schedule-aware working_days returned by the day-count service', async () => {
       dayCount.assertSubmittableRange.mockResolvedValue({
         working_days: 2,
@@ -130,7 +162,13 @@ describe('LeaveRequestsService', () => {
         end_time: null,
       });
       await service.submit(input, user(12, { codes: ['LEAVE:Create'] }));
-      expect(dayCount.assertSubmittableRange).toHaveBeenCalledWith(12, '2026-06-01', '2026-06-05');
+      expect(dayCount.assertSubmittableRange).toHaveBeenCalledWith(
+        12,
+        '2026-06-01',
+        '2026-06-05',
+        'full',
+        'vacation',
+      );
       expect(repo.create).toHaveBeenCalledWith(
         expect.objectContaining({ working_days: 2 }),
         expect.anything(),
@@ -309,6 +347,59 @@ describe('LeaveRequestsService', () => {
       repo.findById.mockResolvedValue(leave({ status: 'pending_l1' }));
       await service.update(1, { reason: 'typo fix' }, user(1, { codes: ['LEAVE:Update'] }));
       expect(repo.update).toHaveBeenCalledWith(1, expect.objectContaining({ reason: 'typo fix' }));
+    });
+
+    it('does NOT recompute working_days on a reason-only edit', async () => {
+      repo.findById.mockResolvedValue(leave({ status: 'pending_l1' }));
+      await service.update(1, { reason: 'typo fix' }, user(1, { codes: ['LEAVE:Update'] }));
+      expect(dayCount.assertSubmittableRange).not.toHaveBeenCalled();
+    });
+
+    it('recomputes working_days + window when edited to a half day', async () => {
+      repo.findById.mockResolvedValue(
+        leave({ status: 'pending_l1', employee_id: 12, leave_type: 'vacation', working_days: 5 }),
+      );
+      dayCount.assertSubmittableRange.mockResolvedValue({
+        working_days: 0.5,
+        start_time: '09:00:00',
+        end_time: '14:00:00',
+      });
+
+      await service.update(
+        1,
+        { start_date: '2026-07-06', end_date: '2026-07-06', day_portion: 'first_half' },
+        user(1, { codes: ['LEAVE:Update'] }),
+      );
+
+      expect(dayCount.assertSubmittableRange).toHaveBeenCalledWith(
+        12,
+        '2026-07-06',
+        '2026-07-06',
+        'first_half',
+        'vacation',
+      );
+      expect(repo.update).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          day_portion: 'first_half',
+          working_days: 0.5,
+          start_time: '09:00:00',
+          end_time: '14:00:00',
+        }),
+      );
+    });
+
+    it('rejects editing a birthday request to a half day (422 via day-count)', async () => {
+      repo.findById.mockResolvedValue(
+        leave({ status: 'pending_l1', employee_id: 12, leave_type: 'birthday' }),
+      );
+      dayCount.assertSubmittableRange.mockRejectedValue(
+        new UnprocessableEntityException({ status: 422, errors: { day_portion: 'whole day' } }),
+      );
+      await expect(
+        service.update(1, { day_portion: 'first_half' }, user(1, { codes: ['LEAVE:Update'] })),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(repo.update).not.toHaveBeenCalled();
     });
   });
 
