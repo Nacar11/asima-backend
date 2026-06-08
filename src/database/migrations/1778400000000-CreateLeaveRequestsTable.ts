@@ -21,6 +21,9 @@ export class CreateLeaveRequestsTable1778400000000 implements MigrationInterface
       `CREATE TYPE "leave_request_status" AS ENUM ('pending_l1', 'pending_l2', 'approved', 'rejected', 'cancelled')`,
     );
     await queryRunner.query(`CREATE TYPE "decision_path" AS ENUM ('chain', 'override')`);
+    await queryRunner.query(
+      `CREATE TYPE "leave_day_portion" AS ENUM ('full', 'first_half', 'second_half')`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE "leave_requests" (
@@ -29,7 +32,10 @@ export class CreateLeaveRequestsTable1778400000000 implements MigrationInterface
         "leave_type" "leave_type" NOT NULL,
         "start_date" date NOT NULL,
         "end_date" date NOT NULL,
-        "working_days" integer NOT NULL,
+        "working_days" numeric(4,1) NOT NULL,
+        "day_portion" "leave_day_portion" NOT NULL DEFAULT 'full',
+        "start_time" time,
+        "end_time" time,
         "reason" character varying(500),
         "status" "leave_request_status" NOT NULL DEFAULT 'pending_l1',
         "submitted_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -51,7 +57,9 @@ export class CreateLeaveRequestsTable1778400000000 implements MigrationInterface
         CONSTRAINT "CHK_leave_requests_date_range"
           CHECK ("end_date" >= "start_date"),
         CONSTRAINT "CHK_leave_requests_working_days"
-          CHECK ("working_days" >= 1)
+          CHECK ("working_days" >= 0.5),
+        CONSTRAINT "CHK_leave_requests_partial_single_day"
+          CHECK ("day_portion" = 'full' OR "start_date" = "end_date")
       )
     `);
 
@@ -104,6 +112,7 @@ export class CreateLeaveRequestsTable1778400000000 implements MigrationInterface
     await queryRunner.query(`DROP INDEX "public"."IDX_leave_requests_status_submitted"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_leave_requests_employee_status"`);
     await queryRunner.query(`DROP TABLE "leave_requests"`);
+    await queryRunner.query(`DROP TYPE "leave_day_portion"`);
     await queryRunner.query(`DROP TYPE "decision_path"`);
     await queryRunner.query(`DROP TYPE "leave_request_status"`);
     await queryRunner.query(`DROP TYPE "leave_type"`);

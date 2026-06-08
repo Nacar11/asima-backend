@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  DayPortion,
   DecisionPath,
   LeaveRequestStatus,
   LeaveType,
@@ -36,9 +37,32 @@ export class LeaveRequest {
 
   @ApiProperty({
     example: 2,
-    description: 'Scheduled working days in [start_date, end_date] — snapshot at submit time',
+    description:
+      'Scheduled working days in [start_date, end_date] — snapshot at submit time. ' +
+      '0.5 for a half-day request.',
   })
   working_days!: number;
+
+  @ApiProperty({
+    example: 'full',
+    enum: ['full', 'first_half', 'second_half'],
+    description: 'Which slice of the day. first/second_half charge 0.5 and are single-day only.',
+  })
+  day_portion!: DayPortion;
+
+  @ApiPropertyOptional({
+    example: '09:00:00',
+    nullable: true,
+    description: 'Half-day window start (HH:MM:SS), snapshot from the schedule. NULL for full day.',
+  })
+  start_time!: string | null;
+
+  @ApiPropertyOptional({
+    example: '14:00:00',
+    nullable: true,
+    description: 'Half-day window end (HH:MM:SS). NULL for full day.',
+  })
+  end_time!: string | null;
 
   @ApiPropertyOptional({ example: 'Family trip', nullable: true })
   reason!: string | null;

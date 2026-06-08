@@ -10,8 +10,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { EntityHelper } from '@/utils/entity-helper';
+import { ColumnNumericTransformer } from '@/utils/transformers/column-numeric.transformer';
 import { UserEntity } from '@/users/persistence/entities/user.entity';
 import {
+  DayPortion,
   DecisionPath,
   LeaveRequestStatus,
   LeaveType,
@@ -40,8 +42,33 @@ export class LeaveRequestEntity extends EntityHelper {
   @Column({ type: 'date' })
   end_date!: string;
 
-  @Column({ type: 'int' })
+  /**
+   * Chargeable working days. `numeric(4,1)` so a half day is `0.5`. pg
+   * returns numeric as a string — the transformer keeps the domain a number.
+   */
+  @Column({
+    type: 'numeric',
+    precision: 4,
+    scale: 1,
+    transformer: new ColumnNumericTransformer(),
+  })
   working_days!: number;
+
+  /** full | first_half | second_half. Half-days are single-day only (DB CHECK). */
+  @Column({
+    type: 'enum',
+    enum: ['full', 'first_half', 'second_half'],
+    default: 'full',
+  })
+  day_portion!: DayPortion;
+
+  /** Snapshot of the half-day window start (HH:MM:SS), NULL for a full day. */
+  @Column({ type: 'time', nullable: true })
+  start_time!: string | null;
+
+  /** Snapshot of the half-day window end (HH:MM:SS), NULL for a full day. */
+  @Column({ type: 'time', nullable: true })
+  end_time!: string | null;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   reason!: string | null;
