@@ -1,6 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsISO8601, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
-import { LEAVE_TYPES, LeaveType } from '@/leave-requests/leave-requests.constants';
+import {
+  DAY_PORTIONS,
+  DayPortion,
+  LEAVE_TYPES,
+  LeaveType,
+} from '@/leave-requests/leave-requests.constants';
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -12,7 +17,7 @@ const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
  * snapshot, and decision fields are server-owned and absent here.
  */
 export class SubmitLeaveRequestDto {
-  @ApiProperty({ example: 'annual', enum: Object.values(LEAVE_TYPES) })
+  @ApiProperty({ example: 'vacation', enum: Object.values(LEAVE_TYPES) })
   @IsIn(Object.values(LEAVE_TYPES))
   leave_type!: LeaveType;
 
@@ -25,6 +30,17 @@ export class SubmitLeaveRequestDto {
   @IsISO8601({ strict: true })
   @Matches(DATE_REGEX, { message: 'end_date must be YYYY-MM-DD' })
   end_date!: string;
+
+  @ApiPropertyOptional({
+    example: 'full',
+    enum: Object.values(DAY_PORTIONS),
+    description:
+      'Defaults to full. first/second_half charge 0.5 day and require a single-day, ' +
+      'half-day-eligible request (birthday is whole-day only). The server snapshots the window.',
+  })
+  @IsOptional()
+  @IsIn(Object.values(DAY_PORTIONS))
+  day_portion?: DayPortion;
 
   @ApiPropertyOptional({ example: 'Family trip', maxLength: 500, nullable: true })
   @IsOptional()

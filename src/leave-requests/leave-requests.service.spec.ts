@@ -4,9 +4,11 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { LeaveRequestsService } from './leave-requests.service';
+import { LeaveDayCountService } from './leave-day-count.service';
 import { BaseLeaveRequestRepository } from './persistence/base-leave-request.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
+import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
 import { LeaveRequest } from './domain/leave-request';
 import { User } from '@/users/domain/user';
 
@@ -14,9 +16,13 @@ function leave(partial: Partial<LeaveRequest>): LeaveRequest {
   return {
     id: 1,
     employee_id: 12,
-    leave_type: 'annual',
+    leave_type: 'vacation',
     start_date: '2026-06-01',
     end_date: '2026-06-05',
+    working_days: 5,
+    day_portion: 'full',
+    start_time: null,
+    end_time: null,
     reason: null,
     status: 'pending_l1',
     submitted_at: new Date('2026-05-30'),
@@ -55,6 +61,9 @@ describe('LeaveRequestsService', () => {
   let repo: jest.Mocked<BaseLeaveRequestRepository>;
   let chains: jest.Mocked<ApprovalChainsService>;
   let users: jest.Mocked<BaseUserRepository>;
+  let dayCount: jest.Mocked<LeaveDayCountService>;
+  let allocations: jest.Mocked<BaseLeaveAllocationRepository>;
+  let dataSource: { transaction: jest.Mock };
 
   beforeEach(() => {
     repo = {
@@ -63,6 +72,7 @@ describe('LeaveRequestsService', () => {
       findOverlapping: jest.fn().mockResolvedValue([]),
       findPendingForApprover: jest.fn(),
       findAllPending: jest.fn(),
+      sumConsumedForEmployeeType: jest.fn().mockResolvedValue(0),
       create: jest.fn().mockImplementation((input) => Promise.resolve(leave(input))),
       update: jest.fn().mockImplementation((id, patch) => Promise.resolve(leave({ id, ...patch }))),
     } as unknown as jest.Mocked<BaseLeaveRequestRepository>;
@@ -72,13 +82,30 @@ describe('LeaveRequestsService', () => {
     users = {
       findById: jest.fn().mockImplementation((id: number) => Promise.resolve(user(id))),
     } as unknown as jest.Mocked<BaseUserRepository>;
-    service = new LeaveRequestsService(repo, chains, users);
+    dayCount = {
+      assertSubmittableRange: jest
+        .fn()
+        .mockResolvedValue({ working_days: 3, start_time: null, end_time: null }),
+    } as unknown as jest.Mocked<LeaveDayCountService>;
+    allocations = {
+      sumForUpdate: jest.fn().mockResolvedValue(10),
+    } as unknown as jest.Mocked<BaseLeaveAllocationRepository>;
+    // Run the transaction callback inline with a throwaway manager.
+    dataSource = { transaction: jest.fn().mockImplementation((cb) => cb({} as never)) };
+    service = new LeaveRequestsService(
+      repo,
+      chains,
+      users,
+      dayCount,
+      allocations,
+      dataSource as never,
+    );
   });
 
   describe('submit', () => {
     const input = {
       employee_id: 12,
-      leave_type: 'annual' as const,
+      leave_type: 'vacation' as const,
       start_date: '2026-06-01',
       end_date: '2026-06-05',
     };
@@ -92,6 +119,59 @@ describe('LeaveRequestsService', () => {
           l2_approver_id: 7,
           employee_id: 12,
         }),
+        expect.anything(),
+      );
+    });
+
+    it('persists day_portion + the half-day window and reserves 0.5 for a partial request', async () => {
+      dayCount.assertSubmittableRange.mockResolvedValue({
+        working_days: 0.5,
+        start_time: '09:00:00',
+        end_time: '14:00:00',
+      });
+      allocations.sumForUpdate.mockResolvedValue(10);
+      repo.sumConsumedForEmployeeType.mockResolvedValue(0);
+
+      await service.submit(
+        { ...input, day_portion: 'first_half' },
+        user(12, { codes: ['LEAVE:Create'] }),
+      );
+
+      expect(dayCount.assertSubmittableRange).toHaveBeenCalledWith(
+        12,
+        '2026-06-01',
+        '2026-06-05',
+        'first_half',
+        'vacation',
+      );
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          day_portion: 'first_half',
+          working_days: 0.5,
+          start_time: '09:00:00',
+          end_time: '14:00:00',
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('snapshots the schedule-aware working_days returned by the day-count service', async () => {
+      dayCount.assertSubmittableRange.mockResolvedValue({
+        working_days: 2,
+        start_time: null,
+        end_time: null,
+      });
+      await service.submit(input, user(12, { codes: ['LEAVE:Create'] }));
+      expect(dayCount.assertSubmittableRange).toHaveBeenCalledWith(
+        12,
+        '2026-06-01',
+        '2026-06-05',
+        'full',
+        'vacation',
+      );
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ working_days: 2 }),
+        expect.anything(),
       );
     });
 
@@ -111,10 +191,47 @@ describe('LeaveRequestsService', () => {
       expect(repo.create).not.toHaveBeenCalled();
     });
 
-    it('rejects end_date before start_date', async () => {
-      await expect(
-        service.submit({ ...input, start_date: '2026-06-10', end_date: '2026-06-05' }, user(12)),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    it('propagates a D8 date-rule rejection from the day-count service and does not create', async () => {
+      dayCount.assertSubmittableRange.mockRejectedValue(
+        new UnprocessableEntityException({ status: 422, errors: { start_date: 'past' } }),
+      );
+      await expect(service.submit(input, user(12))).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('reserves on submit: locks allocations and creates when available >= working_days', async () => {
+      dayCount.assertSubmittableRange.mockResolvedValue({
+        working_days: 2,
+        start_time: null,
+        end_time: null,
+      });
+      allocations.sumForUpdate.mockResolvedValue(10);
+      repo.sumConsumedForEmployeeType.mockResolvedValue(8); // available = 2
+
+      await service.submit(input, user(12, { codes: ['LEAVE:Create'] }));
+
+      expect(allocations.sumForUpdate).toHaveBeenCalled();
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ working_days: 2 }),
+        expect.anything(), // the transaction manager
+      );
+    });
+
+    it('rejects with 422 balance when available < working_days and does not create', async () => {
+      dayCount.assertSubmittableRange.mockResolvedValue({
+        working_days: 3,
+        start_time: null,
+        end_time: null,
+      });
+      allocations.sumForUpdate.mockResolvedValue(10);
+      repo.sumConsumedForEmployeeType.mockResolvedValue(8); // available = 2 < 3
+
+      await expect(service.submit(input, user(12))).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      expect(repo.create).not.toHaveBeenCalled();
     });
   });
 
@@ -230,6 +347,59 @@ describe('LeaveRequestsService', () => {
       repo.findById.mockResolvedValue(leave({ status: 'pending_l1' }));
       await service.update(1, { reason: 'typo fix' }, user(1, { codes: ['LEAVE:Update'] }));
       expect(repo.update).toHaveBeenCalledWith(1, expect.objectContaining({ reason: 'typo fix' }));
+    });
+
+    it('does NOT recompute working_days on a reason-only edit', async () => {
+      repo.findById.mockResolvedValue(leave({ status: 'pending_l1' }));
+      await service.update(1, { reason: 'typo fix' }, user(1, { codes: ['LEAVE:Update'] }));
+      expect(dayCount.assertSubmittableRange).not.toHaveBeenCalled();
+    });
+
+    it('recomputes working_days + window when edited to a half day', async () => {
+      repo.findById.mockResolvedValue(
+        leave({ status: 'pending_l1', employee_id: 12, leave_type: 'vacation', working_days: 5 }),
+      );
+      dayCount.assertSubmittableRange.mockResolvedValue({
+        working_days: 0.5,
+        start_time: '09:00:00',
+        end_time: '14:00:00',
+      });
+
+      await service.update(
+        1,
+        { start_date: '2026-07-06', end_date: '2026-07-06', day_portion: 'first_half' },
+        user(1, { codes: ['LEAVE:Update'] }),
+      );
+
+      expect(dayCount.assertSubmittableRange).toHaveBeenCalledWith(
+        12,
+        '2026-07-06',
+        '2026-07-06',
+        'first_half',
+        'vacation',
+      );
+      expect(repo.update).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          day_portion: 'first_half',
+          working_days: 0.5,
+          start_time: '09:00:00',
+          end_time: '14:00:00',
+        }),
+      );
+    });
+
+    it('rejects editing a birthday request to a half day (422 via day-count)', async () => {
+      repo.findById.mockResolvedValue(
+        leave({ status: 'pending_l1', employee_id: 12, leave_type: 'birthday' }),
+      );
+      dayCount.assertSubmittableRange.mockRejectedValue(
+        new UnprocessableEntityException({ status: 422, errors: { day_portion: 'whole day' } }),
+      );
+      await expect(
+        service.update(1, { day_portion: 'first_half' }, user(1, { codes: ['LEAVE:Update'] })),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(repo.update).not.toHaveBeenCalled();
     });
   });
 

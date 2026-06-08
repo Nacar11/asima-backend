@@ -20,6 +20,7 @@ import { WorkSchedulesModule } from '@/work-schedules/work-schedules.module';
 import { ApprovalsModule } from '@/approvals/approvals.module';
 import { ApprovalChainsModule } from '@/approval-chains/approval-chains.module';
 import { LeaveRequestsModule } from '@/leave-requests/leave-requests.module';
+import { LeaveAllocationsModule } from '@/leave-allocations/leave-allocations.module';
 import { TimeCorrectionRequestsModule } from '@/time-correction-requests/time-correction-requests.module';
 import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
 
@@ -65,6 +66,7 @@ import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
     ApprovalsModule,
     ApprovalChainsModule,
     LeaveRequestsModule,
+    LeaveAllocationsModule,
     TimeCorrectionRequestsModule,
   ],
   // Guard pipeline runs in declared order:

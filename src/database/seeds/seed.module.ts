@@ -11,6 +11,7 @@ import { RoleEntity } from '@/roles/persistence/entities/role.entity';
 import { UserEntity } from '@/users/persistence/entities/user.entity';
 import { TimeEntryEntity } from '@/time-entries/persistence/entities/time-entry.entity';
 import { WorkScheduleEntity } from '@/work-schedules/persistence/entities/work-schedule.entity';
+import { LeaveAllocationEntity } from '@/leave-allocations/persistence/entities/leave-allocation.entity';
 import { PermissionSeedService } from './permission/permission-seed.service';
 import { RoleSeedService } from './role/role-seed.service';
 import { UserSeedService } from './user/user-seed.service';
@@ -34,6 +35,7 @@ import { WorkScheduleSeedService } from './work-schedule/work-schedule-seed.serv
       UserEntity,
       TimeEntryEntity,
       WorkScheduleEntity,
+      LeaveAllocationEntity,
     ]),
   ],
   providers: [

@@ -14,6 +14,7 @@ import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
 import { LeaveRequest } from '@/leave-requests/domain/leave-request';
 import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
 import { SubmitLeaveRequestDto } from '@/leave-requests/dto/me/submit-leave-request.dto';
+import { DayCountQueryDto } from '@/leave-requests/dto/me/day-count-query.dto';
 import { QueryLeaveRequestDto } from '@/leave-requests/dto/admin/query-leave-request.dto';
 import { Permissions } from '@/permissions/permissions.decorator';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
@@ -49,6 +50,20 @@ export class MeLeaveRequestsController {
   @ApiResponse({ status: 201 })
   submit(@Body() dto: SubmitLeaveRequestDto, @CurrentUser() me: User): Promise<LeaveRequest> {
     return this.service.submit({ ...dto, employee_id: me.id }, me);
+  }
+
+  @Get('day-count')
+  @Permissions({ LEAVE: 'ViewOwn' })
+  @ApiOperation({ summary: 'Preview working days for a date range (same D8 rules as submit)' })
+  @ApiResponse({ status: 200 })
+  dayCount(@Query() query: DayCountQueryDto, @CurrentUser() me: User) {
+    return this.service.previewWorkingDays(
+      me.id,
+      query.start_date,
+      query.end_date,
+      query.day_portion,
+      query.leave_type,
+    );
   }
 
   @Get(':id')

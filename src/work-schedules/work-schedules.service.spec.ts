@@ -15,6 +15,7 @@ describe('WorkSchedulesService', () => {
     expected_in: '09:00:00',
     expected_out: '18:00:00',
     break_minutes: 60,
+    break_start: '12:00:00',
     effective_from: '2026-05-23',
     effective_to: null,
     created_by: 1,
@@ -75,12 +76,70 @@ describe('WorkSchedulesService', () => {
           expected_in: '08:00:00',
           expected_out: '17:00:00',
           break_minutes: 30,
+          break_start: '12:00:00',
           effective_from: '2026-06-01',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
-    it('creates when no active row exists for that (employee, day)', async () => {
+    it('rejects break_minutes > 0 when break_start is missing', async () => {
+      await expect(
+        service.create({
+          employee_id: 12,
+          day_of_week: DAY_OF_WEEK.MONDAY,
+          expected_in: '09:00:00',
+          expected_out: '18:00:00',
+          break_minutes: 60,
+          effective_from: '2026-05-23',
+        }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a break_start earlier than expected_in', async () => {
+      await expect(
+        service.create({
+          employee_id: 12,
+          day_of_week: DAY_OF_WEEK.MONDAY,
+          expected_in: '09:00:00',
+          expected_out: '18:00:00',
+          break_minutes: 60,
+          break_start: '08:30:00',
+          effective_from: '2026-05-23',
+        }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('rejects a break that overruns expected_out', async () => {
+      await expect(
+        service.create({
+          employee_id: 12,
+          day_of_week: DAY_OF_WEEK.MONDAY,
+          expected_in: '09:00:00',
+          expected_out: '18:00:00',
+          break_minutes: 60,
+          break_start: '17:30:00', // 17:30 + 60min = 18:30 > 18:00
+          effective_from: '2026-05-23',
+        }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('allows break_minutes = 0 with no break_start', async () => {
+      repo.findActiveForEmployeeDay.mockResolvedValue(null);
+      repo.create.mockResolvedValue({ ...fakeActive, break_minutes: 0, break_start: null });
+      const result = await service.create({
+        employee_id: 12,
+        day_of_week: DAY_OF_WEEK.MONDAY,
+        expected_in: '09:00:00',
+        expected_out: '18:00:00',
+        break_minutes: 0,
+        effective_from: '2026-05-23',
+        created_by: 1,
+      });
+      expect(result.break_minutes).toBe(0);
+    });
+
+    it('creates with a valid break_start inside the window', async () => {
       repo.findActiveForEmployeeDay.mockResolvedValue(null);
       repo.create.mockResolvedValue(fakeActive);
       const result = await service.create({
@@ -89,10 +148,14 @@ describe('WorkSchedulesService', () => {
         expected_in: '09:00:00',
         expected_out: '18:00:00',
         break_minutes: 60,
+        break_start: '12:00:00',
         effective_from: '2026-05-23',
         created_by: 1,
       });
       expect(result).toBe(fakeActive);
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ break_start: '12:00:00' }),
+      );
     });
   });
 
@@ -117,6 +180,15 @@ describe('WorkSchedulesService', () => {
       const result = await service.update(50, { break_minutes: 30, updated_by: 2 });
       expect(result.break_minutes).toBe(30);
       expect(repo.update).toHaveBeenCalledWith(50, { break_minutes: 30, updated_by: 2 });
+    });
+
+    it('rejects a patched break_start that overruns expected_out', async () => {
+      // existing window 09:00–18:00, break 60min; move break to 17:30 → 18:30 > 18:00
+      repo.findById.mockResolvedValue(fakeActive);
+      await expect(service.update(50, { break_start: '17:30:00' })).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      expect(repo.update).not.toHaveBeenCalled();
     });
   });
 

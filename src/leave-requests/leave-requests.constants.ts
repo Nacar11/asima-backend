@@ -1,14 +1,16 @@
 /**
  * Leave-request enums. Postgres enum + const-object pattern (mirrors
- * `TIME_ENTRY_STATUSES`). No `leave_types` lookup table in v0 — quotas,
- * accrual, and balances are a v1 conversation (2026-05-30 plan §3.4 / §13).
+ * `TIME_ENTRY_STATUSES`). Balances/quotas land via the `leave_allocations`
+ * ledger (2026-05-31 leave-balances plan). `vacation` + `sick` carry a 10-day
+ * default per employee; `bereavement` / `birthday` / `emergency` are
+ * admin-granted only.
  */
 export const LEAVE_TYPES = {
-  annual: 'annual',
+  vacation: 'vacation',
   sick: 'sick',
   bereavement: 'bereavement',
-  unpaid: 'unpaid',
-  other: 'other',
+  birthday: 'birthday',
+  emergency: 'emergency',
 } as const;
 
 export type LeaveType = (typeof LEAVE_TYPES)[keyof typeof LEAVE_TYPES];
@@ -47,3 +49,30 @@ export const DECISION_PATHS = {
 } as const;
 
 export type DecisionPath = (typeof DECISION_PATHS)[keyof typeof DECISION_PATHS];
+
+/**
+ * Which slice of a single day a request covers. `full` is the default and
+ * the only value allowed on multi-day requests. `first_half` / `second_half`
+ * each charge 0.5 working days and are valid only when start_date = end_date
+ * (DB CHECK + service guard). The clock window is derived from the
+ * employee's work schedule (expected_in/out + break_start).
+ */
+export const DAY_PORTIONS = {
+  full: 'full',
+  first_half: 'first_half',
+  second_half: 'second_half',
+} as const;
+
+export type DayPortion = (typeof DAY_PORTIONS)[keyof typeof DAY_PORTIONS];
+
+/**
+ * Leave types eligible for a half-day request. `birthday` is intentionally
+ * excluded — it is whole-day only by policy (a partial birthday request is
+ * rejected on submit and the portion control is hidden in the UI).
+ */
+export const HALF_DAY_LEAVE_TYPES: ReadonlySet<LeaveType> = new Set<LeaveType>([
+  LEAVE_TYPES.vacation,
+  LEAVE_TYPES.sick,
+  LEAVE_TYPES.bereavement,
+  LEAVE_TYPES.emergency,
+]);

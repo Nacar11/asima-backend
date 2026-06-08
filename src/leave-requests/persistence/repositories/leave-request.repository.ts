@@ -1,14 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { BaseLeaveRequestRepository } from '@/leave-requests/persistence/base-leave-request.repository';
+import { EntityManager, Repository } from 'typeorm';
+import {
+  BaseLeaveRequestRepository,
+  WorkingDaySums,
+} from '@/leave-requests/persistence/base-leave-request.repository';
 import { LeaveRequestEntity } from '@/leave-requests/persistence/entities/leave-request.entity';
 import { LeaveRequestMapper } from '@/leave-requests/persistence/mappers/leave-request.mapper';
 import { LeaveRequest } from '@/leave-requests/domain/leave-request';
 import { LeaveRequestSearchCriteria } from '@/leave-requests/domain/leave-request-search-criteria';
 import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
 import {
+  DayPortion,
   DecisionPath,
+  LEAVE_REQUEST_STATUSES,
   LeaveRequestStatus,
   LeaveType,
   PENDING_STATUSES,
@@ -109,22 +114,36 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
     return entities.map(LeaveRequestMapper.toDomain);
   }
 
-  async create(input: {
-    employee_id: number;
-    leave_type: LeaveType;
-    start_date: string;
-    end_date: string;
-    reason?: string | null;
-    status: LeaveRequestStatus;
-    l1_approver_id: number;
-    l2_approver_id: number | null;
-    created_by?: number | null;
-  }): Promise<LeaveRequest> {
-    const entity = this.repo.create({
+  async create(
+    input: {
+      employee_id: number;
+      leave_type: LeaveType;
+      start_date: string;
+      end_date: string;
+      working_days: number;
+      day_portion: DayPortion;
+      start_time?: string | null;
+      end_time?: string | null;
+      reason?: string | null;
+      status: LeaveRequestStatus;
+      l1_approver_id: number;
+      l2_approver_id: number | null;
+      created_by?: number | null;
+    },
+    manager?: EntityManager,
+  ): Promise<LeaveRequest> {
+    // When a manager is passed, the insert (and its reload) join that
+    // transaction — required for reserve-on-submit (plan C3).
+    const repo = manager ? manager.getRepository(LeaveRequestEntity) : this.repo;
+    const entity = repo.create({
       employee_id: input.employee_id,
       leave_type: input.leave_type,
       start_date: input.start_date,
       end_date: input.end_date,
+      working_days: input.working_days,
+      day_portion: input.day_portion,
+      start_time: input.start_time ?? null,
+      end_time: input.end_time ?? null,
       reason: input.reason ?? null,
       status: input.status,
       l1_approver_id: input.l1_approver_id,
@@ -132,8 +151,52 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       created_by: input.created_by ?? null,
       updated_by: input.created_by ?? null,
     });
-    const saved = await this.repo.save(entity);
-    return this.requireById(saved.id);
+    const saved = await repo.save(entity);
+    const reloaded = await repo.findOneOrFail({ where: { id: saved.id } });
+    return LeaveRequestMapper.toDomain(reloaded);
+  }
+
+  async workingDaySumsByEmployee(employee_id: number): Promise<WorkingDaySums> {
+    const rows = await this.repo
+      .createQueryBuilder('lr')
+      .select('lr.leave_type', 'leave_type')
+      .addSelect('lr.status', 'status')
+      .addSelect('COALESCE(SUM(lr.working_days), 0)', 'sum')
+      .where('lr.employee_id = :employee_id', { employee_id })
+      .andWhere('lr.deleted_at IS NULL')
+      .andWhere('lr.status IN (:...statuses)', {
+        statuses: [LEAVE_REQUEST_STATUSES.approved, ...PENDING_STATUSES],
+      })
+      .groupBy('lr.leave_type')
+      .addGroupBy('lr.status')
+      .getRawMany<{ leave_type: LeaveType; status: LeaveRequestStatus; sum: string }>();
+
+    const out: WorkingDaySums = {};
+    for (const row of rows) {
+      const bucket = (out[row.leave_type] ??= { used: 0, reserved: 0 });
+      if (row.status === LEAVE_REQUEST_STATUSES.approved) bucket.used += Number(row.sum);
+      else bucket.reserved += Number(row.sum);
+    }
+    return out;
+  }
+
+  async sumConsumedForEmployeeType(
+    manager: EntityManager,
+    employee_id: number,
+    leave_type: LeaveType,
+  ): Promise<number> {
+    const raw = await manager
+      .getRepository(LeaveRequestEntity)
+      .createQueryBuilder('lr')
+      .select('COALESCE(SUM(lr.working_days), 0)', 'sum')
+      .where('lr.employee_id = :employee_id', { employee_id })
+      .andWhere('lr.leave_type = :leave_type', { leave_type })
+      .andWhere('lr.deleted_at IS NULL')
+      .andWhere('lr.status IN (:...statuses)', {
+        statuses: [LEAVE_REQUEST_STATUSES.approved, ...PENDING_STATUSES],
+      })
+      .getRawOne<{ sum: string }>();
+    return Number(raw?.sum ?? 0);
   }
 
   async update(
@@ -142,6 +205,10 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       leave_type?: LeaveType;
       start_date?: string;
       end_date?: string;
+      working_days?: number;
+      day_portion?: DayPortion;
+      start_time?: string | null;
+      end_time?: string | null;
       reason?: string | null;
       status?: LeaveRequestStatus;
       decided_at?: Date | null;

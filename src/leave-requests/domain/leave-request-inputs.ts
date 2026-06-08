@@ -1,4 +1,4 @@
-import { LeaveType } from '@/leave-requests/leave-requests.constants';
+import { DayPortion, LeaveType } from '@/leave-requests/leave-requests.constants';
 
 /** Self-service submit payload (employee submits for themselves). */
 export type SubmitLeaveInput = {
@@ -6,6 +6,7 @@ export type SubmitLeaveInput = {
   leave_type: LeaveType;
   start_date: string;
   end_date: string;
+  day_portion?: DayPortion;
   reason?: string | null;
 };
 
@@ -14,5 +15,6 @@ export type UpdateLeaveInput = {
   leave_type?: LeaveType;
   start_date?: string;
   end_date?: string;
+  day_portion?: DayPortion;
   reason?: string | null;
 };

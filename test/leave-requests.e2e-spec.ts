@@ -9,9 +9,12 @@ import validationOptions from '../src/utils/validation-options';
 import { PermissionSeedService } from '../src/database/seeds/permission/permission-seed.service';
 import { RoleSeedService } from '../src/database/seeds/role/role-seed.service';
 import { UserSeedService } from '../src/database/seeds/user/user-seed.service';
+import { WorkScheduleSeedService } from '../src/database/seeds/work-schedule/work-schedule-seed.service';
 import { PermissionEntity } from '../src/permissions/persistence/entities/permission.entity';
 import { RoleEntity } from '../src/roles/persistence/entities/role.entity';
 import { UserEntity } from '../src/users/persistence/entities/user.entity';
+import { WorkScheduleEntity } from '../src/work-schedules/persistence/entities/work-schedule.entity';
+import { LeaveAllocationEntity } from '../src/leave-allocations/persistence/entities/leave-allocation.entity';
 
 const SEED_PASSWORD = process.env.SEED_DEFAULT_PASSWORD ?? 'Asima@1234';
 const cred = (email: string) => ({ email, password: SEED_PASSWORD });
@@ -29,8 +32,22 @@ describe('Leave Requests (e2e)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule, TypeOrmModule.forFeature([PermissionEntity, RoleEntity, UserEntity])],
-      providers: [PermissionSeedService, RoleSeedService, UserSeedService],
+      imports: [
+        AppModule,
+        TypeOrmModule.forFeature([
+          PermissionEntity,
+          RoleEntity,
+          UserEntity,
+          WorkScheduleEntity,
+          LeaveAllocationEntity,
+        ]),
+      ],
+      providers: [
+        PermissionSeedService,
+        RoleSeedService,
+        UserSeedService,
+        WorkScheduleSeedService,
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -40,12 +57,15 @@ describe('Leave Requests (e2e)', () => {
 
     dataSource = moduleFixture.get(DataSource);
     await dataSource.query(
-      'TRUNCATE TABLE leave_requests, approval_chains, work_schedules, time_entries, role_permissions, users, roles, permissions ' +
+      'TRUNCATE TABLE leave_allocations, leave_requests, approval_chains, work_schedules, time_entries, role_permissions, users, roles, permissions ' +
         'RESTART IDENTITY CASCADE',
     );
     await moduleFixture.get(PermissionSeedService).run();
     await moduleFixture.get(RoleSeedService).run();
     await moduleFixture.get(UserSeedService).run();
+    // Work schedules are required now that submit enforces work-schedule-aware
+    // date rules (D8): every employee gets a Mon–Fri schedule.
+    await moduleFixture.get(WorkScheduleSeedService).run();
 
     await app.init();
 
@@ -70,6 +90,14 @@ describe('Leave Requests (e2e)', () => {
         .patch(url(`/admin/approvers/${ids.emma}`))
         .send({ l1_approver_id: ids.karen, l2_approver_id: ids.james }),
     ).expect(200);
+
+    // emma starts with 10 vacation + 10 sick (default). Grant emergency so the
+    // reject-flow cases below have balance — exercises the admin grant endpoint.
+    await auth(tokens.admin)(
+      request(app.getHttpServer())
+        .post(url(`/admin/users/${ids.emma}/leave-allocations`))
+        .send({ leave_type: 'emergency', amount: 20 }),
+    ).expect(201);
   });
 
   afterAll(async () => {
@@ -81,7 +109,7 @@ describe('Leave Requests (e2e)', () => {
       const res = await auth(tokens.liam)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'annual', start_date: '2026-07-01', end_date: '2026-07-03' }),
+          .send({ leave_type: 'vacation', start_date: '2026-07-01', end_date: '2026-07-03' }),
       ).expect(422);
       expect(res.body.errors.approval_chain).toBeDefined();
     });
@@ -89,9 +117,9 @@ describe('Leave Requests (e2e)', () => {
     it('snapshots the chain and starts at pending_l1', async () => {
       const res = await auth(tokens.emma)(
         request(app.getHttpServer()).post(url('/users/me/leave-requests')).send({
-          leave_type: 'annual',
-          start_date: '2026-07-01',
-          end_date: '2026-07-05',
+          leave_type: 'vacation',
+          start_date: '2026-07-01', // Wed
+          end_date: '2026-07-03', // Fri (both workdays; Sun end would fail D8)
           reason: 'Family trip',
         }),
       ).expect(201);
@@ -108,6 +136,99 @@ describe('Leave Requests (e2e)', () => {
           .send({ leave_type: 'sick', start_date: '2026-07-03', end_date: '2026-07-08' }),
       ).expect(422);
       expect(res.body.errors.dates).toBeDefined();
+    });
+
+    // Shared across the half-day submit + the admin-recompute edit below.
+    let halfDayId: number;
+
+    it('submits a first-half day: 0.5 working day, window, and 0.5 reserved', async () => {
+      // 2026-07-06 is a Monday; emma already has 3 vacation days pending above.
+      const res = await auth(tokens.emma)(
+        request(app.getHttpServer()).post(url('/users/me/leave-requests')).send({
+          leave_type: 'vacation',
+          start_date: '2026-07-06',
+          end_date: '2026-07-06',
+          day_portion: 'first_half',
+        }),
+      ).expect(201);
+      expect(res.body.day_portion).toBe('first_half');
+      expect(res.body.working_days).toBe(0.5);
+      expect(res.body.start_time).toBe('09:00:00');
+      expect(res.body.end_time).toBe('14:00:00');
+      halfDayId = res.body.id;
+
+      const bal = await auth(tokens.emma)(
+        request(app.getHttpServer()).get(url('/users/me/leave-balances')),
+      ).expect(200);
+      const vacation = bal.body.find((b: { leave_type: string }) => b.leave_type === 'vacation');
+      expect(vacation.reserved).toBe(3.5); // 3 (pending 3-day) + 0.5 (this half day)
+    });
+
+    it('HR editing the portion recomputes working_days + clears the window', async () => {
+      // admin is system_admin (bypasses the LEAVE:Update gate). Promote the
+      // half day back to a full single day → working_days 1, window cleared.
+      const res = await auth(tokens.admin)(
+        request(app.getHttpServer())
+          .patch(url(`/admin/leave-requests/${halfDayId}`))
+          .send({ day_portion: 'full' }),
+      ).expect(200);
+      expect(res.body.day_portion).toBe('full');
+      expect(res.body.working_days).toBe(1);
+      expect(res.body.start_time).toBeNull();
+      expect(res.body.end_time).toBeNull();
+    });
+  });
+
+  describe('day-count preview — half day', () => {
+    // emma's seeded schedule: Mon–Fri 09:00–18:00, lunch 12:00 for 60m.
+    // 2026-07-06 is a Monday (workday).
+    const dayCount = (params: Record<string, string>) =>
+      auth(tokens.emma)(
+        request(app.getHttpServer()).get(url('/users/me/leave-requests/day-count')).query(params),
+      );
+
+    it('first_half returns 0.5 day and the 09:00–14:00 window', async () => {
+      const res = await dayCount({
+        start_date: '2026-07-06',
+        end_date: '2026-07-06',
+        day_portion: 'first_half',
+        leave_type: 'vacation',
+      }).expect(200);
+      expect(res.body.working_days).toBe(0.5);
+      expect(res.body.start_time).toBe('09:00:00');
+      expect(res.body.end_time).toBe('14:00:00');
+    });
+
+    it('second_half returns 0.5 day and the 14:00–18:00 window', async () => {
+      const res = await dayCount({
+        start_date: '2026-07-06',
+        end_date: '2026-07-06',
+        day_portion: 'second_half',
+        leave_type: 'vacation',
+      }).expect(200);
+      expect(res.body.working_days).toBe(0.5);
+      expect(res.body.start_time).toBe('14:00:00');
+      expect(res.body.end_time).toBe('18:00:00');
+    });
+
+    it('rejects a half-day spanning two days (422)', async () => {
+      const res = await dayCount({
+        start_date: '2026-07-06',
+        end_date: '2026-07-07',
+        day_portion: 'first_half',
+        leave_type: 'vacation',
+      }).expect(422);
+      expect(res.body.errors.day_portion).toBeDefined();
+    });
+
+    it('rejects a half-day birthday request (422 whole-day-only)', async () => {
+      const res = await dayCount({
+        start_date: '2026-07-06',
+        end_date: '2026-07-06',
+        day_portion: 'first_half',
+        leave_type: 'birthday',
+      }).expect(422);
+      expect(res.body.errors.day_portion).toBeDefined();
     });
   });
 
@@ -168,7 +289,7 @@ describe('Leave Requests (e2e)', () => {
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'unpaid', start_date: '2026-08-01', end_date: '2026-08-03' }),
+          .send({ leave_type: 'sick', start_date: '2026-08-03', end_date: '2026-08-05' }),
       ).expect(201);
 
       const res = await auth(tokens.hr)(
@@ -184,7 +305,7 @@ describe('Leave Requests (e2e)', () => {
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'other', start_date: '2026-09-01', end_date: '2026-09-02' }),
+          .send({ leave_type: 'emergency', start_date: '2026-09-01', end_date: '2026-09-02' }),
       ).expect(201);
 
       const res = await auth(tokens.karen)(
@@ -200,7 +321,7 @@ describe('Leave Requests (e2e)', () => {
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'other', start_date: '2026-10-01', end_date: '2026-10-02' }),
+          .send({ leave_type: 'emergency', start_date: '2026-10-01', end_date: '2026-10-02' }),
       ).expect(201);
 
       const res = await auth(tokens.karen)(
@@ -215,7 +336,7 @@ describe('Leave Requests (e2e)', () => {
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'annual', start_date: '2026-11-01', end_date: '2026-11-02' }),
+          .send({ leave_type: 'vacation', start_date: '2026-11-02', end_date: '2026-11-03' }),
       ).expect(201);
 
       const res = await auth(tokens.emma)(

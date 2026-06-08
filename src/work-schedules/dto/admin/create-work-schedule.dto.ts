@@ -35,6 +35,16 @@ export class CreateWorkScheduleDto {
   @Min(0)
   break_minutes!: number;
 
+  @ApiPropertyOptional({
+    example: '12:00:00',
+    nullable: true,
+    description: 'Break start (HH:MM or HH:MM:SS). Required when break_minutes > 0.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(TIME_REGEX, { message: 'break_start must be HH:MM or HH:MM:SS' })
+  break_start?: string | null;
+
   @ApiProperty({ example: '2026-05-23', description: 'YYYY-MM-DD, inclusive' })
   @IsISO8601({ strict: true })
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'effective_from must be YYYY-MM-DD' })

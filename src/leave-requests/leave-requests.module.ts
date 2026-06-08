@@ -1,16 +1,37 @@
 import { Module } from '@nestjs/common';
 import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
+import { LeaveDayCountService } from '@/leave-requests/leave-day-count.service';
+import { LeaveBalanceService } from '@/leave-requests/leave-balance.service';
 import { LeaveRequestPersistenceModule } from '@/leave-requests/persistence/persistence.module';
 import { AdminLeaveRequestsController } from '@/leave-requests/controllers/admin-leave-requests.controller';
 import { MeLeaveRequestsController } from '@/leave-requests/controllers/me-leave-requests.controller';
+import { MeLeaveBalancesController } from '@/leave-requests/controllers/me-leave-balances.controller';
 import { LeaveRequestsController } from '@/leave-requests/controllers/leave-requests.controller';
 import { ApprovalChainsModule } from '@/approval-chains/approval-chains.module';
 import { UserPersistenceModule } from '@/users/persistence/persistence.module';
+import { WorkSchedulePersistenceModule } from '@/work-schedules/persistence/persistence.module';
+import { LeaveAllocationPersistenceModule } from '@/leave-allocations/persistence/persistence.module';
 
 @Module({
-  imports: [LeaveRequestPersistenceModule, ApprovalChainsModule, UserPersistenceModule],
-  controllers: [AdminLeaveRequestsController, MeLeaveRequestsController, LeaveRequestsController],
-  providers: [LeaveRequestsService],
-  exports: [LeaveRequestsService, LeaveRequestPersistenceModule],
+  imports: [
+    LeaveRequestPersistenceModule,
+    ApprovalChainsModule,
+    UserPersistenceModule,
+    WorkSchedulePersistenceModule,
+    LeaveAllocationPersistenceModule,
+  ],
+  controllers: [
+    AdminLeaveRequestsController,
+    MeLeaveRequestsController,
+    MeLeaveBalancesController,
+    LeaveRequestsController,
+  ],
+  providers: [LeaveRequestsService, LeaveDayCountService, LeaveBalanceService],
+  exports: [
+    LeaveRequestsService,
+    LeaveDayCountService,
+    LeaveBalanceService,
+    LeaveRequestPersistenceModule,
+  ],
 })
 export class LeaveRequestsModule {}

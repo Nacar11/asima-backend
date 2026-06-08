@@ -46,12 +46,18 @@ export class WorkSchedulesService {
     expected_in: string;
     expected_out: string;
     break_minutes: number;
+    break_start?: string | null;
     effective_from: string;
     effective_to?: string | null;
     created_by?: number | null;
   }): Promise<WorkSchedule> {
     assertWindowOk(input.expected_in, input.expected_out);
-    assertBreakOk(input.break_minutes);
+    assertBreakOk(
+      input.break_minutes,
+      input.break_start ?? null,
+      input.expected_in,
+      input.expected_out,
+    );
 
     // Surfaces a clearer 409 than letting the partial-unique-index
     // violation bubble up. The DB index is still the source of truth
@@ -86,6 +92,7 @@ export class WorkSchedulesService {
       expected_in?: string;
       expected_out?: string;
       break_minutes?: number;
+      break_start?: string | null;
       effective_from?: string;
       effective_to?: string | null;
       updated_by?: number | null;
@@ -97,7 +104,12 @@ export class WorkSchedulesService {
     const expected_out = patch.expected_out ?? existing.expected_out;
     assertWindowOk(expected_in, expected_out);
 
-    if (patch.break_minutes !== undefined) assertBreakOk(patch.break_minutes);
+    // Resolve the effective break against the patch so a change to any of
+    // {break_minutes, break_start, window} is re-validated as a whole.
+    const break_minutes = patch.break_minutes ?? existing.break_minutes;
+    const break_start =
+      patch.break_start !== undefined ? patch.break_start : existing.break_start;
+    assertBreakOk(break_minutes, break_start, expected_in, expected_out);
 
     return this.repository.update(id, patch);
   }
@@ -137,13 +149,37 @@ function assertWindowOk(expected_in: string, expected_out: string): void {
   }
 }
 
-function assertBreakOk(break_minutes: number): void {
+function assertBreakOk(
+  break_minutes: number,
+  break_start: string | null,
+  expected_in: string,
+  expected_out: string,
+): void {
   if (break_minutes < 0) {
-    throw new UnprocessableEntityException({
-      status: 422,
-      errors: { break_minutes: 'break_minutes must be >= 0' },
-    });
+    throw unprocessable('break_minutes', 'break_minutes must be >= 0');
   }
+  if (break_minutes > 0 && break_start == null) {
+    throw unprocessable('break_start', 'break_start is required when break_minutes > 0');
+  }
+  if (break_start == null) return;
+
+  const startSec = toSeconds(break_start);
+  if (startSec < toSeconds(expected_in)) {
+    throw unprocessable('break_start', 'break_start must be on or after expected_in');
+  }
+  if (startSec + break_minutes * 60 > toSeconds(expected_out)) {
+    throw unprocessable('break_start', 'the break must end on or before expected_out');
+  }
+}
+
+/** Seconds-of-day for a zero-padded `HH:MM` or `HH:MM:SS` string. */
+function toSeconds(time: string): number {
+  const [h, m, s] = time.split(':').map(Number);
+  return h * 3600 + m * 60 + (s ?? 0);
+}
+
+function unprocessable(field: string, message: string): UnprocessableEntityException {
+  return new UnprocessableEntityException({ status: 422, errors: { [field]: message } });
 }
 
 function isUniqueViolation(err: unknown): boolean {

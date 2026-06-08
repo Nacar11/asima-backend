@@ -12,12 +12,18 @@ import { UserSearchCriteria } from '@/users/domain/user-search-criteria';
 import { FindAllUser } from '@/users/domain/find-all-user';
 import { CreateUserInput, UpdateUserPatch } from '@/users/domain/user-inputs';
 import { BCRYPT_ROUNDS, capitalizeFirstLetter } from '@/users/users.constants';
+import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
+import {
+  ALLOCATION_SOURCES,
+  DEFAULT_LEAVE_ALLOCATIONS,
+} from '@/leave-allocations/leave-allocations.constants';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly repository: BaseUserRepository,
     private readonly roleRepository: BaseRoleRepository,
+    private readonly allocations: BaseLeaveAllocationRepository,
   ) {}
 
   findAll(criteria: UserSearchCriteria): Promise<FindAllUser> {
@@ -54,7 +60,7 @@ export class UsersService {
 
     const password_hash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
 
-    return this.repository.create({
+    const user = await this.repository.create({
       email,
       password_hash,
       first_name: capitalizeFirstLetter(input.first_name),
@@ -65,6 +71,20 @@ export class UsersService {
       is_active: input.is_active ?? true,
       created_by: input.created_by ?? null,
     });
+
+    // Every employee starts with the default leave balances (10 vacation,
+    // 10 sick). Same DEFAULT_LEAVE_ALLOCATIONS the seeder uses.
+    for (const { leave_type, amount } of DEFAULT_LEAVE_ALLOCATIONS) {
+      await this.allocations.create({
+        employee_id: user.id,
+        leave_type,
+        amount,
+        source: ALLOCATION_SOURCES.default,
+        created_by: input.created_by ?? null,
+      });
+    }
+
+    return user;
   }
 
   /**

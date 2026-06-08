@@ -29,6 +29,7 @@ export abstract class BaseWorkScheduleRepository {
     expected_in: string;
     expected_out: string;
     break_minutes: number;
+    break_start?: string | null;
     effective_from: string;
     effective_to?: string | null;
     created_by?: number | null;
@@ -40,6 +41,7 @@ export abstract class BaseWorkScheduleRepository {
       expected_in?: string;
       expected_out?: string;
       break_minutes?: number;
+      break_start?: string | null;
       effective_from?: string;
       effective_to?: string | null;
       updated_by?: number | null;
