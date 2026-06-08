@@ -73,13 +73,28 @@ describe('Work Schedules (e2e)', () => {
           expected_in: '09:00:00',
           expected_out: '18:00:00',
           break_minutes: 60,
+          break_start: '12:00:00',
           effective_from: '2026-05-23',
         }),
       ).expect(201);
 
       expect(res.body.day_of_week).toBe(1);
       expect(res.body.effective_to).toBeNull();
+      expect(res.body.break_start).toBe('12:00:00');
       scheduleId = res.body.id;
+    });
+
+    it('rejects break_minutes > 0 without break_start (422)', async () => {
+      await asAdmin(
+        request(app.getHttpServer()).post(url('/admin/work-schedules')).send({
+          employee_id: employeeId,
+          day_of_week: 3,
+          expected_in: '09:00:00',
+          expected_out: '18:00:00',
+          break_minutes: 60,
+          effective_from: '2026-05-23',
+        }),
+      ).expect(422);
     });
 
     it('refuses a second active row for the same (employee, Monday) with 409', async () => {
@@ -90,6 +105,7 @@ describe('Work Schedules (e2e)', () => {
           expected_in: '08:00:00',
           expected_out: '17:00:00',
           break_minutes: 30,
+          break_start: '12:00:00',
           effective_from: '2026-06-01',
         }),
       ).expect(409);
@@ -116,6 +132,7 @@ describe('Work Schedules (e2e)', () => {
       const monday = res.body.find((s: { day_of_week: number }) => s.day_of_week === 1);
       expect(monday).toBeDefined();
       expect(monday.expected_in).toBe('09:00:00');
+      expect(monday.break_start).toBe('12:00:00');
     });
 
     it('PATCH /admin/work-schedules/:id updates the break', async () => {
