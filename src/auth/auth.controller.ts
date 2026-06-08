@@ -19,7 +19,7 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  @Throttle({ login: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Authenticate with email + password',
@@ -57,7 +57,7 @@ export class AuthController {
   @UseGuards(JwtRefreshGuard)
   @ApiBearerAuth()
   @Post('refresh')
-  @Throttle({ refresh: { limit: 20, ttl: 60_000 } })
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Rotate the access + refresh token pair',

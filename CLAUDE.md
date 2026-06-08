@@ -120,12 +120,20 @@ Configured in `tsconfig.json`, `nest-cli.json`, and Jest's
 Three guards run on every request, **in this order** (registered as
 `APP_GUARD` in `app.module.ts`):
 
-1. **`ThrottlerGuard`** — IP-keyed rate limit. Three named tiers:
-   - `default` 60/min — applies globally to everything.
-   - `login` 10/min — applied per-route via `@Throttle({ login: ... })`
-     on `POST /auth/login`.
-   - `refresh` 20/min — applied per-route on `POST /auth/refresh`.
-   - Routes that monitors hit must use `@SkipThrottle()` (e.g. `/health`).
+1. **`ThrottlerGuard`** — IP-keyed rate limit. **Exactly ONE global tier**,
+   `default` (300/min). Tighter limits are **per-route overrides of
+   `default`**, never separate global throttlers:
+   - `POST /auth/login` → `@Throttle({ default: { limit: 10, ttl: 60_000 } })`.
+   - `POST /auth/refresh` → `@Throttle({ default: { limit: 20, ttl: 60_000 } })`.
+   - password rotation routes (`PATCH /users/me/password`,
+     `POST /admin/users/:id/reset-password`) → `@Throttle({ default: { limit: 5 } })`.
+   - Routes monitors / typeahead hit use `@SkipThrottle()` (e.g. `/health`,
+     `GET /admin/users`).
+   - **Why one tier:** every throttler in `forRoot` applies to EVERY route,
+     and `@SkipThrottle()` only skips the tier named `default`. Defining
+     extra global tiers (`login`/`password`/…) silently capped the whole app
+     at the tightest one and broke `@SkipThrottle()`. Keep a single global
+     `default`; express strictness as `@Throttle({ default: {...} })`.
 2. **`JwtAuthGuard`** — verifies the access token and populates
    `req.user`. Honors the `@Public()` decorator from
    `@/utils/decorators/public.decorator.ts` — public routes pass through

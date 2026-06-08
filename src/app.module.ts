@@ -35,27 +35,27 @@ import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
       useClass: TypeOrmConfigService,
       dataSourceFactory: async (options) => new DataSource(options!).initialize(),
     }),
-    // Named tiers — see asima-backend/CLAUDE.md "Auth & guards".
-    // `default` covers everything globally; the named tiers are
-    // applied per-route via @Throttle. `password` covers any endpoint
-    // that does a password compare or rotation (PATCH /users/me/password,
-    // POST /admin/users/:id/reset-password) to throttle session-hijack
-    // brute-force.
+    // ONE global throttler — `default` — see asima-backend/CLAUDE.md
+    // "Auth & guards". Tighter per-route limits (login, refresh, password
+    // rotation) are expressed as @Throttle({ default: { limit } }) OVERRIDES
+    // of this default on those handlers, NOT as separate named throttlers.
     //
-    // E2E tests against the global JwtAuthGuard need to log in repeatedly
-    // and would otherwise hit the 10/min login wall. When THROTTLE_DISABLED
-    // is set (CI + local e2e), every tier is bumped to an effectively
-    // unreachable limit. Production must NEVER set this.
-    ThrottlerModule.forRoot(
-      process.env.THROTTLE_DISABLED === 'true'
-        ? [{ name: 'default', ttl: 60_000, limit: 100_000 }]
-        : [
-            { name: 'default', ttl: 60_000, limit: 300 },
-            { name: 'login', ttl: 60_000, limit: 10 },
-            { name: 'refresh', ttl: 60_000, limit: 20 },
-            { name: 'password', ttl: 60_000, limit: 5 },
-          ],
-    ),
+    // Why: every throttler listed here applies to EVERY route. Defining
+    // `login`/`refresh`/`password` as additional global tiers silently
+    // capped the whole app at the tightest one (5/min), and made
+    // @SkipThrottle() — which only skips `default` — unable to fully exempt
+    // a route. Keeping a single global tier makes @SkipThrottle() work and
+    // confines the strict limits to the routes that opt in via @Throttle.
+    //
+    // E2E logs in repeatedly; when THROTTLE_DISABLED is set (CI + local
+    // e2e) the limit is bumped out of reach. Production must NEVER set it.
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60_000,
+        limit: process.env.THROTTLE_DISABLED === 'true' ? 100_000 : 300,
+      },
+    ]),
     AuthModule,
     HealthModule,
     PermissionsModule,

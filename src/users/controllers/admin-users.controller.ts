@@ -86,7 +86,7 @@ export class AdminUsersController {
 
   @Post(':id/reset-password')
   @Permissions({ USER: 'Update' })
-  @Throttle({ password: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Force-reset another user’s password',
