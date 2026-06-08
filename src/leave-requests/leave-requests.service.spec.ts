@@ -86,6 +86,9 @@ describe('LeaveRequestsService', () => {
       assertSubmittableRange: jest
         .fn()
         .mockResolvedValue({ working_days: 3, start_time: null, end_time: null }),
+      // Default "today" sits before the default leave window (ends 2026-06-05),
+      // so a default-dated request is not yet elapsed. Past-date tests override.
+      today: jest.fn().mockReturnValue('2026-06-01'),
     } as unknown as jest.Mocked<LeaveDayCountService>;
     allocations = {
       sumForUpdate: jest.fn().mockResolvedValue(10),
@@ -324,13 +327,39 @@ describe('LeaveRequestsService', () => {
       expect(repo.update).toHaveBeenCalledWith(1, expect.objectContaining({ status: 'cancelled' }));
     });
 
+    it('lets the requester cancel an approved request that has not yet elapsed', async () => {
+      // New rule: active (pending OR approved) + not fully past → cancellable.
+      repo.findById.mockResolvedValue(
+        leave({ employee_id: 12, status: 'approved', end_date: '2026-06-05' }),
+      );
+      dayCount.today.mockReturnValue('2026-06-03'); // mid-leave, end_date >= today
+      await service.cancel(1, user(12));
+      expect(repo.update).toHaveBeenCalledWith(1, expect.objectContaining({ status: 'cancelled' }));
+    });
+
     it('forbids a stranger from cancelling', async () => {
       repo.findById.mockResolvedValue(leave({ employee_id: 12, status: 'pending_l1' }));
       await expect(service.cancel(1, user(99))).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it('409 when cancelling a terminal request', async () => {
-      repo.findById.mockResolvedValue(leave({ employee_id: 12, status: 'approved' }));
+    it('409 when cancelling a truly terminal request (rejected/cancelled)', async () => {
+      repo.findById.mockResolvedValue(leave({ employee_id: 12, status: 'rejected' }));
+      await expect(service.cancel(1, user(12))).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('409 when cancelling an approved leave that has already elapsed', async () => {
+      repo.findById.mockResolvedValue(
+        leave({ employee_id: 12, status: 'approved', end_date: '2026-05-20' }),
+      );
+      dayCount.today.mockReturnValue('2026-06-01'); // end_date < today → past
+      await expect(service.cancel(1, user(12))).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('409 when cancelling a pending leave whose dates have already elapsed', async () => {
+      repo.findById.mockResolvedValue(
+        leave({ employee_id: 12, status: 'pending_l1', end_date: '2026-05-20' }),
+      );
+      dayCount.today.mockReturnValue('2026-06-01');
       await expect(service.cancel(1, user(12))).rejects.toBeInstanceOf(ConflictException);
     });
   });

@@ -175,13 +175,28 @@ export class LeaveRequestsService {
     );
   }
 
-  /** Cancel a still-pending request. Allowed for the requester or a `LEAVE:Delete` holder. */
+  /**
+   * Cancel an active request. Allowed for the requester or a `LEAVE:Delete`
+   * holder. A request is cancellable while it is **active** (pending or
+   * approved) AND has not fully elapsed (`end_date >= today`); a leave in
+   * progress is still cancellable, only a wholly-past one is locked. Balance
+   * is derived from status, so flipping to `cancelled` frees the days with no
+   * ledger work.
+   */
   async cancel(id: number, caller: User): Promise<LeaveRequest> {
     const row = await this.findById(id);
-    if (!isPending(row.status)) {
+    // Terminal requests (rejected / already cancelled) can never be cancelled.
+    if (!isActive(row.status)) {
       throw new ConflictException({
         status: 409,
         errors: { status: `Cannot cancel a request in state ${row.status}.` },
+      });
+    }
+    // Active, but the leave window has already fully elapsed.
+    if (row.end_date < this.dayCount.today()) {
+      throw new ConflictException({
+        status: 409,
+        errors: { status: 'Cannot cancel a leave that has already ended.' },
       });
     }
     const isOwner = caller.id === row.employee_id;
@@ -378,6 +393,11 @@ function isPending(status: LeaveRequestStatus): boolean {
   return (
     status === LEAVE_REQUEST_STATUSES.pending_l1 || status === LEAVE_REQUEST_STATUSES.pending_l2
   );
+}
+
+/** Non-terminal states: still in the chain (pending) or decided-approved. */
+function isActive(status: LeaveRequestStatus): boolean {
+  return isPending(status) || status === LEAVE_REQUEST_STATUSES.approved;
 }
 
 function isOverride(caller: User): boolean {
