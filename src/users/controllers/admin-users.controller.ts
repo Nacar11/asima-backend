@@ -12,7 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { UsersService } from '@/users/users.service';
 import { User } from '@/users/domain/user';
 import { UserResponseDto } from '@/users/dto/user-response.dto';
@@ -42,6 +42,9 @@ export class AdminUsersController {
   constructor(private readonly service: UsersService) {}
 
   @Get()
+  // Search-as-you-type fires one request per keystroke; exempt the list read
+  // from the 60/min default limit so admins don't hit 429 while filtering.
+  @SkipThrottle()
   @Permissions({ USER: 'View' })
   @ApiOperation({ summary: 'List users (paginated, filterable)' })
   @ApiResponse({
