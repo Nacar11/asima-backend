@@ -50,6 +50,15 @@ export class WorkSchedule {
   @ApiProperty({ example: 60, minimum: 0, description: 'Unpaid break length in minutes.' })
   break_minutes!: number;
 
+  @ApiPropertyOptional({
+    example: '12:00:00',
+    nullable: true,
+    description:
+      'When the break begins, local time (HH:MM:SS). NULL when break_minutes = 0. ' +
+      'Together with break_minutes it fixes the break window used for half-day leave.',
+  })
+  break_start!: string | null;
+
   @ApiProperty({
     example: '2026-05-23',
     description: 'First calendar date this schedule applies (inclusive, YYYY-MM-DD).',

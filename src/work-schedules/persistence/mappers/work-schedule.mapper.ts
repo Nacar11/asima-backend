@@ -10,6 +10,7 @@ export class WorkScheduleMapper {
     ws.expected_in = raw.expected_in;
     ws.expected_out = raw.expected_out;
     ws.break_minutes = raw.break_minutes;
+    ws.break_start = raw.break_start;
     ws.effective_from = raw.effective_from;
     ws.effective_to = raw.effective_to;
     ws.created_by = raw.created_by;
@@ -29,6 +30,7 @@ export class WorkScheduleMapper {
     if (domain.expected_in !== undefined) entity.expected_in = domain.expected_in;
     if (domain.expected_out !== undefined) entity.expected_out = domain.expected_out;
     if (domain.break_minutes !== undefined) entity.break_minutes = domain.break_minutes;
+    if (domain.break_start !== undefined) entity.break_start = domain.break_start;
     if (domain.effective_from !== undefined) entity.effective_from = domain.effective_from;
     if (domain.effective_to !== undefined) entity.effective_to = domain.effective_to;
     if (domain.created_by !== undefined) entity.created_by = domain.created_by;

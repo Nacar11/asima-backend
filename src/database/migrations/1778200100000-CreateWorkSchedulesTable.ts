@@ -12,6 +12,7 @@ export class CreateWorkSchedulesTable1778200100000 implements MigrationInterface
         "expected_in" time NOT NULL,
         "expected_out" time NOT NULL,
         "break_minutes" integer NOT NULL DEFAULT 0,
+        "break_start" time,
         "effective_from" date NOT NULL,
         "effective_to" date,
         "created_by" integer,
@@ -25,6 +26,15 @@ export class CreateWorkSchedulesTable1778200100000 implements MigrationInterface
           CHECK ("day_of_week" BETWEEN 0 AND 6),
         CONSTRAINT "CHK_work_schedules_break_minutes_nonneg"
           CHECK ("break_minutes" >= 0),
+        CONSTRAINT "CHK_work_schedules_break_start_required"
+          CHECK ("break_minutes" = 0 OR "break_start" IS NOT NULL),
+        CONSTRAINT "CHK_work_schedules_break_start_in_window"
+          CHECK ("break_start" IS NULL OR "break_start" >= "expected_in"),
+        CONSTRAINT "CHK_work_schedules_break_fits"
+          CHECK (
+            "break_start" IS NULL
+            OR "break_start" + ("break_minutes" || ' minutes')::interval <= "expected_out"
+          ),
         CONSTRAINT "CHK_work_schedules_window"
           CHECK ("expected_out" > "expected_in"),
         CONSTRAINT "CHK_work_schedules_effective_range"

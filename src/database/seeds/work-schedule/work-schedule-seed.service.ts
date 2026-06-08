@@ -15,6 +15,7 @@ const SEED_EFFECTIVE_FROM = '2026-05-23';
 const PUNCH_IN = '09:00:00';
 const PUNCH_OUT = '18:00:00';
 const BREAK_MINUTES = 60;
+const BREAK_START = '12:00:00';
 
 const WORK_DAYS: DayOfWeek[] = [
   DAY_OF_WEEK.MONDAY,
@@ -68,6 +69,7 @@ export class WorkScheduleSeedService {
           expected_in: PUNCH_IN,
           expected_out: PUNCH_OUT,
           break_minutes: BREAK_MINUTES,
+          break_start: BREAK_START,
           effective_from: SEED_EFFECTIVE_FROM,
           effective_to: null,
           created_by,

@@ -79,6 +79,7 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
     expected_in: string;
     expected_out: string;
     break_minutes: number;
+    break_start?: string | null;
     effective_from: string;
     effective_to?: string | null;
     created_by?: number | null;
@@ -89,6 +90,7 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
       expected_in: input.expected_in,
       expected_out: input.expected_out,
       break_minutes: input.break_minutes,
+      break_start: input.break_start ?? null,
       effective_from: input.effective_from,
       effective_to: input.effective_to ?? null,
       created_by: input.created_by ?? null,
@@ -104,6 +106,7 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
       expected_in?: string;
       expected_out?: string;
       break_minutes?: number;
+      break_start?: string | null;
       effective_from?: string;
       effective_to?: string | null;
       updated_by?: number | null;
@@ -113,6 +116,7 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
     if (patch.expected_in !== undefined) existing.expected_in = patch.expected_in;
     if (patch.expected_out !== undefined) existing.expected_out = patch.expected_out;
     if (patch.break_minutes !== undefined) existing.break_minutes = patch.break_minutes;
+    if (patch.break_start !== undefined) existing.break_start = patch.break_start;
     if (patch.effective_from !== undefined) existing.effective_from = patch.effective_from;
     if (patch.effective_to !== undefined) existing.effective_to = patch.effective_to;
     if (patch.updated_by !== undefined) existing.updated_by = patch.updated_by;

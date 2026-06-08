@@ -40,6 +40,14 @@ export class WorkScheduleEntity extends EntityHelper {
   @Column({ type: 'int', default: 0 })
   break_minutes!: number;
 
+  /**
+   * When the unpaid break begins, local time (HH:MM:SS). NULL when
+   * `break_minutes = 0`. Pairs with `break_minutes` to give the break
+   * window — drives the half-day leave split. Returned as a string by pg.
+   */
+  @Column({ type: 'time', nullable: true })
+  break_start!: string | null;
+
   @Column({ type: 'date' })
   effective_from!: string;
 
