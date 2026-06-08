@@ -367,6 +367,14 @@ describe('Leave Requests (e2e)', () => {
       // List read-model resolves the requester name in one trip (no client-side map).
       expect(typeof res.body.data[0].employee_name).toBe('string');
       expect(res.body.data[0].employee_name.length).toBeGreaterThan(0);
+      // …and the approver/decider names from the same joined read-model.
+      const row = res.body.data[0];
+      expect('l1_approver_name' in row).toBe(true);
+      expect('l2_approver_name' in row).toBe(true);
+      expect('decided_by_name' in row).toBe(true);
+      // L1 approver is always assigned, so its name resolves to a non-empty string.
+      expect(typeof row.l1_approver_name).toBe('string');
+      expect(row.l1_approver_name.length).toBeGreaterThan(0);
     });
   });
 });

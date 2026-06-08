@@ -42,9 +42,15 @@ export class LeaveRequestMapper {
    */
   static toListItem(raw: LeaveRequestEntity): LeaveRequestListItem {
     const item = LeaveRequestMapper.toDomain(raw) as LeaveRequestListItem;
-    item.employee_name = raw.employee
-      ? `${raw.employee.first_name} ${raw.employee.last_name}`
-      : null;
+    item.employee_name = fullName(raw.employee);
+    item.l1_approver_name = fullName(raw.l1_approver);
+    item.l2_approver_name = fullName(raw.l2_approver);
+    item.decided_by_name = fullName(raw.decided_by_user);
     return item;
   }
+}
+
+/** `${first} ${last}` from a joined user relation, or null if the join missed. */
+function fullName(user: { first_name: string; last_name: string } | null | undefined): string | null {
+  return user ? `${user.first_name} ${user.last_name}` : null;
 }
