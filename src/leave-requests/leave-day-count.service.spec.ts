@@ -8,6 +8,20 @@ function scheduleFor(...weekdays: number[]): WorkSchedule[] {
   return weekdays.map((d) => ({ day_of_week: d }) as WorkSchedule);
 }
 
+/** Rows carrying the full window (09:00–18:00, lunch 12:00 for 60m). */
+function richScheduleFor(...weekdays: number[]): WorkSchedule[] {
+  return weekdays.map(
+    (d) =>
+      ({
+        day_of_week: d,
+        expected_in: '09:00:00',
+        expected_out: '18:00:00',
+        break_minutes: 60,
+        break_start: '12:00:00',
+      }) as WorkSchedule,
+  );
+}
+
 describe('LeaveDayCountService', () => {
   let service: LeaveDayCountService;
   let schedules: { findActiveForEmployee: jest.Mock };
@@ -42,7 +56,9 @@ describe('LeaveDayCountService', () => {
     });
 
     it('returns the working-day count for a valid future range', async () => {
-      await expect(service.assertSubmittableRange(12, '2026-06-05', '2026-06-08')).resolves.toBe(2);
+      await expect(
+        service.assertSubmittableRange(12, '2026-06-05', '2026-06-08'),
+      ).resolves.toMatchObject({ working_days: 2, start_time: null, end_time: null });
     });
 
     it('rejects a start date in the past', async () => {
@@ -76,6 +92,45 @@ describe('LeaveDayCountService', () => {
       await expect(
         service.assertSubmittableRange(12, '2026-06-01', '2026-06-01'),
       ).rejects.toThrow(UnprocessableEntityException);
+    });
+  });
+
+  describe('assertSubmittableRange — half day', () => {
+    beforeEach(() => {
+      jest.spyOn(service, 'today').mockReturnValue('2026-06-01');
+      // 09:00–18:00, lunch 12:00 for 60m → first half 09:00–14:00, second 14:00–18:00.
+      schedules.findActiveForEmployee.mockResolvedValue(richScheduleFor(1, 2, 3, 4, 5));
+    });
+
+    it('first_half on a single Monday → 0.5 day, 09:00:00–14:00:00', async () => {
+      await expect(
+        service.assertSubmittableRange(12, '2026-06-01', '2026-06-01', 'first_half', 'vacation'),
+      ).resolves.toEqual({ working_days: 0.5, start_time: '09:00:00', end_time: '14:00:00' });
+    });
+
+    it('second_half on a single Monday → 0.5 day, 14:00:00–18:00:00', async () => {
+      await expect(
+        service.assertSubmittableRange(12, '2026-06-01', '2026-06-01', 'second_half', 'vacation'),
+      ).resolves.toEqual({ working_days: 0.5, start_time: '14:00:00', end_time: '18:00:00' });
+    });
+
+    it('rejects a partial portion spanning two days (422 day_portion)', async () => {
+      // Mon 2026-06-01 → Tue 2026-06-02.
+      await expect(
+        service.assertSubmittableRange(12, '2026-06-01', '2026-06-02', 'first_half', 'vacation'),
+      ).rejects.toThrow(UnprocessableEntityException);
+      await service
+        .assertSubmittableRange(12, '2026-06-01', '2026-06-02', 'first_half', 'vacation')
+        .catch((e) => expect(e.getResponse().errors.day_portion).toMatch(/single day/i));
+    });
+
+    it('rejects a half-day birthday request (whole-day-only type)', async () => {
+      await expect(
+        service.assertSubmittableRange(12, '2026-06-01', '2026-06-01', 'first_half', 'birthday'),
+      ).rejects.toThrow(UnprocessableEntityException);
+      await service
+        .assertSubmittableRange(12, '2026-06-01', '2026-06-01', 'first_half', 'birthday')
+        .catch((e) => expect(e.getResponse().errors.day_portion).toMatch(/whole day/i));
     });
   });
 });

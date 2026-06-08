@@ -83,7 +83,9 @@ describe('LeaveRequestsService', () => {
       findById: jest.fn().mockImplementation((id: number) => Promise.resolve(user(id))),
     } as unknown as jest.Mocked<BaseUserRepository>;
     dayCount = {
-      assertSubmittableRange: jest.fn().mockResolvedValue(3),
+      assertSubmittableRange: jest
+        .fn()
+        .mockResolvedValue({ working_days: 3, start_time: null, end_time: null }),
     } as unknown as jest.Mocked<LeaveDayCountService>;
     allocations = {
       sumForUpdate: jest.fn().mockResolvedValue(10),
@@ -122,7 +124,11 @@ describe('LeaveRequestsService', () => {
     });
 
     it('snapshots the schedule-aware working_days returned by the day-count service', async () => {
-      dayCount.assertSubmittableRange.mockResolvedValue(2);
+      dayCount.assertSubmittableRange.mockResolvedValue({
+        working_days: 2,
+        start_time: null,
+        end_time: null,
+      });
       await service.submit(input, user(12, { codes: ['LEAVE:Create'] }));
       expect(dayCount.assertSubmittableRange).toHaveBeenCalledWith(12, '2026-06-01', '2026-06-05');
       expect(repo.create).toHaveBeenCalledWith(
@@ -158,7 +164,11 @@ describe('LeaveRequestsService', () => {
     });
 
     it('reserves on submit: locks allocations and creates when available >= working_days', async () => {
-      dayCount.assertSubmittableRange.mockResolvedValue(2);
+      dayCount.assertSubmittableRange.mockResolvedValue({
+        working_days: 2,
+        start_time: null,
+        end_time: null,
+      });
       allocations.sumForUpdate.mockResolvedValue(10);
       repo.sumConsumedForEmployeeType.mockResolvedValue(8); // available = 2
 
@@ -172,7 +182,11 @@ describe('LeaveRequestsService', () => {
     });
 
     it('rejects with 422 balance when available < working_days and does not create', async () => {
-      dayCount.assertSubmittableRange.mockResolvedValue(3);
+      dayCount.assertSubmittableRange.mockResolvedValue({
+        working_days: 3,
+        start_time: null,
+        end_time: null,
+      });
       allocations.sumForUpdate.mockResolvedValue(10);
       repo.sumConsumedForEmployeeType.mockResolvedValue(8); // available = 2 < 3
 

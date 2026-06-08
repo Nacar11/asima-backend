@@ -56,11 +56,14 @@ export class MeLeaveRequestsController {
   @Permissions({ LEAVE: 'ViewOwn' })
   @ApiOperation({ summary: 'Preview working days for a date range (same D8 rules as submit)' })
   @ApiResponse({ status: 200 })
-  dayCount(
-    @Query() query: DayCountQueryDto,
-    @CurrentUser() me: User,
-  ): Promise<{ working_days: number }> {
-    return this.service.previewWorkingDays(me.id, query.start_date, query.end_date);
+  dayCount(@Query() query: DayCountQueryDto, @CurrentUser() me: User) {
+    return this.service.previewWorkingDays(
+      me.id,
+      query.start_date,
+      query.end_date,
+      query.day_portion,
+      query.leave_type,
+    );
   }
 
   @Get(':id')

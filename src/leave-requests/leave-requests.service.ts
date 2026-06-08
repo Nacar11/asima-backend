@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { BaseLeaveRequestRepository } from '@/leave-requests/persistence/base-leave-request.repository';
-import { LeaveDayCountService } from '@/leave-requests/leave-day-count.service';
+import {
+  LeaveDayCountService,
+  SubmittableRange,
+} from '@/leave-requests/leave-day-count.service';
 import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
@@ -17,9 +20,11 @@ import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-requ
 import { SubmitLeaveInput, UpdateLeaveInput } from '@/leave-requests/domain/leave-request-inputs';
 import { User } from '@/users/domain/user';
 import {
+  DayPortion,
   DECISION_PATHS,
   LEAVE_REQUEST_STATUSES,
   LeaveRequestStatus,
+  LeaveType,
 } from '@/leave-requests/leave-requests.constants';
 
 /**
@@ -77,7 +82,7 @@ export class LeaveRequestsService {
     // D8: end >= start, no past dates, start & end must be scheduled
     // workdays. Returns the schedule-aware working-day count, snapshotted
     // onto the request so balance reserve/use math stays stable.
-    const working_days = await this.dayCount.assertSubmittableRange(
+    const { working_days } = await this.dayCount.assertSubmittableRange(
       input.employee_id,
       input.start_date,
       input.end_date,
@@ -151,13 +156,16 @@ export class LeaveRequestsService {
     employee_id: number,
     start_date: string,
     end_date: string,
-  ): Promise<{ working_days: number }> {
-    const working_days = await this.dayCount.assertSubmittableRange(
+    day_portion?: DayPortion,
+    leave_type?: LeaveType,
+  ): Promise<SubmittableRange> {
+    return this.dayCount.assertSubmittableRange(
       employee_id,
       start_date,
       end_date,
+      day_portion,
+      leave_type,
     );
-    return { working_days };
   }
 
   /** Cancel a still-pending request. Allowed for the requester or a `LEAVE:Delete` holder. */

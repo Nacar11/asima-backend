@@ -139,6 +139,59 @@ describe('Leave Requests (e2e)', () => {
     });
   });
 
+  describe('day-count preview — half day', () => {
+    // emma's seeded schedule: Mon–Fri 09:00–18:00, lunch 12:00 for 60m.
+    // 2026-07-06 is a Monday (workday).
+    const dayCount = (params: Record<string, string>) =>
+      auth(tokens.emma)(
+        request(app.getHttpServer()).get(url('/users/me/leave-requests/day-count')).query(params),
+      );
+
+    it('first_half returns 0.5 day and the 09:00–14:00 window', async () => {
+      const res = await dayCount({
+        start_date: '2026-07-06',
+        end_date: '2026-07-06',
+        day_portion: 'first_half',
+        leave_type: 'vacation',
+      }).expect(200);
+      expect(res.body.working_days).toBe(0.5);
+      expect(res.body.start_time).toBe('09:00:00');
+      expect(res.body.end_time).toBe('14:00:00');
+    });
+
+    it('second_half returns 0.5 day and the 14:00–18:00 window', async () => {
+      const res = await dayCount({
+        start_date: '2026-07-06',
+        end_date: '2026-07-06',
+        day_portion: 'second_half',
+        leave_type: 'vacation',
+      }).expect(200);
+      expect(res.body.working_days).toBe(0.5);
+      expect(res.body.start_time).toBe('14:00:00');
+      expect(res.body.end_time).toBe('18:00:00');
+    });
+
+    it('rejects a half-day spanning two days (422)', async () => {
+      const res = await dayCount({
+        start_date: '2026-07-06',
+        end_date: '2026-07-07',
+        day_portion: 'first_half',
+        leave_type: 'vacation',
+      }).expect(422);
+      expect(res.body.errors.day_portion).toBeDefined();
+    });
+
+    it('rejects a half-day birthday request (422 whole-day-only)', async () => {
+      const res = await dayCount({
+        start_date: '2026-07-06',
+        end_date: '2026-07-06',
+        day_portion: 'first_half',
+        leave_type: 'birthday',
+      }).expect(422);
+      expect(res.body.errors.day_portion).toBeDefined();
+    });
+  });
+
   describe('approval flow', () => {
     let reqId: number;
 

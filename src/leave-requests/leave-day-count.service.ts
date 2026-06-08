@@ -1,5 +1,20 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-work-schedule.repository';
+import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import {
+  DAY_PORTIONS,
+  DayPortion,
+  HALF_DAY_LEAVE_TYPES,
+  LeaveType,
+} from '@/leave-requests/leave-requests.constants';
+
+/** Result of validating a range: the chargeable days + the half-day window. */
+export type SubmittableRange = {
+  working_days: number;
+  /** Half-day window start (HH:MM:SS); null for a full-day request. */
+  start_time: string | null;
+  end_time: string | null;
+};
 
 /**
  * Business timezone used to decide "today" for the no-past-dates rule.
@@ -52,30 +67,101 @@ export class LeaveDayCountService {
   }
 
   /**
-   * D8: validate a requested range and return its working-day count.
-   * Throws 422 (per-field) on: end before start, start in the past, or a
-   * non-workday start/end boundary. Reused by submit and the preview endpoint.
+   * D8: validate a requested range and return its working-day count plus,
+   * for a half-day request, the snapshotted clock window. Throws 422
+   * (per-field) on: end before start, start in the past, a non-workday
+   * start/end boundary, a partial portion spanning more than one day, or a
+   * partial portion on a whole-day-only leave type. Reused by submit and the
+   * preview endpoint so both enforce identical rules.
+   *
+   * A single `findActiveForEmployee` read backs both the weekday set and the
+   * window row — no second query.
    */
   async assertSubmittableRange(
     employee_id: number,
     start_date: string,
     end_date: string,
-  ): Promise<number> {
+    day_portion: DayPortion = DAY_PORTIONS.full,
+    leave_type?: LeaveType,
+  ): Promise<SubmittableRange> {
     if (end_date < start_date) {
       throw unprocessable('end_date', 'end_date must be on or after start_date.');
     }
     if (start_date < this.today()) {
       throw unprocessable('start_date', 'Leave cannot start in the past.');
     }
-    const workdays = await this.activeWeekdays(employee_id);
+
+    const rows = await this.schedules.findActiveForEmployee(employee_id);
+    const workdays = new Set<number>(rows.map((r) => r.day_of_week));
     if (!workdays.has(weekdayOf(start_date))) {
       throw unprocessable('start_date', 'Start date is not a working day on your schedule.');
     }
     if (!workdays.has(weekdayOf(end_date))) {
       throw unprocessable('end_date', 'End date is not a working day on your schedule.');
     }
-    return countAgainst(workdays, start_date, end_date);
+
+    if (day_portion !== DAY_PORTIONS.full) {
+      if (start_date !== end_date) {
+        throw unprocessable('day_portion', 'A half-day request must cover a single day.');
+      }
+      if (leave_type != null && !HALF_DAY_LEAVE_TYPES.has(leave_type)) {
+        throw unprocessable('day_portion', `${leave_type} leave must be taken as a whole day.`);
+      }
+      // Non-null: the start-date workday check above guarantees a row.
+      const row = rows.find((r) => r.day_of_week === weekdayOf(start_date)) as WorkSchedule;
+      const window = halfDayWindow(row, day_portion);
+      return { working_days: 0.5, start_time: window.start_time, end_time: window.end_time };
+    }
+
+    return {
+      working_days: countAgainst(workdays, start_date, end_date),
+      start_time: null,
+      end_time: null,
+    };
   }
+}
+
+/**
+ * Clock window of a half-day, derived from the schedule's break position.
+ * Work W = (out − in) − break; each half charges 0.5 day and contains W/2
+ * work-time. The split instant sits W/2 work after `expected_in`; if that
+ * point falls after the break, the break duration is added back so the
+ * wall-clock boundary lands correctly. Whichever side the break falls on
+ * contains it. For 09:00–18:00 / break 12:00 / 60m: first half 09:00–14:00,
+ * second half 14:00–18:00.
+ */
+function halfDayWindow(
+  schedule: WorkSchedule,
+  portion: 'first_half' | 'second_half',
+): { start_time: string; end_time: string } {
+  const inSec = toSeconds(schedule.expected_in);
+  const outSec = toSeconds(schedule.expected_out);
+  const breakSec = schedule.break_minutes * 60;
+  const halfWork = (outSec - inSec - breakSec) / 2;
+
+  // Work-time elapsed before the break begins (Infinity when no break).
+  const preBreak = schedule.break_start != null ? toSeconds(schedule.break_start) - inSec : Infinity;
+  const splitSec = halfWork <= preBreak ? inSec + halfWork : inSec + halfWork + breakSec;
+
+  return portion === DAY_PORTIONS.first_half
+    ? { start_time: toClock(inSec), end_time: toClock(splitSec) }
+    : { start_time: toClock(splitSec), end_time: toClock(outSec) };
+}
+
+/** Seconds-of-day for a zero-padded `HH:MM` or `HH:MM:SS` string. */
+function toSeconds(time: string): number {
+  const [h, m, s] = time.split(':').map(Number);
+  return h * 3600 + m * 60 + (s ?? 0);
+}
+
+/** Seconds-of-day back to `HH:MM:SS`. */
+function toClock(totalSeconds: number): string {
+  const s = Math.round(totalSeconds);
+  const hh = Math.floor(s / 3600);
+  const mm = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(hh)}:${pad(mm)}:${pad(ss)}`;
 }
 
 /** Weekday (0=Sun..6=Sat) for a `YYYY-MM-DD` string, timezone-independent. */
