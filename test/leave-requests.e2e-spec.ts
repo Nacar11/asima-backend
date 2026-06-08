@@ -344,6 +344,39 @@ describe('Leave Requests (e2e)', () => {
       ).expect(200);
       expect(res.body.status).toBe('cancelled');
     });
+
+    it('cancels an APPROVED, not-yet-elapsed request and frees the balance', async () => {
+      const vacationAvailable = async (): Promise<number> => {
+        const bal = await auth(tokens.emma)(
+          request(app.getHttpServer()).get(url('/users/me/leave-balances')),
+        ).expect(200);
+        return bal.body.find((b: { leave_type: string }) => b.leave_type === 'vacation').available;
+      };
+
+      const before = await vacationAvailable();
+
+      const submit = await auth(tokens.emma)(
+        request(app.getHttpServer())
+          .post(url('/users/me/leave-requests'))
+          .send({ leave_type: 'vacation', start_date: '2026-12-01', end_date: '2026-12-02' }),
+      ).expect(201);
+
+      // HR force-approves (override) so the request reaches the `approved` state.
+      const approved = await auth(tokens.hr)(
+        request(app.getHttpServer()).post(url(`/leave-requests/${submit.body.id}/approve`)),
+      ).expect(200);
+      expect(approved.body.status).toBe('approved');
+
+      // New rule: an approved request whose dates are still in the future is
+      // cancellable by the requester.
+      const cancelled = await auth(tokens.emma)(
+        request(app.getHttpServer()).post(url(`/users/me/leave-requests/${submit.body.id}/cancel`)),
+      ).expect(200);
+      expect(cancelled.body.status).toBe('cancelled');
+
+      // Balance is derived from status, so cancelling returns the days.
+      expect(await vacationAvailable()).toBe(before);
+    });
   });
 
   describe('authorization boundaries', () => {
