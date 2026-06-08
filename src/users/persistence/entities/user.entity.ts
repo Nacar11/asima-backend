@@ -15,7 +15,7 @@ import { RoleEntity } from '@/roles/persistence/entities/role.entity';
 /**
  * Uniqueness on `email` is enforced by a partial functional unique
  * index — `CREATE UNIQUE INDEX users_email_lower_uq ON users (LOWER(email)) WHERE deleted_at IS NULL`
- * — declared in the `AlterUsersTableAddEmailLowerUniqueIndex` migration.
+ * — declared in the `CreateUsersTable` migration.
  *
  * No `unique: true` on the column and no `@Index(['email'], { unique: true })`
  * here: a plain BTree index on the raw `email` value would treat

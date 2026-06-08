@@ -4,7 +4,9 @@ export class CreateTimeEntriesTable1778100000000 implements MigrationInterface {
   name = 'CreateTimeEntriesTable1778100000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`CREATE TYPE "time_source" AS ENUM ('manual', 'biometric', 'admin')`);
+    await queryRunner.query(
+      `CREATE TYPE "time_source" AS ENUM ('manual', 'biometric', 'admin', 'correction')`,
+    );
     await queryRunner.query(`CREATE TYPE "time_entry_status" AS ENUM ('open', 'confirmed')`);
 
     await queryRunner.query(`

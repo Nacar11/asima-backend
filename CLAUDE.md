@@ -248,6 +248,14 @@ Each migration file does **one schema operation on one table**. Never bundle
 multiple tables or mix CREATE with ALTER in the same file. The class name
 matches the filename (sans timestamp).
 
+> **Dev-phase caveat — read before adding an `Alter…` file.** The `Alter…`
+> rows below apply to tables whose `Create…Table` migration has already
+> shipped to a real/shared environment. While a table's CREATE migration is
+> still **unreleased** (local/dev only, `db:fresh`-able), do **not** add an
+> `Alter…` migration to patch it — fold the change into the CREATE migration
+> and keep one authoritative file per table. Full rule:
+> `../docs/universal-guidelines/database-migration-conventions.md`.
+
 | Operation              | File / class name pattern                       | Example                              |
 |------------------------|-------------------------------------------------|--------------------------------------|
 | Create a table         | `Create<Plural>Table`                           | `CreateUsersTable`                   |
@@ -519,6 +527,8 @@ intentional.
 - `docs/adr/` — read the matching ADR before changing roles, auth, or
   approval logic.
 - `module-architecture.md` — the hexagonal blueprint.
+- `../docs/universal-guidelines/database-migration-conventions.md` — when to
+  edit a CREATE migration vs. add an ALTER (one table = one CREATE migration).
 - `reference/categories/` — pattern reference. Read for shape; do not import.
 
 ## Out of scope for v0

@@ -22,12 +22,19 @@ export class CreateUsersTable1778084598000 implements MigrationInterface {
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "deleted_at" TIMESTAMP WITH TIME ZONE,
-        CONSTRAINT "UQ_users_email" UNIQUE ("email"),
         CONSTRAINT "PK_users" PRIMARY KEY ("id")
       )
     `);
 
-    await queryRunner.query(`CREATE UNIQUE INDEX "IDX_users_email" ON "users" ("email")`);
+    /*
+     * Case-insensitive email uniqueness that excludes soft-deleted rows.
+     * A plain column UNIQUE would treat 'Jane@…' and 'jane@…' as distinct
+     * and would also block re-creating a soft-deleted email. The
+     * repository's `LOWER(u.email) = LOWER(:email)` reads hit this index.
+     */
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "users_email_lower_uq" ON "users" (LOWER("email")) WHERE "deleted_at" IS NULL`,
+    );
     await queryRunner.query(`CREATE INDEX "IDX_users_role_id" ON "users" ("role_id")`);
     await queryRunner.query(`CREATE INDEX "IDX_users_is_active" ON "users" ("is_active")`);
 
@@ -43,7 +50,7 @@ export class CreateUsersTable1778084598000 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE "users" DROP CONSTRAINT "FK_users_role_id"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_users_is_active"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_users_role_id"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_users_email"`);
+    await queryRunner.query(`DROP INDEX "public"."users_email_lower_uq"`);
     await queryRunner.query(`DROP TABLE "users"`);
   }
 }
