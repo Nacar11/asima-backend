@@ -47,6 +47,7 @@ export class CreateLeaveRequestsTable1778400000000 implements MigrationInterface
         "cancelled_by" integer,
         "l1_approver_id" integer NOT NULL,
         "l2_approver_id" integer,
+        "attachment_id" integer,
         "created_by" integer,
         "updated_by" integer,
         "deleted_by" integer,
@@ -95,9 +96,22 @@ export class CreateLeaveRequestsTable1778400000000 implements MigrationInterface
         ON DELETE RESTRICT ON UPDATE NO ACTION
       `);
     }
+
+    // attachment_id → attachments (folded here, per the migration
+    // conventions, while this table is still unreleased). The attachments
+    // table is created by the earlier-timestamped CreateAttachmentsTable.
+    await queryRunner.query(`
+      ALTER TABLE "leave_requests"
+      ADD CONSTRAINT "FK_leave_requests_attachment_id"
+      FOREIGN KEY ("attachment_id") REFERENCES "attachments"("id")
+      ON DELETE RESTRICT ON UPDATE NO ACTION
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "leave_requests" DROP CONSTRAINT "FK_leave_requests_attachment_id"`,
+    );
     for (const name of [
       'FK_leave_requests_l2_approver_id',
       'FK_leave_requests_l1_approver_id',

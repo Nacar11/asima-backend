@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import sharp from 'sharp';
 
 /** WebP renditions derived from an uploaded image. `original` is stored separately. */
@@ -25,7 +25,9 @@ const DEFAULT_MAX_INPUT_PIXELS = 24 * 1024 * 1024;
  */
 @Injectable()
 export class ImageProcessorService {
-  constructor(private readonly maxInputPixels: number = DEFAULT_MAX_INPUT_PIXELS) {}
+  // @Optional so Nest doesn't try to resolve the primitive; tests pass a
+  // small cap directly to exercise the input-pixel guard cheaply.
+  constructor(@Optional() private readonly maxInputPixels: number = DEFAULT_MAX_INPUT_PIXELS) {}
 
   async deriveVersions(original: Buffer): Promise<ProcessedVersions> {
     const [preview, thumbnail] = await Promise.all([
