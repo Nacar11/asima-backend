@@ -282,6 +282,70 @@ describe('Leave Requests (e2e)', () => {
     });
   });
 
+  describe('attachment download', () => {
+    let imageReqId: number;
+    let pdfReqId: number;
+
+    beforeAll(async () => {
+      const img = await auth(tokens.emma)(
+        request(app.getHttpServer())
+          .post(url('/users/me/leave-requests'))
+          .field('leave_type', 'sick')
+          .field('start_date', '2027-05-03')
+          .field('end_date', '2027-05-03')
+          .attach('file', pngFixture, 'scan.png'),
+      ).expect(201);
+      imageReqId = img.body.id;
+
+      const pdf = await auth(tokens.emma)(
+        request(app.getHttpServer())
+          .post(url('/users/me/leave-requests'))
+          .field('leave_type', 'sick')
+          .field('start_date', '2027-05-10')
+          .field('end_date', '2027-05-10')
+          .attach('file', pdfFixture, 'note.pdf'),
+      ).expect(201);
+      pdfReqId = pdf.body.id;
+    });
+
+    const download = (token: string, id: number, version?: string) => {
+      const req = auth(token)(
+        request(app.getHttpServer()).get(url(`/leave-requests/${id}/attachment`)),
+      );
+      return version ? req.query({ version }) : req;
+    };
+
+    it('owner downloads the original (200) with a content-disposition filename', async () => {
+      const res = await download(tokens.emma, imageReqId).buffer().expect(200);
+      expect(res.headers['content-disposition']).toContain('scan.png');
+    });
+
+    it('owner downloads the preview + thumbnail renditions (200)', async () => {
+      await download(tokens.emma, imageReqId, 'preview').buffer().expect(200);
+      await download(tokens.emma, imageReqId, 'thumbnail').buffer().expect(200);
+    });
+
+    it('the snapshotted L1 approver can download (200)', async () => {
+      await download(tokens.karen, imageReqId).buffer().expect(200);
+    });
+
+    it('an unrelated employee is forbidden (403)', async () => {
+      await download(tokens.liam, imageReqId).expect(403);
+    });
+
+    it('a missing request is 404', async () => {
+      await download(tokens.emma, 99999999).expect(404);
+    });
+
+    it('a preview of a PDF attachment is 404 (no such rendition)', async () => {
+      await download(tokens.emma, pdfReqId, 'preview').expect(404);
+    });
+
+    it('the original of a PDF attachment is 200', async () => {
+      await download(tokens.emma, pdfReqId).buffer().expect(200);
+    });
+  });
+
   describe('day-count preview — half day', () => {
     // emma's seeded schedule: Mon–Fri 09:00–18:00, lunch 12:00 for 60m.
     // 2026-07-06 is a Monday (workday).

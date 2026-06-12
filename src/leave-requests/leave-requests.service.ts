@@ -15,8 +15,10 @@ import { LeaveRequest } from '@/leave-requests/domain/leave-request';
 import { LeaveRequestSearchCriteria } from '@/leave-requests/domain/leave-request-search-criteria';
 import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
 import { SubmitLeaveInput, UpdateLeaveInput } from '@/leave-requests/domain/leave-request-inputs';
+import { Readable } from 'stream';
 import { User } from '@/users/domain/user';
 import { AttachmentService, UploadedFile } from '@/storage/attachment.service';
+import { FILE_VERSIONS, FileVersion } from '@/storage/domain/file-version';
 import {
   ATTACHMENT_REQUIRED_LEAVE_TYPES,
   DAY_PORTIONS,
@@ -193,6 +195,46 @@ export class LeaveRequestsService {
       if (prepared) await this.attachments.cleanup(prepared);
       throw err;
     }
+  }
+
+  /**
+   * Stream a leave request's attachment to an authorized caller. Access is
+   * the SAME rule as viewing the request itself (`findByIdForViewer`):
+   * owner, snapshotted L1/L2 approver, `LEAVE:ViewAll`, or `system_admin`.
+   * The snapshot columns are the authority for who approved *this* request,
+   * so there is no `approval_chains` lookup (the chain may have changed).
+   *
+   * 404s if the request has no attachment, the attachment row is gone, or a
+   * `preview`/`thumbnail` is requested for a PDF (no such version).
+   */
+  async getAttachmentDownload(
+    id: number,
+    caller: User,
+    version: FileVersion,
+  ): Promise<AttachmentDownload> {
+    // Reuses the request view-authorization (404 if missing, 403 if not allowed).
+    const request = await this.findByIdForViewer(id, caller);
+    if (request.attachment_id == null) {
+      throw new NotFoundException('This leave request has no attachment');
+    }
+    const attachment = await this.attachments.findById(request.attachment_id);
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found');
+    }
+    // PDFs have only `original`; reject derived versions for them.
+    if (version !== FILE_VERSIONS.original && !attachment.has_versions) {
+      throw new NotFoundException(`No ${version} rendition for this attachment`);
+    }
+
+    const stream = await this.attachments.openVersion(attachment, version);
+    const isOriginal = version === FILE_VERSIONS.original;
+    return {
+      stream,
+      content_type: isOriginal ? attachment.content_type : 'image/webp',
+      filename: isOriginal
+        ? attachment.original_filename
+        : derivedFilename(attachment.original_filename, version),
+    };
   }
 
   /**
@@ -428,6 +470,19 @@ export class LeaveRequestsService {
     }
     return false;
   }
+}
+
+/** A streamable attachment version plus the headers the controller sets. */
+export type AttachmentDownload = {
+  stream: Readable;
+  content_type: string;
+  filename: string;
+};
+
+/** `report.pdf` + `preview` → `report-preview.webp` (derived versions are WebP). */
+function derivedFilename(originalFilename: string, version: FileVersion): string {
+  const stem = originalFilename.replace(/\.[^.]+$/, '') || 'attachment';
+  return `${stem}-${version}.webp`;
 }
 
 function isPending(status: LeaveRequestStatus): boolean {

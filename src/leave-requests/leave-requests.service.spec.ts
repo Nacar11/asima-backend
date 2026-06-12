@@ -8,6 +8,8 @@ import { LeaveDayCountService } from './leave-day-count.service';
 import { BaseLeaveRequestRepository } from './persistence/base-leave-request.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
+import { Readable } from 'stream';
+import { NotFoundException } from '@nestjs/common';
 import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
 import { AttachmentService } from '@/storage/attachment.service';
 import { LeaveRequest } from './domain/leave-request';
@@ -65,7 +67,9 @@ describe('LeaveRequestsService', () => {
   let users: jest.Mocked<BaseUserRepository>;
   let dayCount: jest.Mocked<LeaveDayCountService>;
   let allocations: jest.Mocked<BaseLeaveAllocationRepository>;
-  let attachments: jest.Mocked<Pick<AttachmentService, 'uploadForOwner' | 'persist' | 'cleanup'>>;
+  let attachments: jest.Mocked<
+    Pick<AttachmentService, 'uploadForOwner' | 'persist' | 'cleanup' | 'findById' | 'openVersion'>
+  >;
   let dataSource: { transaction: jest.Mock };
 
   /** A prepared-attachment handle as AttachmentService.uploadForOwner returns. */
@@ -118,7 +122,11 @@ describe('LeaveRequestsService', () => {
       uploadForOwner: jest.fn().mockResolvedValue(preparedHandle),
       persist: jest.fn().mockResolvedValue({ id: 77 }),
       cleanup: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<Pick<AttachmentService, 'uploadForOwner' | 'persist' | 'cleanup'>>;
+      findById: jest.fn(),
+      openVersion: jest.fn().mockResolvedValue(Readable.from(['bytes'])),
+    } as unknown as jest.Mocked<
+      Pick<AttachmentService, 'uploadForOwner' | 'persist' | 'cleanup' | 'findById' | 'openVersion'>
+    >;
     // Run the transaction callback inline with a throwaway manager.
     dataSource = { transaction: jest.fn().mockImplementation((cb) => cb({} as never)) };
     service = new LeaveRequestsService(
@@ -540,6 +548,76 @@ describe('LeaveRequestsService', () => {
       await expect(service.findByIdForViewer(1, user(99))).rejects.toBeInstanceOf(
         ForbiddenException,
       );
+    });
+  });
+
+  describe('getAttachmentDownload', () => {
+    const imageAttachment = {
+      id: 77,
+      object_key_prefix: 'leave-attachments/abc',
+      content_type: 'image/png',
+      original_filename: 'cert.png',
+      kind: 'image',
+      has_versions: true,
+    };
+    const pdfAttachment = {
+      ...imageAttachment,
+      content_type: 'application/pdf',
+      original_filename: 'note.pdf',
+      kind: 'pdf',
+      has_versions: false,
+    };
+
+    it('streams the original to the owner with the stored content type + filename', async () => {
+      repo.findById.mockResolvedValue(leave({ employee_id: 12, attachment_id: 77 }));
+      attachments.findById.mockResolvedValue(imageAttachment as never);
+
+      const dl = await service.getAttachmentDownload(1, user(12), 'original');
+
+      expect(dl.content_type).toBe('image/png');
+      expect(dl.filename).toBe('cert.png');
+      expect(attachments.openVersion).toHaveBeenCalledWith(imageAttachment, 'original');
+    });
+
+    it('streams a preview as webp with a derived filename', async () => {
+      repo.findById.mockResolvedValue(leave({ employee_id: 12, attachment_id: 77 }));
+      attachments.findById.mockResolvedValue(imageAttachment as never);
+
+      const dl = await service.getAttachmentDownload(1, user(12), 'preview');
+
+      expect(dl.content_type).toBe('image/webp');
+      expect(dl.filename).toBe('cert-preview.webp');
+    });
+
+    it('lets the snapshotted L1 approver download', async () => {
+      repo.findById.mockResolvedValue(
+        leave({ employee_id: 12, l1_approver_id: 5, attachment_id: 77 }),
+      );
+      attachments.findById.mockResolvedValue(imageAttachment as never);
+      await expect(service.getAttachmentDownload(1, user(5), 'original')).resolves.toBeDefined();
+    });
+
+    it('403 for an unrelated employee (via findByIdForViewer)', async () => {
+      repo.findById.mockResolvedValue(leave({ employee_id: 12, attachment_id: 77 }));
+      await expect(service.getAttachmentDownload(1, user(99), 'original')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('404 when the request has no attachment', async () => {
+      repo.findById.mockResolvedValue(leave({ employee_id: 12, attachment_id: null }));
+      await expect(service.getAttachmentDownload(1, user(12), 'original')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('404 when a preview/thumbnail is requested for a PDF', async () => {
+      repo.findById.mockResolvedValue(leave({ employee_id: 12, attachment_id: 77 }));
+      attachments.findById.mockResolvedValue(pdfAttachment as never);
+      await expect(service.getAttachmentDownload(1, user(12), 'thumbnail')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(attachments.openVersion).not.toHaveBeenCalled();
     });
   });
 });

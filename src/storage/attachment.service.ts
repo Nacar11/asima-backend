@@ -1,3 +1,4 @@
+import { Readable } from 'stream';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EntityManager } from 'typeorm';
@@ -164,6 +165,11 @@ export class AttachmentService {
 
   async findById(id: number): Promise<Attachment | null> {
     return this.repository.findById(id);
+  }
+
+  /** Open a readable byte stream for an attachment's version, for piping. */
+  openVersion(attachment: KeyableAttachment, version: FileVersion): Promise<Readable> {
+    return this.storage.getStream(this.objectKeyFor(attachment, version));
   }
 
   /**

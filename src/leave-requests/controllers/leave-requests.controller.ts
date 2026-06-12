@@ -7,13 +7,26 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiProduces,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
 import { LeaveRequest } from '@/leave-requests/domain/leave-request';
 import { RejectLeaveRequestDto } from '@/leave-requests/dto/reject-leave-request.dto';
+import { AttachmentVersionQueryDto } from '@/leave-requests/dto/attachment-version-query.dto';
 import { Permissions } from '@/permissions/permissions.decorator';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
+import { contentDisposition } from '@/utils/helpers/content-disposition';
 import { API_VERSION } from '@/utils/constants/api.constants';
 import { User } from '@/users/domain/user';
 
@@ -42,6 +55,33 @@ export class LeaveRequestsController {
     @CurrentUser() caller: User,
   ): Promise<LeaveRequest> {
     return this.service.findByIdForViewer(id, caller);
+  }
+
+  @Get(':id/attachment')
+  @Permissions({ LEAVE: 'ViewOwn' })
+  @ApiOperation({
+    summary: "Download a leave request's attachment (streamed, permission-checked)",
+    description:
+      'Route requires LEAVE:ViewOwn; the service additionally checks the caller is the ' +
+      'requester, the snapshotted L1/L2 approver, or holds LEAVE:ViewAll / system_admin. ' +
+      'preview/thumbnail are image-only (404 for a PDF).',
+  })
+  @ApiQuery({ name: 'version', required: false, enum: ['original', 'preview', 'thumbnail'] })
+  @ApiProduces('application/octet-stream')
+  @ApiResponse({ status: 200, description: 'The file stream.' })
+  async downloadAttachment(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: AttachmentVersionQueryDto,
+    @CurrentUser() caller: User,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const download = await this.service.getAttachmentDownload(id, caller, query.version);
+    res.set({
+      'Content-Type': download.content_type,
+      // Sanitized + RFC 5987-encoded; original_filename is user-controlled.
+      'Content-Disposition': contentDisposition(download.filename),
+    });
+    return new StreamableFile(download.stream);
   }
 
   // approve / reject are intentionally NOT @Permissions-gated: the guard
