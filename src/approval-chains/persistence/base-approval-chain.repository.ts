@@ -30,6 +30,13 @@ export abstract class BaseApprovalChainRepository {
   ): Promise<FindAllApprovalChain>;
 
   /**
+   * Just the matching employee ids for the same filters as
+   * `listEmployeesWithChains` — no joins, no count, no pagination. Backs the
+   * "select all unassigned" bulk-assign action.
+   */
+  abstract listEmployeeIds(criteria: ApprovalChainSearchCriteria): Promise<number[]>;
+
+  /**
    * Atomically end the given active rows and insert the given new rows in
    * a single transaction. The service computes `ends`/`inserts` from the
    * desired chain state; this method just commits them together so a

@@ -37,6 +37,12 @@ export class ApprovalChainsService {
     return this.repository.listEmployeesWithChains(criteria);
   }
 
+  /** Matching employee ids for the given filters (backs "select all"). */
+  async listIds(criteria: ApprovalChainSearchCriteria): Promise<{ employee_ids: number[] }> {
+    const employee_ids = await this.repository.listEmployeeIds(criteria);
+    return { employee_ids };
+  }
+
   /** Active L1/L2 approver ids for an employee (flat lookup). */
   async getActive(employee_id: number): Promise<ActiveChain> {
     const active = await this.repository.findActiveForEmployee(employee_id);

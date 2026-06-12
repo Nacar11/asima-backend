@@ -75,6 +75,20 @@ export class AdminApprovalChainsController {
     );
   }
 
+  @Get('ids')
+  @Permissions({ APPROVAL_CHAIN: 'View' })
+  @ApiOperation({
+    summary: 'List just the employee ids matching the current filters',
+    description:
+      'Lean companion to the list endpoint (no pagination) — backs the ' +
+      '"select all unassigned" bulk-assign action. Honours search + unassigned.',
+  })
+  @ApiResponse({ status: 200 })
+  listIds(@Query() query: QueryApprovalChainDto) {
+    // Declared BEFORE :employee_id so the literal path wins over the param route.
+    return this.service.listIds(query);
+  }
+
   @Get(':employee_id')
   @Permissions({ APPROVAL_CHAIN: 'View' })
   @ApiOperation({ summary: "Get a single employee's active L1/L2 chain rows" })

@@ -39,6 +39,7 @@ describe('ApprovalChainsService', () => {
       findActiveByApprover: jest.fn().mockResolvedValue([]),
       findAllForEmployee: jest.fn().mockResolvedValue([]),
       listEmployeesWithChains: jest.fn(),
+      listEmployeeIds: jest.fn().mockResolvedValue([]),
       applyStepChanges: jest.fn().mockResolvedValue(undefined),
     };
     users = {
@@ -305,6 +306,16 @@ describe('ApprovalChainsService', () => {
         l1_approver_id: null,
         l2_approver_id: null,
       });
+    });
+  });
+
+  describe('listIds', () => {
+    it('forwards the criteria to the repository and wraps the ids', async () => {
+      repo.listEmployeeIds.mockResolvedValue([20, 21, 22]);
+      await expect(service.listIds({ unassigned: true })).resolves.toEqual({
+        employee_ids: [20, 21, 22],
+      });
+      expect(repo.listEmployeeIds).toHaveBeenCalledWith({ unassigned: true });
     });
   });
 });

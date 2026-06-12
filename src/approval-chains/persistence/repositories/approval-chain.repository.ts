@@ -87,6 +87,14 @@ export class ApprovalChainRepository extends BaseApprovalChainRepository {
       });
     }
 
+    if (criteria.unassigned) {
+      // "Unassigned" == no active L1 row. L2-without-L1 is structurally
+      // impossible (enforced in setChain/bulkAssign + the "no L2 without L1"
+      // guard), so a null L1 fully defines an unassigned employee. If a future
+      // change ever allows a standalone L2, revisit this filter.
+      base.andWhere('c1.approver_id IS NULL');
+    }
+
     const total = await base.clone().getCount();
 
     const rows = await base
@@ -126,6 +134,40 @@ export class ApprovalChainRepository extends BaseApprovalChainRepository {
     }));
 
     return { data, total, page, limit, has_more: page * limit < total };
+  }
+
+  async listEmployeeIds(criteria: ApprovalChainSearchCriteria): Promise<number[]> {
+    // Lean variant of listEmployeesWithChains: returns just the matching
+    // employee ids for the same filters, with no approver-name joins, no
+    // count, and no pagination. Backs the "select all unassigned" action so
+    // the client can grab every match without paging the heavy list query.
+    const qb = this.repo.manager
+      .createQueryBuilder(UserEntity, 'u')
+      .leftJoin(
+        ApprovalChainEntity,
+        'c1',
+        'c1.employee_id = u.id AND c1.step = 1 AND c1.ended_at IS NULL',
+      )
+      .where('u.deleted_at IS NULL')
+      .andWhere('u.is_active = true');
+
+    if (criteria.search) {
+      qb.andWhere('(u.first_name ILIKE :s OR u.last_name ILIKE :s OR u.email ILIKE :s)', {
+        s: `%${criteria.search}%`,
+      });
+    }
+
+    if (criteria.unassigned) {
+      // See listEmployeesWithChains: null L1 == unassigned.
+      qb.andWhere('c1.approver_id IS NULL');
+    }
+
+    const rows = await qb
+      .select('u.id', 'employee_id')
+      .orderBy('u.id', 'ASC')
+      .getRawMany<{ employee_id: number }>();
+
+    return rows.map((r) => r.employee_id);
   }
 
   async applyStepChanges(input: {

@@ -32,7 +32,10 @@ describe('Approval Chains (e2e)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule, TypeOrmModule.forFeature([PermissionEntity, RoleEntity, UserEntity, LeaveAllocationEntity])],
+      imports: [
+        AppModule,
+        TypeOrmModule.forFeature([PermissionEntity, RoleEntity, UserEntity, LeaveAllocationEntity]),
+      ],
       providers: [PermissionSeedService, RoleSeedService, UserSeedService],
     }).compile();
 
@@ -181,6 +184,40 @@ describe('Approval Chains (e2e)', () => {
       expect(emma.l1_approver_id).toBe(l1Id);
       expect(emma.l1_approver_name).toBe('Karen Taylor');
       expect(emma.l2_approver_name).toBe('James Wilson');
+    });
+
+    it('unassigned=true returns only employees with no active L1', async () => {
+      const all = await asAdmin(
+        request(app.getHttpServer()).get(url('/admin/approvers?limit=100')),
+      ).expect(200);
+      const unassigned = await asAdmin(
+        request(app.getHttpServer()).get(url('/admin/approvers?unassigned=true&limit=100')),
+      ).expect(200);
+
+      // Emma has an L1 at this point, so she is excluded from the filtered set.
+      expect(
+        unassigned.body.data.some((r: { employee_id: number }) => r.employee_id === employeeId),
+      ).toBe(false);
+      // Every returned row genuinely has no L1.
+      for (const row of unassigned.body.data) {
+        expect(row.l1_approver_id).toBeNull();
+      }
+      // The filter narrows the set.
+      expect(unassigned.body.total).toBeLessThan(all.body.total);
+      expect(unassigned.body.total).toBeGreaterThan(0);
+    });
+  });
+
+  describe('list ids (GET /admin/approvers/ids)', () => {
+    it('returns just the matching employee ids, honouring the unassigned filter', async () => {
+      const res = await asAdmin(
+        request(app.getHttpServer()).get(url('/admin/approvers/ids?unassigned=true')),
+      ).expect(200);
+
+      expect(Array.isArray(res.body.employee_ids)).toBe(true);
+      expect(res.body.employee_ids.length).toBeGreaterThan(0);
+      // Emma has an L1, so she must not appear in the unassigned id set.
+      expect(res.body.employee_ids).not.toContain(employeeId);
     });
   });
 
