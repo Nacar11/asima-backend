@@ -68,6 +68,7 @@ export abstract class BaseLeaveRequestRepository {
       status: LeaveRequestStatus;
       l1_approver_id: number;
       l2_approver_id: number | null;
+      attachment_id?: number | null;
       created_by?: number | null;
     },
     manager?: EntityManager,

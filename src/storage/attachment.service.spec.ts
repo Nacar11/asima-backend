@@ -31,9 +31,9 @@ describe('AttachmentService', () => {
           size_bytes: input.body.length,
         }),
       ),
-      delete: jest.fn(async (_key: string) => undefined),
-      getStream: jest.fn(async (_key: string) => undefined as never),
-      exists: jest.fn(async (_key: string) => true),
+      delete: jest.fn<Promise<void>, [string]>().mockResolvedValue(undefined),
+      getStream: jest.fn<Promise<never>, [string]>(),
+      exists: jest.fn<Promise<boolean>, [string]>().mockResolvedValue(true),
     };
     repo = { create: jest.fn(), findById: jest.fn() };
     service = new AttachmentService(

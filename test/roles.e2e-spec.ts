@@ -25,7 +25,10 @@ describe('Roles admin (e2e)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule, TypeOrmModule.forFeature([PermissionEntity, RoleEntity, UserEntity, LeaveAllocationEntity])],
+      imports: [
+        AppModule,
+        TypeOrmModule.forFeature([PermissionEntity, RoleEntity, UserEntity, LeaveAllocationEntity]),
+      ],
       providers: [PermissionSeedService, RoleSeedService, UserSeedService],
     }).compile();
 

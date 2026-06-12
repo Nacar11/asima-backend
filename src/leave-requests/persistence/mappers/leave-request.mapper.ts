@@ -25,6 +25,7 @@ export class LeaveRequestMapper {
     lr.cancelled_by = raw.cancelled_by;
     lr.l1_approver_id = raw.l1_approver_id;
     lr.l2_approver_id = raw.l2_approver_id;
+    lr.attachment_id = raw.attachment_id;
     lr.created_by = raw.created_by;
     lr.updated_by = raw.updated_by;
     lr.deleted_by = raw.deleted_by;
@@ -51,6 +52,8 @@ export class LeaveRequestMapper {
 }
 
 /** `${first} ${last}` from a joined user relation, or null if the join missed. */
-function fullName(user: { first_name: string; last_name: string } | null | undefined): string | null {
+function fullName(
+  user: { first_name: string; last_name: string } | null | undefined,
+): string | null {
   return user ? `${user.first_name} ${user.last_name}` : null;
 }

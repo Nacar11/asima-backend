@@ -119,6 +119,14 @@ export class LeaveRequestEntity extends EntityHelper {
   @JoinColumn({ name: 'l2_approver_id' })
   l2_approver!: UserEntity | null;
 
+  /**
+   * FK to `attachments`. Mandatory for sick/bereavement (enforced in the
+   * service), null for every other type. The download endpoint loads the
+   * attachment by this id.
+   */
+  @Column({ type: 'int', nullable: true })
+  attachment_id!: number | null;
+
   @Column({ type: 'int', nullable: true })
   created_by!: number | null;
 

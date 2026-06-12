@@ -37,10 +37,20 @@ describe('UsersService.create — default leave allocations', () => {
 
     expect(allocations.create).toHaveBeenCalledTimes(2);
     expect(allocations.create).toHaveBeenCalledWith(
-      expect.objectContaining({ employee_id: 99, leave_type: 'vacation', amount: 10, source: 'default' }),
+      expect.objectContaining({
+        employee_id: 99,
+        leave_type: 'vacation',
+        amount: 10,
+        source: 'default',
+      }),
     );
     expect(allocations.create).toHaveBeenCalledWith(
-      expect.objectContaining({ employee_id: 99, leave_type: 'sick', amount: 10, source: 'default' }),
+      expect.objectContaining({
+        employee_id: 99,
+        leave_type: 'sick',
+        amount: 10,
+        source: 'default',
+      }),
     );
   });
 

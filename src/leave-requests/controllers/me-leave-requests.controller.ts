@@ -8,8 +8,18 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
 import { LeaveRequest } from '@/leave-requests/domain/leave-request';
 import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
@@ -46,10 +56,35 @@ export class MeLeaveRequestsController {
 
   @Post()
   @Permissions({ LEAVE: 'Create' })
-  @ApiOperation({ summary: 'Submit a leave request for myself' })
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Submit a leave request for myself',
+    description:
+      'multipart/form-data. sick and bereavement require exactly one `file` ' +
+      '(JPEG/PNG/WebP/PDF, ≤ STORAGE_MAX_FILE_MB); other types must omit it.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['leave_type', 'start_date', 'end_date'],
+      properties: {
+        leave_type: { type: 'string', example: 'sick' },
+        start_date: { type: 'string', example: '2026-06-01' },
+        end_date: { type: 'string', example: '2026-06-01' },
+        day_portion: { type: 'string', example: 'full' },
+        reason: { type: 'string', nullable: true },
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @ApiResponse({ status: 201 })
-  submit(@Body() dto: SubmitLeaveRequestDto, @CurrentUser() me: User): Promise<LeaveRequest> {
-    return this.service.submit({ ...dto, employee_id: me.id }, me);
+  submit(
+    @Body() dto: SubmitLeaveRequestDto,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @CurrentUser() me: User,
+  ): Promise<LeaveRequest> {
+    return this.service.submit({ ...dto, employee_id: me.id }, me, file);
   }
 
   @Get('day-count')

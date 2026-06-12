@@ -26,7 +26,10 @@ export class LeaveRequest {
   @ApiProperty({ example: 12, description: 'FK to users.id — the requester' })
   employee_id!: number;
 
-  @ApiProperty({ example: 'vacation', enum: ['vacation', 'sick', 'bereavement', 'birthday', 'emergency'] })
+  @ApiProperty({
+    example: 'vacation',
+    enum: ['vacation', 'sick', 'bereavement', 'birthday', 'emergency'],
+  })
   leave_type!: LeaveType;
 
   @ApiProperty({ example: '2026-06-01', description: 'YYYY-MM-DD, inclusive' })
@@ -108,6 +111,13 @@ export class LeaveRequest {
     description: 'Snapshot of the L2 approver; null = single-step chain (auto-approve after L1)',
   })
   l2_approver_id!: number | null;
+
+  @ApiPropertyOptional({
+    example: 3,
+    nullable: true,
+    description: 'FK attachments.id — the mandatory file for sick/bereavement; null otherwise',
+  })
+  attachment_id!: number | null;
 
   @ApiPropertyOptional({ example: 1, nullable: true })
   created_by!: number | null;

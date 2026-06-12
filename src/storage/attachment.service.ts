@@ -157,9 +157,7 @@ export class AttachmentService {
       try {
         await this.storage.delete(key);
       } catch (err) {
-        this.logger.error(
-          `Failed to clean up orphaned object ${key}: ${(err as Error).message}`,
-        );
+        this.logger.error(`Failed to clean up orphaned object ${key}: ${(err as Error).message}`);
       }
     }
   }

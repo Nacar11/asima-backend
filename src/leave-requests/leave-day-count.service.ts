@@ -140,7 +140,8 @@ function halfDayWindow(
   const halfWork = (outSec - inSec - breakSec) / 2;
 
   // Work-time elapsed before the break begins (Infinity when no break).
-  const preBreak = schedule.break_start != null ? toSeconds(schedule.break_start) - inSec : Infinity;
+  const preBreak =
+    schedule.break_start != null ? toSeconds(schedule.break_start) - inSec : Infinity;
   const splitSec = halfWork <= preBreak ? inSec + halfWork : inSec + halfWork + breakSec;
 
   return portion === DAY_PORTIONS.first_half

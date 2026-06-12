@@ -89,9 +89,9 @@ describe('LeaveDayCountService', () => {
       await service.assertSubmittableRange(12, '2026-06-01', '2026-06-01').catch((e) => {
         expect(e.getResponse().errors.start_date).toMatch(/working day/i);
       });
-      await expect(
-        service.assertSubmittableRange(12, '2026-06-01', '2026-06-01'),
-      ).rejects.toThrow(UnprocessableEntityException);
+      await expect(service.assertSubmittableRange(12, '2026-06-01', '2026-06-01')).rejects.toThrow(
+        UnprocessableEntityException,
+      );
     });
   });
 

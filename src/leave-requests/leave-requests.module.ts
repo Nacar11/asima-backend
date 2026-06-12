@@ -11,6 +11,7 @@ import { ApprovalChainsModule } from '@/approval-chains/approval-chains.module';
 import { UserPersistenceModule } from '@/users/persistence/persistence.module';
 import { WorkSchedulePersistenceModule } from '@/work-schedules/persistence/persistence.module';
 import { LeaveAllocationPersistenceModule } from '@/leave-allocations/persistence/persistence.module';
+import { StorageModule } from '@/storage/storage.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { LeaveAllocationPersistenceModule } from '@/leave-allocations/persistenc
     UserPersistenceModule,
     WorkSchedulePersistenceModule,
     LeaveAllocationPersistenceModule,
+    StorageModule,
   ],
   controllers: [
     AdminLeaveRequestsController,

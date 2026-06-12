@@ -50,8 +50,6 @@ export default registerAs<StorageConfig>('storage', () => {
     accessKey: process.env.STORAGE_ACCESS_KEY!,
     secretKey: process.env.STORAGE_SECRET_KEY!,
     forcePathStyle: process.env.STORAGE_FORCE_PATH_STYLE === 'true',
-    maxFileMb: process.env.STORAGE_MAX_FILE_MB
-      ? parseInt(process.env.STORAGE_MAX_FILE_MB, 10)
-      : 10,
+    maxFileMb: process.env.STORAGE_MAX_FILE_MB ? parseInt(process.env.STORAGE_MAX_FILE_MB, 10) : 10,
   };
 });

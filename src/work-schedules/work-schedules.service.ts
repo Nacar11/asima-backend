@@ -107,8 +107,7 @@ export class WorkSchedulesService {
     // Resolve the effective break against the patch so a change to any of
     // {break_minutes, break_start, window} is re-validated as a whole.
     const break_minutes = patch.break_minutes ?? existing.break_minutes;
-    const break_start =
-      patch.break_start !== undefined ? patch.break_start : existing.break_start;
+    const break_start = patch.break_start !== undefined ? patch.break_start : existing.break_start;
     assertBreakOk(break_minutes, break_start, expected_in, expected_out);
 
     return this.repository.update(id, patch);
