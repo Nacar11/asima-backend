@@ -7,6 +7,7 @@ import { DataSource } from 'typeorm';
 import appConfig from '@/config/app.config';
 import databaseConfig from '@/database/config/database.config';
 import authConfig from '@/auth/config/auth.config';
+import storageConfig from '@/storage/config/storage.config';
 import { TypeOrmConfigService } from '@/database/typeorm-config.service';
 import { AuthModule } from '@/auth/auth.module';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
@@ -28,7 +29,7 @@ import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, authConfig],
+      load: [appConfig, databaseConfig, authConfig, storageConfig],
       envFilePath: ['.env'],
     }),
     TypeOrmModule.forRootAsync({
