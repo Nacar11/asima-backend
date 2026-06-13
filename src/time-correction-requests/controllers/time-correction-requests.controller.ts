@@ -12,7 +12,6 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { TimeCorrectionRequestsService } from '@/time-correction-requests/time-correction-requests.service';
 import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
 import { RejectTimeCorrectionRequestDto } from '@/time-correction-requests/dto/reject-time-correction-request.dto';
-import { Permissions } from '@/permissions/permissions.decorator';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
 import { API_VERSION } from '@/utils/constants/api.constants';
 import { User } from '@/users/domain/user';
@@ -29,8 +28,11 @@ import { User } from '@/users/domain/user';
 export class TimeCorrectionRequestsController {
   constructor(private readonly service: TimeCorrectionRequestsService) {}
 
+  // JWT-only at the route (like approve/reject below): findByIdForViewer is the
+  // authorizer (requester / L1 / L2 / ViewAll / system_admin). A @Permissions
+  // gate here would 403 a chain approver whose role lacks the employee-level
+  // ViewOwn code before that check runs.
   @Get(':id')
-  @Permissions({ TIME_CORRECTION: 'ViewOwn' })
   @ApiOperation({ summary: 'Get a correction request (requester, either approver, or ViewAll)' })
   getOne(
     @Param('id', ParseIntPipe) id: number,

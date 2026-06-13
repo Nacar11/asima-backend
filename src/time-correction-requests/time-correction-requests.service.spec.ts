@@ -92,6 +92,46 @@ describe('TimeCorrectionRequestsService', () => {
     reason: 'Forgot to clock in',
   };
 
+  describe('findByIdForViewer', () => {
+    const row = () => tc({ employee_id: 12, l1_approver_id: 5, l2_approver_id: 7 });
+
+    it('allows the requester', async () => {
+      repo.findById.mockResolvedValue(row());
+      await expect(service.findByIdForViewer(1, user(12))).resolves.toBeDefined();
+    });
+
+    it('allows the L1 approver', async () => {
+      repo.findById.mockResolvedValue(row());
+      await expect(service.findByIdForViewer(1, user(5))).resolves.toBeDefined();
+    });
+
+    it('allows the L2 approver', async () => {
+      repo.findById.mockResolvedValue(row());
+      await expect(service.findByIdForViewer(1, user(7))).resolves.toBeDefined();
+    });
+
+    it('allows a viewer with TIME_CORRECTION:ViewAll', async () => {
+      repo.findById.mockResolvedValue(row());
+      await expect(
+        service.findByIdForViewer(1, user(99, { codes: ['TIME_CORRECTION:ViewAll'] })),
+      ).resolves.toBeDefined();
+    });
+
+    it('allows a system_admin', async () => {
+      repo.findById.mockResolvedValue(row());
+      await expect(
+        service.findByIdForViewer(1, user(99, { system_admin: true })),
+      ).resolves.toBeDefined();
+    });
+
+    it('forbids an unrelated user without ViewAll (403) — even though the route is JWT-only', async () => {
+      repo.findById.mockResolvedValue(row());
+      await expect(service.findByIdForViewer(1, user(99))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+  });
+
   describe('submit', () => {
     it('snapshots the chain and starts pending_l1', async () => {
       await service.submit(input, user(12, { codes: ['TIME_CORRECTION:Create'] }));
