@@ -50,6 +50,18 @@ jobs:
       # E2E tests log in repeatedly; the 10/min login throttle would
       # otherwise 429 most of them. Disable throttling for the test run only.
       THROTTLE_DISABLED: 'true'
+      # Storage (S3/MinIO). The leave-attachment e2e specs exercise the real
+      # S3StorageService against the MinIO container started below — these
+      # vars must match the container's root creds + bucket. STORAGE_REGION /
+      # BUCKET / ACCESS_KEY / SECRET_KEY are required by storage.config.ts;
+      # without them the Nest test app fails to boot and every e2e suite dies.
+      STORAGE_ENDPOINT: http://localhost:9000
+      STORAGE_REGION: us-east-1
+      STORAGE_BUCKET: asima
+      STORAGE_ACCESS_KEY: asima-minio
+      STORAGE_SECRET_KEY: asima-minio-secret
+      STORAGE_FORCE_PATH_STYLE: 'true'
+      STORAGE_MAX_FILE_MB: '10'
 
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +73,28 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # MinIO (S3-compatible) for the leave-attachment e2e specs. The
+      # official minio/minio image needs a `server <dir>` command, which
+      # GitHub *service containers* can't supply — so we run it as a plain
+      # container here, wait for readiness, and create the bucket with mc
+      # (via MC_HOST_* so no alias state is needed). It boots while the
+      # static checks + build run; e2e (much later) finds it ready.
+      - name: Start MinIO + create bucket
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=asima-minio \
+            -e MINIO_ROOT_PASSWORD=asima-minio-secret \
+            minio/minio server /data
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:9000/minio/health/ready >/dev/null; then
+              echo "MinIO ready"; break
+            fi
+            echo "waiting for MinIO ($i)..."; sleep 2
+          done
+          docker run --rm --network host \
+            -e MC_HOST_local=http://asima-minio:asima-minio-secret@localhost:9000 \
+            minio/mc mb --ignore-existing local/asima
 
       # --- Static checks first (cheapest, fail fastest). lint:ci/format:check
       # are non-mutating (no --fix/--write) so CI verifies rather than rewrites.
