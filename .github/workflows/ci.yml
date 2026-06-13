@@ -47,7 +47,6 @@ jobs:
       AUTH_REFRESH_SECRET: ci-refresh-secret-do-not-use-in-prod
       AUTH_REFRESH_TOKEN_EXPIRES_IN: 7d
       SEED_DEFAULT_PASSWORD: Asima@1234
-      SEED_ON_BOOT: 'false'
       # E2E tests log in repeatedly; the 10/min login throttle would
       # otherwise 429 most of them. Disable throttling for the test run only.
       THROTTLE_DISABLED: 'true'

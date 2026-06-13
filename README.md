@@ -16,32 +16,19 @@ System.
 
 ## Quick start
 
-### Option A — full stack via Docker Compose (fresh-clone friendly)
+### Dependencies in Docker, backend on the host
 
-```bash
-cp .env.example .env
-docker compose up --build
-```
-
-That brings up:
-
-- `asima-postgres` (Postgres 16, `pg_isready` healthcheck)
-- `asima-api` (this app, healthcheck on `/api/v1/health`)
-
-When `asima-api` reaches `healthy`, hit `http://localhost:3000/docs` for
-Swagger and `http://localhost:3000/api/v1/health` for the liveness probe.
-`SEED_ON_BOOT=true` by default in the compose file, so the first boot
-populates roles, permissions, and the default super admin.
-
-### Option B — host-mode dev loop
+Docker Compose runs the **dependencies only** — there is no API container.
+The backend always runs on the host via `npm run start:dev` (hot reload) on
+port `3000`.
 
 ```bash
 cp .env.example .env             # leave DATABASE_HOST=localhost
 npm install
-npm run docker:up                # just postgres
+npm run docker:up                # dependencies: Postgres + MinIO (+ bucket init)
 npm run migration:run
 npm run seed
-npm run start:dev                # watches src/
+npm run start:dev                # backend on :3000, watches src/
 ```
 
 ## Default seeded credentials
@@ -79,7 +66,6 @@ change the env, drop the user, reseed.
 | `AUTH_REFRESH_SECRET` | yes | — | refresh-token secret (distinct from above) |
 | `AUTH_REFRESH_TOKEN_EXPIRES_IN` | no | `7d` | refresh lifetime |
 | `SEED_DEFAULT_PASSWORD` | yes | `Asima@1234` | applied to every seeded user |
-| `SEED_ON_BOOT` | no | `false` | when `true`, entrypoint runs `npm run seed:prod` |
 
 ## API surface
 

@@ -444,7 +444,9 @@ when frontend devs grep them.
 
 ```
 npm run start:dev          # watch mode
-npm run docker:up          # postgres only (this app runs on the host in v0)
+npm run docker:up          # dependencies only: Postgres + MinIO. The API
+                           # always runs on the HOST via start:dev (port 3000);
+                           # there is no API container.
 npm run docker:down
 npm run migration:generate src/database/migrations/<Name>
 npm run migration:run
