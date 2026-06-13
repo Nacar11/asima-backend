@@ -37,6 +37,9 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
       // 1:1 ManyToOne — no row multiplication, so pagination stays correct.
       // Joins the requester so the list resolves employee_name in one trip.
       .leftJoinAndSelect('tc.employee', 'employee')
+      // Same 1:1 join for the snapshotted L1/L2 approvers → approver names.
+      .leftJoinAndSelect('tc.l1_approver', 'l1_approver')
+      .leftJoinAndSelect('tc.l2_approver', 'l2_approver')
       .orderBy('tc.submitted_at', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
