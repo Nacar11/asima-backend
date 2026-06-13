@@ -93,6 +93,25 @@ export class TimeCorrectionRequestsService {
       );
     }
 
+    // Manual add ("Add Logs"): no existing row to correct. These rules apply
+    // ONLY to the null-target path — a correction that targets an existing
+    // entry keeps its looser contract (out optional, date from the entry).
+    if (input.target_entry_id == null) {
+      if (!input.proposed_time_out) {
+        throw unprocessable('proposed_time_out', 'Time out is required when adding a log.');
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      if (input.work_date > today) {
+        throw unprocessable('work_date', 'Cannot add a log for a future date.');
+      }
+      if (await this.timeEntries.hasEntryOnDate(input.employee_id, input.work_date)) {
+        throw unprocessable(
+          'work_date',
+          `A time entry already exists for ${input.work_date}. Use Request correction instead.`,
+        );
+      }
+    }
+
     return this.repository.create({
       employee_id: input.employee_id,
       target_entry_id: input.target_entry_id ?? null,

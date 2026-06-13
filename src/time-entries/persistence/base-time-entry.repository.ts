@@ -15,6 +15,15 @@ export abstract class BaseTimeEntryRepository {
    */
   abstract findOpenForEmployee(employee_id: number): Promise<TimeEntry | null>;
 
+  /**
+   * True if the employee already has a non-deleted entry on `work_date`.
+   * Used to block a manual-add ("Add Logs") onto a day that already has a
+   * timelog — both at submit (friendly 422) and at correction-approval
+   * (authoritative 409, since two confirmed entries on one day are not
+   * caught by the open-only partial unique index).
+   */
+  abstract existsForEmployeeDate(employee_id: number, work_date: string): Promise<boolean>;
+
   abstract create(input: {
     employee_id: number;
     work_date: string;

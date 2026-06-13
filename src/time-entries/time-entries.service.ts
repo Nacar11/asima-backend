@@ -172,6 +172,11 @@ export class TimeEntriesService {
     await this.repository.softDelete(id, deleted_by);
   }
 
+  /** True if the employee already has a non-deleted entry on `work_date`. */
+  hasEntryOnDate(employee_id: number, work_date: string): Promise<boolean> {
+    return this.repository.existsForEmployeeDate(employee_id, work_date);
+  }
+
   /**
    * Apply an approved time-correction request to the timesheet (plan §10,
    * Q6). The time-correction module owns the request lifecycle; this
@@ -219,6 +224,19 @@ export class TimeEntriesService {
         source: TIME_ENTRY_SOURCES.correction,
         status,
         updated_by: input.decided_by,
+      });
+    }
+
+    // Authoritative TOCTOU guard: a manual-add ("Add Logs") may have been
+    // submitted while the day had no entry, then an entry appeared before the
+    // approver acted. Two confirmed entries on one day are NOT caught by the
+    // open-only partial unique index, so block the duplicate here.
+    if (await this.repository.existsForEmployeeDate(input.employee_id, input.work_date)) {
+      throw new ConflictException({
+        status: 409,
+        errors: {
+          work_date: `Employee ${input.employee_id} already has a time entry on ${input.work_date}.`,
+        },
       });
     }
 

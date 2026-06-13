@@ -66,6 +66,13 @@ export class TimeEntryRepository extends BaseTimeEntryRepository {
     return entity ? TimeEntryMapper.toDomain(entity) : null;
   }
 
+  async existsForEmployeeDate(employee_id: number, work_date: string): Promise<boolean> {
+    // `findOne` honors the entity's @DeleteDateColumn, so soft-deleted rows
+    // are excluded automatically.
+    const count = await this.repo.count({ where: { employee_id, work_date } });
+    return count > 0;
+  }
+
   async create(input: {
     employee_id: number;
     work_date: string;

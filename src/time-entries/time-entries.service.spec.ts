@@ -30,6 +30,7 @@ describe('TimeEntriesService', () => {
       findAll: jest.fn(),
       findById: jest.fn(),
       findOpenForEmployee: jest.fn(),
+      existsForEmployeeDate: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       softDelete: jest.fn(),
@@ -194,6 +195,54 @@ describe('TimeEntriesService', () => {
         10,
         expect.objectContaining({ status: TIME_ENTRY_STATUSES.confirmed }),
       );
+    });
+  });
+
+  describe('hasEntryOnDate', () => {
+    it('reports whether the employee already has a (non-deleted) entry on a date', async () => {
+      repo.existsForEmployeeDate.mockResolvedValue(true);
+      await expect(service.hasEntryOnDate(12, '2026-06-13')).resolves.toBe(true);
+      expect(repo.existsForEmployeeDate).toHaveBeenCalledWith(12, '2026-06-13');
+    });
+  });
+
+  describe('applyCorrection — manual-add (null target) guard', () => {
+    const manualAdd = {
+      employee_id: 12,
+      target_entry_id: null,
+      work_date: '2026-06-13',
+      proposed_time_in: new Date('2026-06-13T09:00:00Z'),
+      proposed_time_out: new Date('2026-06-13T18:00:00Z'),
+      decided_by: 5,
+    };
+
+    it('rejects with 409 when an entry already exists for the date (TOCTOU re-check)', async () => {
+      repo.existsForEmployeeDate.mockResolvedValue(true);
+
+      await expect(service.applyCorrection(manualAdd)).rejects.toBeInstanceOf(ConflictException);
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('creates the new entry when none exists for the date', async () => {
+      repo.existsForEmployeeDate.mockResolvedValue(false);
+      repo.findOpenForEmployee.mockResolvedValue(null);
+      repo.create.mockResolvedValue({ ...fakeOpenEntry, status: TIME_ENTRY_STATUSES.confirmed });
+
+      await service.applyCorrection(manualAdd);
+
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ source: TIME_ENTRY_SOURCES.correction }),
+      );
+    });
+
+    it('does NOT run the existing-entry guard when target_entry_id is set', async () => {
+      repo.findById.mockResolvedValue(fakeOpenEntry);
+      repo.update.mockResolvedValue({ ...fakeOpenEntry, status: TIME_ENTRY_STATUSES.confirmed });
+
+      await service.applyCorrection({ ...manualAdd, target_entry_id: 10 });
+
+      expect(repo.existsForEmployeeDate).not.toHaveBeenCalled();
+      expect(repo.update).toHaveBeenCalled();
     });
   });
 });

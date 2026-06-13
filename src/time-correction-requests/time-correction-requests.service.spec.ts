@@ -77,6 +77,7 @@ describe('TimeCorrectionRequestsService', () => {
     } as unknown as jest.Mocked<BaseUserRepository>;
     timeEntries = {
       applyCorrection: jest.fn().mockResolvedValue({ id: 999 }),
+      hasEntryOnDate: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<TimeEntriesService>;
     service = new TimeCorrectionRequestsService(repo, chains, users, timeEntries);
   });
@@ -115,6 +116,36 @@ describe('TimeCorrectionRequestsService', () => {
       await expect(
         service.submit({ ...input, proposed_time_out: new Date('2026-06-10T08:00:00Z') }, user(12)),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+  });
+
+  describe('submit — manual-add (null target) guards', () => {
+    const actor = () => user(12, { codes: ['TIME_CORRECTION:Create'] });
+
+    it('rejects a future work_date (422)', async () => {
+      await expect(
+        service.submit({ ...input, target_entry_id: null, work_date: '2099-01-01' }, actor()),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('rejects when an entry already exists for the date (422)', async () => {
+      timeEntries.hasEntryOnDate.mockResolvedValue(true);
+      await expect(
+        service.submit({ ...input, target_entry_id: null }, actor()),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('requires proposed_time_out for a manual add (422)', async () => {
+      await expect(
+        service.submit({ ...input, target_entry_id: null, proposed_time_out: null }, actor()),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('does NOT apply manual-add guards when target_entry_id is set', async () => {
+      // A correction targeting an existing entry: out may be null, and the
+      // existing-entry / future-date guards don't run.
+      await service.submit({ ...input, target_entry_id: 88, proposed_time_out: null }, actor());
+      expect(timeEntries.hasEntryOnDate).not.toHaveBeenCalled();
     });
   });
 
