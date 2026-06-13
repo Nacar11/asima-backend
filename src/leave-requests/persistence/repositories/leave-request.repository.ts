@@ -132,6 +132,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       status: LeaveRequestStatus;
       l1_approver_id: number;
       l2_approver_id: number | null;
+      attachment_id?: number | null;
       created_by?: number | null;
     },
     manager?: EntityManager,
@@ -152,6 +153,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       status: input.status,
       l1_approver_id: input.l1_approver_id,
       l2_approver_id: input.l2_approver_id,
+      attachment_id: input.attachment_id ?? null,
       created_by: input.created_by ?? null,
       updated_by: input.created_by ?? null,
     });

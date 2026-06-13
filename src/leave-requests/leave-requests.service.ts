@@ -7,10 +7,7 @@ import {
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { BaseLeaveRequestRepository } from '@/leave-requests/persistence/base-leave-request.repository';
-import {
-  LeaveDayCountService,
-  SubmittableRange,
-} from '@/leave-requests/leave-day-count.service';
+import { LeaveDayCountService, SubmittableRange } from '@/leave-requests/leave-day-count.service';
 import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
@@ -18,8 +15,12 @@ import { LeaveRequest } from '@/leave-requests/domain/leave-request';
 import { LeaveRequestSearchCriteria } from '@/leave-requests/domain/leave-request-search-criteria';
 import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
 import { SubmitLeaveInput, UpdateLeaveInput } from '@/leave-requests/domain/leave-request-inputs';
+import { Readable } from 'stream';
 import { User } from '@/users/domain/user';
+import { AttachmentService, UploadedFile } from '@/storage/attachment.service';
+import { FILE_VERSIONS, FileVersion } from '@/storage/domain/file-version';
 import {
+  ATTACHMENT_REQUIRED_LEAVE_TYPES,
   DAY_PORTIONS,
   DayPortion,
   DECISION_PATHS,
@@ -43,6 +44,7 @@ export class LeaveRequestsService {
     private readonly users: BaseUserRepository,
     private readonly dayCount: LeaveDayCountService,
     private readonly allocations: BaseLeaveAllocationRepository,
+    private readonly attachments: AttachmentService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -78,8 +80,24 @@ export class LeaveRequestsService {
    * Submit a leave request for `input.employee_id`. Snapshots the active
    * approval chain; hard-blocks if no L1 is assigned (Q1) and if the dates
    * overlap an existing pending/approved request (Q4).
+   *
+   * `sick` and `bereavement` require exactly one supporting `file`; every
+   * other type rejects one. The storage work (validate → process → upload)
+   * is delegated to `AttachmentService` and happens **before** the
+   * transaction; the attachment row + leave_request commit together, and a
+   * failed commit triggers a compensating object delete.
    */
-  async submit(input: SubmitLeaveInput, actor: User): Promise<LeaveRequest> {
+  async submit(input: SubmitLeaveInput, actor: User, file?: UploadedFile): Promise<LeaveRequest> {
+    // Leave-side rule (this service's concern): the attachment is part of
+    // sick/bereavement's contract; any other type must not carry one.
+    const requiresAttachment = ATTACHMENT_REQUIRED_LEAVE_TYPES.has(input.leave_type);
+    if (requiresAttachment && !file) {
+      throw unprocessable('attachment', `${input.leave_type} leave requires one attachment.`);
+    }
+    if (!requiresAttachment && file) {
+      throw unprocessable('attachment', `${input.leave_type} leave does not accept an attachment.`);
+    }
+
     // D8: end >= start, no past dates, start & end must be scheduled
     // workdays. Returns the schedule-aware working-day count, snapshotted
     // onto the request so balance reserve/use math stays stable.
@@ -110,48 +128,113 @@ export class LeaveRequestsService {
       throw unprocessable('dates', `Overlaps existing request #${overlaps[0].id}.`);
     }
 
-    // Reserve-on-submit (plan C3): inside one transaction, lock this
-    // (employee, type)'s allocation rows FOR UPDATE, then check
-    // available = allowance − (used + reserved). The lock serializes
-    // concurrent same-type submits, so two can't both pass the check.
-    return this.dataSource.transaction(async (manager) => {
-      const allowance = await this.allocations.sumForUpdate(
-        manager,
-        input.employee_id,
-        input.leave_type,
-      );
-      const consumed = await this.repository.sumConsumedForEmployeeType(
-        manager,
-        input.employee_id,
-        input.leave_type,
-      );
-      const available = allowance - consumed;
-      if (available < working_days) {
-        throw unprocessable(
-          'balance',
-          `Only ${available} day(s) of ${input.leave_type} leave available; this request needs ${working_days}.`,
-        );
-      }
+    // Validate the file bytes and upload every version object under a fresh
+    // UUID prefix — all BEFORE the transaction opens, so no S3 network I/O
+    // runs with a pooled connection pinned (plan "Why a UUID prefix").
+    const prepared = file
+      ? await this.attachments.uploadForOwner({
+          file,
+          owner_id: input.employee_id,
+          actor_id: actor.id,
+        })
+      : null;
 
-      return this.repository.create(
-        {
-          employee_id: input.employee_id,
-          leave_type: input.leave_type,
-          start_date: input.start_date,
-          end_date: input.end_date,
-          working_days,
-          day_portion,
-          start_time,
-          end_time,
-          reason: input.reason ?? null,
-          status: LEAVE_REQUEST_STATUSES.pending_l1,
-          l1_approver_id,
-          l2_approver_id,
-          created_by: actor.id,
-        },
-        manager,
-      );
-    });
+    try {
+      // Reserve-on-submit (plan C3): inside one transaction, lock this
+      // (employee, type)'s allocation rows FOR UPDATE, then check
+      // available = allowance − (used + reserved). The lock serializes
+      // concurrent same-type submits, so two can't both pass the check.
+      return await this.dataSource.transaction(async (manager) => {
+        const allowance = await this.allocations.sumForUpdate(
+          manager,
+          input.employee_id,
+          input.leave_type,
+        );
+        const consumed = await this.repository.sumConsumedForEmployeeType(
+          manager,
+          input.employee_id,
+          input.leave_type,
+        );
+        const available = allowance - consumed;
+        if (available < working_days) {
+          throw unprocessable(
+            'balance',
+            `Only ${available} day(s) of ${input.leave_type} leave available; this request needs ${working_days}.`,
+          );
+        }
+
+        // Persist the attachment row in the SAME transaction so the file
+        // and the request commit atomically.
+        const attachment_id = prepared
+          ? (await this.attachments.persist(prepared, manager)).id
+          : null;
+
+        return this.repository.create(
+          {
+            employee_id: input.employee_id,
+            leave_type: input.leave_type,
+            start_date: input.start_date,
+            end_date: input.end_date,
+            working_days,
+            day_portion,
+            start_time,
+            end_time,
+            reason: input.reason ?? null,
+            status: LEAVE_REQUEST_STATUSES.pending_l1,
+            l1_approver_id,
+            l2_approver_id,
+            attachment_id,
+            created_by: actor.id,
+          },
+          manager,
+        );
+      });
+    } catch (err) {
+      // The uploads can't enlist in the SQL transaction; if the commit
+      // failed after objects were written, best-effort delete them.
+      if (prepared) await this.attachments.cleanup(prepared);
+      throw err;
+    }
+  }
+
+  /**
+   * Stream a leave request's attachment to an authorized caller. Access is
+   * the SAME rule as viewing the request itself (`findByIdForViewer`):
+   * owner, snapshotted L1/L2 approver, `LEAVE:ViewAll`, or `system_admin`.
+   * The snapshot columns are the authority for who approved *this* request,
+   * so there is no `approval_chains` lookup (the chain may have changed).
+   *
+   * 404s if the request has no attachment, the attachment row is gone, or a
+   * `preview`/`thumbnail` is requested for a PDF (no such version).
+   */
+  async getAttachmentDownload(
+    id: number,
+    caller: User,
+    version: FileVersion,
+  ): Promise<AttachmentDownload> {
+    // Reuses the request view-authorization (404 if missing, 403 if not allowed).
+    const request = await this.findByIdForViewer(id, caller);
+    if (request.attachment_id == null) {
+      throw new NotFoundException('This leave request has no attachment');
+    }
+    const attachment = await this.attachments.findById(request.attachment_id);
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found');
+    }
+    // PDFs have only `original`; reject derived versions for them.
+    if (version !== FILE_VERSIONS.original && !attachment.has_versions) {
+      throw new NotFoundException(`No ${version} rendition for this attachment`);
+    }
+
+    const stream = await this.attachments.openVersion(attachment, version);
+    const isOriginal = version === FILE_VERSIONS.original;
+    return {
+      stream,
+      content_type: isOriginal ? attachment.content_type : 'image/webp',
+      filename: isOriginal
+        ? attachment.original_filename
+        : derivedFilename(attachment.original_filename, version),
+    };
   }
 
   /**
@@ -387,6 +470,19 @@ export class LeaveRequestsService {
     }
     return false;
   }
+}
+
+/** A streamable attachment version plus the headers the controller sets. */
+export type AttachmentDownload = {
+  stream: Readable;
+  content_type: string;
+  filename: string;
+};
+
+/** `report.pdf` + `preview` → `report-preview.webp` (derived versions are WebP). */
+function derivedFilename(originalFilename: string, version: FileVersion): string {
+  const stem = originalFilename.replace(/\.[^.]+$/, '') || 'attachment';
+  return `${stem}-${version}.webp`;
 }
 
 function isPending(status: LeaveRequestStatus): boolean {

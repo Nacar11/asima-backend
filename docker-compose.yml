@@ -17,6 +17,43 @@ services:
       timeout: 3s
       retries: 10
 
+  asima-minio:
+    image: minio/minio
+    container_name: asima-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-asima-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-asima-minio-secret}
+    ports:
+      - '9000:9000' # S3 API
+      - '9001:9001' # web console
+    volumes:
+      - asima-miniodata:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:9000/minio/health/ready || exit 1']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot: wait for MinIO, create the bucket (private), then exit 0.
+  asima-minio-init:
+    image: minio/mc
+    container_name: asima-minio-init
+    depends_on:
+      asima-minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-asima-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-asima-minio-secret}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-asima}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://asima-minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+      mc mb --ignore-existing local/$$STORAGE_BUCKET &&
+      mc anonymous set none local/$$STORAGE_BUCKET
+      "
+
   asima-api:
     build:
       context: .
@@ -26,6 +63,8 @@ services:
     depends_on:
       asima-postgres:
         condition: service_healthy
+      asima-minio:
+        condition: service_healthy
     env_file:
       - .env
     environment:
@@ -33,6 +72,9 @@ services:
       # .env's DATABASE_HOST is for host-mode dev (`npm run start:dev`).
       DATABASE_HOST: asima-postgres
       DATABASE_PORT: 5432
+      # In-container the API reaches MinIO over the compose network alias,
+      # not localhost. .env's STORAGE_ENDPOINT is for host-mode dev.
+      STORAGE_ENDPOINT: http://asima-minio:9000
       # First boot of a fresh stack should seed; subsequent restarts skip.
       # `.env` may override this (e.g. local devs running compose may
       # want SEED_ON_BOOT=true once, then revert to false).
@@ -48,3 +90,4 @@ services:
 
 volumes:
   asima-pgdata:
+  asima-miniodata:

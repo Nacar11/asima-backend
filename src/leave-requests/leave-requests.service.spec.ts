@@ -8,7 +8,10 @@ import { LeaveDayCountService } from './leave-day-count.service';
 import { BaseLeaveRequestRepository } from './persistence/base-leave-request.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
+import { Readable } from 'stream';
+import { NotFoundException } from '@nestjs/common';
 import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
+import { AttachmentService } from '@/storage/attachment.service';
 import { LeaveRequest } from './domain/leave-request';
 import { User } from '@/users/domain/user';
 
@@ -34,6 +37,7 @@ function leave(partial: Partial<LeaveRequest>): LeaveRequest {
     cancelled_by: null,
     l1_approver_id: 5,
     l2_approver_id: 7,
+    attachment_id: null,
     created_by: 12,
     updated_by: 12,
     deleted_by: null,
@@ -63,7 +67,28 @@ describe('LeaveRequestsService', () => {
   let users: jest.Mocked<BaseUserRepository>;
   let dayCount: jest.Mocked<LeaveDayCountService>;
   let allocations: jest.Mocked<BaseLeaveAllocationRepository>;
+  let attachments: jest.Mocked<
+    Pick<AttachmentService, 'uploadForOwner' | 'persist' | 'cleanup' | 'findById' | 'openVersion'>
+  >;
   let dataSource: { transaction: jest.Mock };
+
+  /** A prepared-attachment handle as AttachmentService.uploadForOwner returns. */
+  const preparedHandle = {
+    object_key_prefix: 'leave-attachments/abc',
+    original_filename: 'cert.png',
+    content_type: 'image/png',
+    size_bytes: 1024,
+    kind: 'image' as const,
+    has_versions: true,
+    owner_id: 12,
+    created_by: 12,
+    uploaded_keys: [
+      'leave-attachments/abc/original.png',
+      'leave-attachments/abc/preview.webp',
+      'leave-attachments/abc/thumbnail.webp',
+    ],
+  };
+  const fakeFile = { buffer: Buffer.from('x'), originalname: 'cert.png' };
 
   beforeEach(() => {
     repo = {
@@ -93,6 +118,15 @@ describe('LeaveRequestsService', () => {
     allocations = {
       sumForUpdate: jest.fn().mockResolvedValue(10),
     } as unknown as jest.Mocked<BaseLeaveAllocationRepository>;
+    attachments = {
+      uploadForOwner: jest.fn().mockResolvedValue(preparedHandle),
+      persist: jest.fn().mockResolvedValue({ id: 77 }),
+      cleanup: jest.fn().mockResolvedValue(undefined),
+      findById: jest.fn(),
+      openVersion: jest.fn().mockResolvedValue(Readable.from(['bytes'])),
+    } as unknown as jest.Mocked<
+      Pick<AttachmentService, 'uploadForOwner' | 'persist' | 'cleanup' | 'findById' | 'openVersion'>
+    >;
     // Run the transaction callback inline with a throwaway manager.
     dataSource = { transaction: jest.fn().mockImplementation((cb) => cb({} as never)) };
     service = new LeaveRequestsService(
@@ -101,6 +135,7 @@ describe('LeaveRequestsService', () => {
       users,
       dayCount,
       allocations,
+      attachments as unknown as AttachmentService,
       dataSource as never,
     );
   });
@@ -235,6 +270,74 @@ describe('LeaveRequestsService', () => {
         UnprocessableEntityException,
       );
       expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    describe('attachments', () => {
+      const sick = { ...input, leave_type: 'sick' as const };
+
+      it('422 when sick leave is submitted without a file (no upload, no create)', async () => {
+        await expect(
+          service.submit(sick, user(12, { codes: ['LEAVE:Create'] })),
+        ).rejects.toBeInstanceOf(UnprocessableEntityException);
+        expect(attachments.uploadForOwner).not.toHaveBeenCalled();
+        expect(repo.create).not.toHaveBeenCalled();
+      });
+
+      it('422 when a non-attachment type (vacation) is submitted WITH a file', async () => {
+        await expect(
+          service.submit(input, user(12, { codes: ['LEAVE:Create'] }), fakeFile),
+        ).rejects.toBeInstanceOf(UnprocessableEntityException);
+        expect(attachments.uploadForOwner).not.toHaveBeenCalled();
+        expect(repo.create).not.toHaveBeenCalled();
+      });
+
+      it('uploads the file and links the new attachment id on a valid sick submit', async () => {
+        await service.submit(sick, user(12, { codes: ['LEAVE:Create'] }), fakeFile);
+
+        expect(attachments.uploadForOwner).toHaveBeenCalledWith(
+          expect.objectContaining({ file: fakeFile, owner_id: 12, actor_id: 12 }),
+        );
+        // Persisted inside the transaction (manager passed through).
+        expect(attachments.persist).toHaveBeenCalledWith(preparedHandle, expect.anything());
+        expect(repo.create).toHaveBeenCalledWith(
+          expect.objectContaining({ leave_type: 'sick', attachment_id: 77 }),
+          expect.anything(),
+        );
+      });
+
+      it('uploads BEFORE the transaction opens', async () => {
+        const order: string[] = [];
+        attachments.uploadForOwner.mockImplementation(async () => {
+          order.push('upload');
+          return preparedHandle;
+        });
+        dataSource.transaction.mockImplementation((cb) => {
+          order.push('transaction');
+          return cb({} as never);
+        });
+
+        await service.submit(sick, user(12, { codes: ['LEAVE:Create'] }), fakeFile);
+
+        expect(order).toEqual(['upload', 'transaction']);
+      });
+
+      it('compensating-deletes the uploaded objects when the transaction fails', async () => {
+        // Balance check fails inside the transaction, after the upload.
+        allocations.sumForUpdate.mockResolvedValue(0); // available 0 < working_days
+
+        await expect(
+          service.submit(sick, user(12, { codes: ['LEAVE:Create'] }), fakeFile),
+        ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+        expect(attachments.uploadForOwner).toHaveBeenCalled();
+        expect(attachments.cleanup).toHaveBeenCalledWith(preparedHandle);
+        expect(repo.create).not.toHaveBeenCalled();
+      });
+
+      it('does not clean up on a successful submit', async () => {
+        await service.submit(sick, user(12, { codes: ['LEAVE:Create'] }), fakeFile);
+        expect(attachments.cleanup).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -445,6 +548,76 @@ describe('LeaveRequestsService', () => {
       await expect(service.findByIdForViewer(1, user(99))).rejects.toBeInstanceOf(
         ForbiddenException,
       );
+    });
+  });
+
+  describe('getAttachmentDownload', () => {
+    const imageAttachment = {
+      id: 77,
+      object_key_prefix: 'leave-attachments/abc',
+      content_type: 'image/png',
+      original_filename: 'cert.png',
+      kind: 'image',
+      has_versions: true,
+    };
+    const pdfAttachment = {
+      ...imageAttachment,
+      content_type: 'application/pdf',
+      original_filename: 'note.pdf',
+      kind: 'pdf',
+      has_versions: false,
+    };
+
+    it('streams the original to the owner with the stored content type + filename', async () => {
+      repo.findById.mockResolvedValue(leave({ employee_id: 12, attachment_id: 77 }));
+      attachments.findById.mockResolvedValue(imageAttachment as never);
+
+      const dl = await service.getAttachmentDownload(1, user(12), 'original');
+
+      expect(dl.content_type).toBe('image/png');
+      expect(dl.filename).toBe('cert.png');
+      expect(attachments.openVersion).toHaveBeenCalledWith(imageAttachment, 'original');
+    });
+
+    it('streams a preview as webp with a derived filename', async () => {
+      repo.findById.mockResolvedValue(leave({ employee_id: 12, attachment_id: 77 }));
+      attachments.findById.mockResolvedValue(imageAttachment as never);
+
+      const dl = await service.getAttachmentDownload(1, user(12), 'preview');
+
+      expect(dl.content_type).toBe('image/webp');
+      expect(dl.filename).toBe('cert-preview.webp');
+    });
+
+    it('lets the snapshotted L1 approver download', async () => {
+      repo.findById.mockResolvedValue(
+        leave({ employee_id: 12, l1_approver_id: 5, attachment_id: 77 }),
+      );
+      attachments.findById.mockResolvedValue(imageAttachment as never);
+      await expect(service.getAttachmentDownload(1, user(5), 'original')).resolves.toBeDefined();
+    });
+
+    it('403 for an unrelated employee (via findByIdForViewer)', async () => {
+      repo.findById.mockResolvedValue(leave({ employee_id: 12, attachment_id: 77 }));
+      await expect(service.getAttachmentDownload(1, user(99), 'original')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('404 when the request has no attachment', async () => {
+      repo.findById.mockResolvedValue(leave({ employee_id: 12, attachment_id: null }));
+      await expect(service.getAttachmentDownload(1, user(12), 'original')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('404 when a preview/thumbnail is requested for a PDF', async () => {
+      repo.findById.mockResolvedValue(leave({ employee_id: 12, attachment_id: 77 }));
+      attachments.findById.mockResolvedValue(pdfAttachment as never);
+      await expect(service.getAttachmentDownload(1, user(12), 'thumbnail')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(attachments.openVersion).not.toHaveBeenCalled();
     });
   });
 });

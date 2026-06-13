@@ -76,3 +76,14 @@ export const HALF_DAY_LEAVE_TYPES: ReadonlySet<LeaveType> = new Set<LeaveType>([
   LEAVE_TYPES.bereavement,
   LEAVE_TYPES.emergency,
 ]);
+
+/**
+ * Leave types that **require** exactly one supporting attachment on submit
+ * (a medical certificate, a death notice). Submitting one of these without
+ * a file is a 422; submitting any *other* type WITH a file is also a 422 —
+ * the attachment is part of these types' contract, not a free-form extra.
+ */
+export const ATTACHMENT_REQUIRED_LEAVE_TYPES: ReadonlySet<LeaveType> = new Set<LeaveType>([
+  LEAVE_TYPES.sick,
+  LEAVE_TYPES.bereavement,
+]);

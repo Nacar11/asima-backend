@@ -3,7 +3,11 @@ import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import request from 'supertest';
+import sharp from 'sharp';
 import { AppModule } from '../src/app.module';
+import { BaseStorageService } from '../src/storage/base-storage.service';
+import { AttachmentService } from '../src/storage/attachment.service';
+import { AttachmentEntity } from '../src/storage/persistence/entities/attachment.entity';
 import { API_VERSION } from '../src/utils/constants/api.constants';
 import validationOptions from '../src/utils/validation-options';
 import { PermissionSeedService } from '../src/database/seeds/permission/permission-seed.service';
@@ -22,6 +26,10 @@ const cred = (email: string) => ({ email, password: SEED_PASSWORD });
 describe('Leave Requests (e2e)', () => {
   let app: INestApplication;
   let dataSource: DataSource;
+  let storage: BaseStorageService;
+  let attachmentService: AttachmentService;
+  let pngFixture: Buffer;
+  const pdfFixture = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF');
 
   const tokens: Record<string, string> = {};
   const ids: Record<string, number> = {};
@@ -42,12 +50,7 @@ describe('Leave Requests (e2e)', () => {
           LeaveAllocationEntity,
         ]),
       ],
-      providers: [
-        PermissionSeedService,
-        RoleSeedService,
-        UserSeedService,
-        WorkScheduleSeedService,
-      ],
+      providers: [PermissionSeedService, RoleSeedService, UserSeedService, WorkScheduleSeedService],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -56,6 +59,13 @@ describe('Leave Requests (e2e)', () => {
     app.useGlobalPipes(new ValidationPipe(validationOptions));
 
     dataSource = moduleFixture.get(DataSource);
+    storage = moduleFixture.get(BaseStorageService);
+    attachmentService = moduleFixture.get(AttachmentService);
+    pngFixture = await sharp({
+      create: { width: 120, height: 90, channels: 3, background: { r: 30, g: 90, b: 180 } },
+    })
+      .png()
+      .toBuffer();
     await dataSource.query(
       'TRUNCATE TABLE leave_allocations, leave_requests, approval_chains, work_schedules, time_entries, role_permissions, users, roles, permissions ' +
         'RESTART IDENTITY CASCADE',
@@ -130,10 +140,11 @@ describe('Leave Requests (e2e)', () => {
     });
 
     it('rejects an overlapping request (422 dates)', async () => {
+      // vacation needs no attachment, so this exercises the overlap rule cleanly.
       const res = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'sick', start_date: '2026-07-03', end_date: '2026-07-08' }),
+          .send({ leave_type: 'vacation', start_date: '2026-07-03', end_date: '2026-07-08' }),
       ).expect(422);
       expect(res.body.errors.dates).toBeDefined();
     });
@@ -176,6 +187,162 @@ describe('Leave Requests (e2e)', () => {
       expect(res.body.working_days).toBe(1);
       expect(res.body.start_time).toBeNull();
       expect(res.body.end_time).toBeNull();
+    });
+  });
+
+  describe('attachments (sick / bereavement)', () => {
+    it('422 when sick leave is submitted without a file', async () => {
+      const res = await auth(tokens.emma)(
+        request(app.getHttpServer())
+          .post(url('/users/me/leave-requests'))
+          .send({ leave_type: 'sick', start_date: '2027-03-01', end_date: '2027-03-01' }),
+      ).expect(422);
+      expect(res.body.errors.attachment).toBeDefined();
+    });
+
+    it('422 when a vacation submit carries a file (type does not accept one)', async () => {
+      const res = await auth(tokens.emma)(
+        request(app.getHttpServer())
+          .post(url('/users/me/leave-requests'))
+          .field('leave_type', 'vacation')
+          .field('start_date', '2027-03-08')
+          .field('end_date', '2027-03-08')
+          .attach('file', pngFixture, 'whatever.png'),
+      ).expect(422);
+      expect(res.body.errors.attachment).toBeDefined();
+    });
+
+    it('422 when the file is an unsupported type (sniffed, not trusted)', async () => {
+      const res = await auth(tokens.emma)(
+        request(app.getHttpServer())
+          .post(url('/users/me/leave-requests'))
+          .field('leave_type', 'sick')
+          .field('start_date', '2027-03-15')
+          .field('end_date', '2027-03-15')
+          // A text file masquerading as a PNG by filename — rejected on bytes.
+          .attach('file', Buffer.from('not really an image'), 'fake.png'),
+      ).expect(422);
+      expect(res.body.errors.file).toBeDefined();
+    });
+
+    it('201 with a valid image → links the attachment and stores 3 versions', async () => {
+      const res = await auth(tokens.emma)(
+        request(app.getHttpServer())
+          .post(url('/users/me/leave-requests'))
+          .field('leave_type', 'sick')
+          .field('start_date', '2027-04-01')
+          .field('end_date', '2027-04-01')
+          .attach('file', pngFixture, 'medical-cert.png'),
+      ).expect(201);
+
+      expect(res.body.attachment_id).toEqual(expect.any(Number));
+
+      const row = await dataSource
+        .getRepository(AttachmentEntity)
+        .findOneByOrFail({ id: res.body.attachment_id });
+      expect(row.kind).toBe('image');
+      expect(row.has_versions).toBe(true);
+      expect(row.original_filename).toBe('medical-cert.png');
+      expect(row.owner_id).toBe(ids.emma);
+
+      // All three renditions are in storage.
+      await expect(storage.exists(attachmentService.objectKeyFor(row, 'original'))).resolves.toBe(
+        true,
+      );
+      await expect(storage.exists(attachmentService.objectKeyFor(row, 'preview'))).resolves.toBe(
+        true,
+      );
+      await expect(storage.exists(attachmentService.objectKeyFor(row, 'thumbnail'))).resolves.toBe(
+        true,
+      );
+    });
+
+    it('201 with a PDF → stores original only (no versions)', async () => {
+      const res = await auth(tokens.emma)(
+        request(app.getHttpServer())
+          .post(url('/users/me/leave-requests'))
+          .field('leave_type', 'sick')
+          .field('start_date', '2027-04-08')
+          .field('end_date', '2027-04-08')
+          .attach('file', pdfFixture, 'doctor-note.pdf'),
+      ).expect(201);
+
+      const row = await dataSource
+        .getRepository(AttachmentEntity)
+        .findOneByOrFail({ id: res.body.attachment_id });
+      expect(row.kind).toBe('pdf');
+      expect(row.has_versions).toBe(false);
+
+      await expect(storage.exists(attachmentService.objectKeyFor(row, 'original'))).resolves.toBe(
+        true,
+      );
+      await expect(storage.exists(attachmentService.objectKeyFor(row, 'preview'))).resolves.toBe(
+        false,
+      );
+    });
+  });
+
+  describe('attachment download', () => {
+    let imageReqId: number;
+    let pdfReqId: number;
+
+    beforeAll(async () => {
+      const img = await auth(tokens.emma)(
+        request(app.getHttpServer())
+          .post(url('/users/me/leave-requests'))
+          .field('leave_type', 'sick')
+          .field('start_date', '2027-05-03')
+          .field('end_date', '2027-05-03')
+          .attach('file', pngFixture, 'scan.png'),
+      ).expect(201);
+      imageReqId = img.body.id;
+
+      const pdf = await auth(tokens.emma)(
+        request(app.getHttpServer())
+          .post(url('/users/me/leave-requests'))
+          .field('leave_type', 'sick')
+          .field('start_date', '2027-05-10')
+          .field('end_date', '2027-05-10')
+          .attach('file', pdfFixture, 'note.pdf'),
+      ).expect(201);
+      pdfReqId = pdf.body.id;
+    });
+
+    const download = (token: string, id: number, version?: string) => {
+      const req = auth(token)(
+        request(app.getHttpServer()).get(url(`/leave-requests/${id}/attachment`)),
+      );
+      return version ? req.query({ version }) : req;
+    };
+
+    it('owner downloads the original (200) with a content-disposition filename', async () => {
+      const res = await download(tokens.emma, imageReqId).buffer().expect(200);
+      expect(res.headers['content-disposition']).toContain('scan.png');
+    });
+
+    it('owner downloads the preview + thumbnail renditions (200)', async () => {
+      await download(tokens.emma, imageReqId, 'preview').buffer().expect(200);
+      await download(tokens.emma, imageReqId, 'thumbnail').buffer().expect(200);
+    });
+
+    it('the snapshotted L1 approver can download (200)', async () => {
+      await download(tokens.karen, imageReqId).buffer().expect(200);
+    });
+
+    it('an unrelated employee is forbidden (403)', async () => {
+      await download(tokens.liam, imageReqId).expect(403);
+    });
+
+    it('a missing request is 404', async () => {
+      await download(tokens.emma, 99999999).expect(404);
+    });
+
+    it('a preview of a PDF attachment is 404 (no such rendition)', async () => {
+      await download(tokens.emma, pdfReqId, 'preview').expect(404);
+    });
+
+    it('the original of a PDF attachment is 200', async () => {
+      await download(tokens.emma, pdfReqId).buffer().expect(200);
     });
   });
 
@@ -286,10 +453,14 @@ describe('Leave Requests (e2e)', () => {
 
   describe('HR override path', () => {
     it('an ApproveAny holder force-approves from pending_l1 (decision_path=override)', async () => {
+      // sick now requires an attachment → multipart submit with a file.
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'sick', start_date: '2026-08-03', end_date: '2026-08-05' }),
+          .field('leave_type', 'sick')
+          .field('start_date', '2026-08-03')
+          .field('end_date', '2026-08-05')
+          .attach('file', pdfFixture, 'note.pdf'),
       ).expect(201);
 
       const res = await auth(tokens.hr)(
