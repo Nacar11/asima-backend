@@ -62,8 +62,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # --- Static checks first (cheapest, fail fastest). lint:ci/format:check
+      # are non-mutating (no --fix/--write) so CI verifies rather than rewrites.
       - name: Lint
-        run: npm run lint
+        run: npm run lint:ci
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Typecheck
+        run: npm run typecheck
 
       - name: Build
         run: npm run build
@@ -76,3 +84,11 @@ jobs:
 
       - name: E2E tests
         run: npm run test:e2e -- --ci --reporters=default
+
+      # Informational only: surfaces known-vulnerable deps each run for
+      # visibility, but does NOT fail the build — current high findings are
+      # transitive/build-time (webpack, lodash, multer via NestJS) with no
+      # clean fix. Tighten to a blocking gate after a dependency-upgrade pass.
+      - name: Security audit (informational)
+        continue-on-error: true
+        run: npm audit --audit-level=high

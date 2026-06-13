@@ -1,0 +1,10 @@
+# Runs before `git push`. Mirrors the fast CI quality gates so problems are
+# caught locally BEFORE they land on main (we commit straight to main). e2e is
+# intentionally excluded here (it needs a Postgres service) — CI covers it.
+# `set -e` aborts the push on the first failing check.
+set -e
+
+npm run lint:ci
+npm run format:check
+npm run typecheck
+npm test
