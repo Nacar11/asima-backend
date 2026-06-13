@@ -28,6 +28,25 @@ export class TimeCorrectionRequest {
   })
   target_entry_id!: number | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      "The target entry's current time_in, resolved by join. NULL when no " +
+      'target entry (new log) or the join was not loaded. Lets the UI render ' +
+      'the original→proposed diff.',
+  })
+  original_time_in!: Date | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: "The target entry's current time_out, resolved by join. NULL otherwise.",
+  })
+  original_time_out!: Date | null;
+
   @ApiProperty({ example: '2026-06-10', description: 'Work date being corrected (YYYY-MM-DD)' })
   work_date!: string;
 

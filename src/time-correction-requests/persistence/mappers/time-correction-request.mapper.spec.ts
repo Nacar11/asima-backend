@@ -1,5 +1,6 @@
 import { TimeCorrectionRequestMapper } from '@/time-correction-requests/persistence/mappers/time-correction-request.mapper';
 import { TimeCorrectionRequestEntity } from '@/time-correction-requests/persistence/entities/time-correction-request.entity';
+import { TimeEntryEntity } from '@/time-entries/persistence/entities/time-entry.entity';
 import { UserEntity } from '@/users/persistence/entities/user.entity';
 
 function rawEntity(
@@ -61,5 +62,26 @@ describe('TimeCorrectionRequestMapper.toListItem', () => {
     const item = TimeCorrectionRequestMapper.toListItem(rawEntity());
     expect(item.l1_approver_name).toBeNull();
     expect(item.l2_approver_name).toBeNull();
+  });
+});
+
+describe('TimeCorrectionRequestMapper.toDomain — original times', () => {
+  it('resolves original_time_in/out from the joined target entry', () => {
+    const tc = TimeCorrectionRequestMapper.toDomain(
+      rawEntity({
+        target_entry: {
+          time_in: new Date('2026-06-10T13:36:00.000Z'),
+          time_out: new Date('2026-06-10T21:36:00.000Z'),
+        } as TimeEntryEntity,
+      }),
+    );
+    expect(tc.original_time_in).toEqual(new Date('2026-06-10T13:36:00.000Z'));
+    expect(tc.original_time_out).toEqual(new Date('2026-06-10T21:36:00.000Z'));
+  });
+
+  it('leaves original times null for a new-log correction (no target entry)', () => {
+    const tc = TimeCorrectionRequestMapper.toDomain(rawEntity({ target_entry: null }));
+    expect(tc.original_time_in).toBeNull();
+    expect(tc.original_time_out).toBeNull();
   });
 });

@@ -1,4 +1,27 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+/**
+ * Time-correction-specific payload on a pending approval row. Present only
+ * when `kind === 'time_correction'`; lets the inbox render the original→
+ * proposed in/out diff without a second round-trip. Times are raw ISO so the
+ * frontend formats them in the display timezone (one render path).
+ */
+export class PendingApprovalTimeCorrection {
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  original_time_in!: Date | null;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  original_time_out!: Date | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  proposed_time_in!: Date;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  proposed_time_out!: Date | null;
+
+  @ApiProperty({ example: false, description: 'true = new manual log (no target entry)' })
+  is_new_log!: boolean;
+}
 
 /**
  * Discriminator for the kind of request a pending approval refers to.
@@ -45,4 +68,7 @@ export class PendingApproval {
 
   @ApiProperty({ example: 'Vacation leave, 2026-06-01 to 2026-06-05' })
   summary!: string;
+
+  @ApiPropertyOptional({ type: () => PendingApprovalTimeCorrection, nullable: true })
+  time_correction?: PendingApprovalTimeCorrection | null;
 }

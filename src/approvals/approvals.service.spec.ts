@@ -212,5 +212,36 @@ describe('ApprovalsService', () => {
         expect.objectContaining({ id: 7, kind: 'time_correction', current_step: 1 }),
       );
     });
+
+    it('carries a time_correction payload (original→proposed times) on TC rows', async () => {
+      const user = buildUser({ id: 5, permission_codes: ['APPROVAL:View'] });
+      corrections.findInboxForApprover.mockResolvedValue([
+        {
+          id: 7,
+          employee_id: 12,
+          work_date: '2026-06-10',
+          status: 'pending_l1',
+          submitted_at: new Date('2026-06-09'),
+          l1_approver_id: 5,
+          l2_approver_id: null,
+          target_entry_id: 94,
+          original_time_in: new Date('2026-06-10T13:36:00.000Z'),
+          original_time_out: new Date('2026-06-10T21:36:00.000Z'),
+          proposed_time_in: new Date('2026-06-10T01:30:00.000Z'),
+          proposed_time_out: new Date('2026-06-10T21:36:00.000Z'),
+        } as TimeCorrectionRequest,
+      ]);
+      users.findById.mockResolvedValue({ first_name: 'Emma', last_name: 'Thompson' } as User);
+
+      const result = await service.findPending(user, { type: 'time_correction' });
+
+      expect(result.data[0].time_correction).toEqual({
+        original_time_in: new Date('2026-06-10T13:36:00.000Z'),
+        original_time_out: new Date('2026-06-10T21:36:00.000Z'),
+        proposed_time_in: new Date('2026-06-10T01:30:00.000Z'),
+        proposed_time_out: new Date('2026-06-10T21:36:00.000Z'),
+        is_new_log: false,
+      });
+    });
   });
 });

@@ -8,6 +8,11 @@ export class TimeCorrectionRequestMapper {
     tc.id = raw.id;
     tc.employee_id = raw.employee_id;
     tc.target_entry_id = raw.target_entry_id;
+    // Original times resolved from the joined target entry (when loaded) —
+    // lets approver UIs render the original→proposed diff. NULL for a new-log
+    // correction or when the relation wasn't joined.
+    tc.original_time_in = raw.target_entry ? raw.target_entry.time_in : null;
+    tc.original_time_out = raw.target_entry ? raw.target_entry.time_out : null;
     tc.work_date = raw.work_date;
     tc.proposed_time_in = raw.proposed_time_in;
     tc.proposed_time_out = raw.proposed_time_out;

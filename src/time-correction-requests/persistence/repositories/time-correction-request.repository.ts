@@ -63,7 +63,12 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
   }
 
   async findById(id: number): Promise<TimeCorrectionRequest | null> {
-    const entity = await this.repo.findOne({ where: { id } });
+    // Load the target entry so the detail view can render the original→proposed
+    // diff (NULL relation for a new-log correction — handled by the mapper).
+    const entity = await this.repo.findOne({
+      where: { id },
+      relations: { target_entry: true },
+    });
     return entity ? TimeCorrectionRequestMapper.toDomain(entity) : null;
   }
 
@@ -86,6 +91,8 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
   async findPendingForApprover(approver_id: number): Promise<TimeCorrectionRequest[]> {
     const entities = await this.repo
       .createQueryBuilder('tc')
+      // Join the target entry → original times for the inbox in/out diff.
+      .leftJoinAndSelect('tc.target_entry', 'target_entry')
       .where('tc.deleted_at IS NULL')
       .andWhere(
         "(tc.status = 'pending_l1' AND tc.l1_approver_id = :uid) OR (tc.status = 'pending_l2' AND tc.l2_approver_id = :uid)",
@@ -99,6 +106,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
   async findAllPending(): Promise<TimeCorrectionRequest[]> {
     const entities = await this.repo
       .createQueryBuilder('tc')
+      .leftJoinAndSelect('tc.target_entry', 'target_entry')
       .where('tc.deleted_at IS NULL')
       .andWhere('tc.status IN (:...statuses)', { statuses: TC_PENDING_STATUSES })
       .orderBy('tc.submitted_at', 'ASC')

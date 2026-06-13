@@ -16,6 +16,8 @@ function tc(partial: Partial<TimeCorrectionRequest>): TimeCorrectionRequest {
     id: 1,
     employee_id: 12,
     target_entry_id: null,
+    original_time_in: null,
+    original_time_out: null,
     work_date: '2026-06-10',
     proposed_time_in: new Date('2026-06-10T09:00:00Z'),
     proposed_time_out: new Date('2026-06-10T18:00:00Z'),

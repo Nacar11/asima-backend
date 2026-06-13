@@ -88,6 +88,15 @@ export class ApprovalsService {
       item.current_step = isL1 ? 1 : 2;
       item.current_approver_id = (isL1 ? t.l1_approver_id : t.l2_approver_id) ?? t.l1_approver_id;
       item.summary = `Time correction for ${t.work_date}`;
+      // Raw times for the inbox in/out diff; original_* come from the joined
+      // target entry (null for a new manual log). Frontend formats them.
+      item.time_correction = {
+        original_time_in: t.original_time_in,
+        original_time_out: t.original_time_out,
+        proposed_time_in: t.proposed_time_in,
+        proposed_time_out: t.proposed_time_out,
+        is_new_log: t.target_entry_id == null,
+      };
       return item;
     });
   }
