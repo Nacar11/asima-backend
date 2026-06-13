@@ -40,6 +40,12 @@ export class TimeCorrectionRequestMapper {
     item.employee_name = raw.employee
       ? `${raw.employee.first_name} ${raw.employee.last_name}`
       : null;
+    item.l1_approver_name = raw.l1_approver
+      ? `${raw.l1_approver.first_name} ${raw.l1_approver.last_name}`
+      : null;
+    item.l2_approver_name = raw.l2_approver
+      ? `${raw.l2_approver.first_name} ${raw.l2_approver.last_name}`
+      : null;
     return item;
   }
 }

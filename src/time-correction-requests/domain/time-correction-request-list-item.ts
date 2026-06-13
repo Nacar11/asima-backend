@@ -10,4 +10,10 @@ import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-co
 export class TimeCorrectionRequestListItem extends TimeCorrectionRequest {
   @ApiPropertyOptional({ example: 'Ada Lovelace', nullable: true })
   employee_name!: string | null;
+
+  @ApiPropertyOptional({ example: 'Jane Cruz', nullable: true })
+  l1_approver_name!: string | null;
+
+  @ApiPropertyOptional({ example: 'Bob Lim', nullable: true })
+  l2_approver_name!: string | null;
 }

@@ -45,4 +45,21 @@ describe('TimeCorrectionRequestMapper.toListItem', () => {
   it('falls back to null when the employee relation is not loaded', () => {
     expect(TimeCorrectionRequestMapper.toListItem(rawEntity()).employee_name).toBeNull();
   });
+
+  it('derives l1/l2 approver names from the joined approver relations', () => {
+    const item = TimeCorrectionRequestMapper.toListItem(
+      rawEntity({
+        l1_approver: { first_name: 'Jane', last_name: 'Cruz' } as UserEntity,
+        l2_approver: { first_name: 'Bob', last_name: 'Lim' } as UserEntity,
+      }),
+    );
+    expect(item.l1_approver_name).toBe('Jane Cruz');
+    expect(item.l2_approver_name).toBe('Bob Lim');
+  });
+
+  it('leaves approver names null when those relations are not loaded', () => {
+    const item = TimeCorrectionRequestMapper.toListItem(rawEntity());
+    expect(item.l1_approver_name).toBeNull();
+    expect(item.l2_approver_name).toBeNull();
+  });
 });

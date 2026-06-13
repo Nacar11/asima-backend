@@ -83,8 +83,16 @@ export class TimeCorrectionRequestEntity extends EntityHelper {
   @Column({ type: 'int' })
   l1_approver_id!: number;
 
+  @ManyToOne(() => UserEntity, { eager: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'l1_approver_id' })
+  l1_approver!: UserEntity;
+
   @Column({ type: 'int', nullable: true })
   l2_approver_id!: number | null;
+
+  @ManyToOne(() => UserEntity, { eager: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'l2_approver_id' })
+  l2_approver!: UserEntity | null;
 
   @Column({ type: 'int', nullable: true })
   created_by!: number | null;
