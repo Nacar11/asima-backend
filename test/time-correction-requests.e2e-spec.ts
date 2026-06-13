@@ -192,7 +192,11 @@ describe('Time Correction Requests (e2e)', () => {
         request(app.getHttpServer()).post(url('/users/me/time-correction-requests')).send({
           work_date: '2026-06-12',
           proposed_time_in: '2026-06-12T09:00:00.000Z',
-          reason: 'Open segment correction',
+          // Manual-add (null target) requires a time_out since the guard in
+          // TimeCorrectionRequestsService.submit landed — a brand-new log
+          // can't be left open. See "missed-punch" test above.
+          proposed_time_out: '2026-06-12T18:00:00.000Z',
+          reason: 'Manual log for a missed day',
         }),
       ).expect(201);
 
