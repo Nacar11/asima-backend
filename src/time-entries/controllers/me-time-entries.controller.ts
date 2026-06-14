@@ -35,6 +35,7 @@ export class MeTimeEntriesController {
       'duplicate open entries — the loser is mapped to 409.',
   })
   @ApiResponse({ status: 201, description: 'Created (open) or closed (confirmed) entry' })
+  @ApiResponse({ status: 429, description: 'Cooldown — punched again within 5 minutes' })
   punch(@CurrentUser() actor: User): Promise<TimeEntry> {
     return this.service.punch(actor);
   }
