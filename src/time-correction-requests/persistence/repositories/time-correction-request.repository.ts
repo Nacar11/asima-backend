@@ -88,6 +88,18 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
     return entities.map(TimeCorrectionRequestMapper.toDomain);
   }
 
+  async findActiveForEntry(target_entry_id: number): Promise<TimeCorrectionRequest[]> {
+    const entities = await this.repo
+      .createQueryBuilder('tc')
+      .where('tc.target_entry_id = :teid', { teid: target_entry_id })
+      .andWhere('tc.deleted_at IS NULL')
+      .andWhere('tc.status IN (:...statuses)', {
+        statuses: ['pending_l1', 'pending_l2', 'approved'],
+      })
+      .getMany();
+    return entities.map(TimeCorrectionRequestMapper.toDomain);
+  }
+
   async findPendingForApprover(approver_id: number): Promise<TimeCorrectionRequest[]> {
     const entities = await this.repo
       .createQueryBuilder('tc')
