@@ -23,6 +23,13 @@ export abstract class BaseTimeCorrectionRequestRepository {
     work_date: string,
   ): Promise<TimeCorrectionRequest[]>;
 
+  /**
+   * Pending/approved correction requests that target a specific time entry.
+   * Drives the "one open correction per entry" submit guard (per-entry model:
+   * a regular shift and an OT entry on the same day are corrected separately).
+   */
+  abstract findActiveForEntry(target_entry_id: number): Promise<TimeCorrectionRequest[]>;
+
   abstract findPendingForApprover(approver_id: number): Promise<TimeCorrectionRequest[]>;
 
   abstract findAllPending(): Promise<TimeCorrectionRequest[]>;

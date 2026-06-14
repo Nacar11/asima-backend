@@ -1,4 +1,9 @@
-import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  HttpException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { TimeEntriesService } from './time-entries.service';
 import { BaseTimeEntryRepository } from './persistence/base-time-entry.repository';
 import { TimeEntry } from './domain/time-entry';
@@ -30,6 +35,7 @@ describe('TimeEntriesService', () => {
       findAll: jest.fn(),
       findById: jest.fn(),
       findOpenForEmployee: jest.fn(),
+      findLatestForEmployee: jest.fn(),
       existsForEmployeeDate: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
@@ -90,6 +96,50 @@ describe('TimeEntriesService', () => {
       repo.create.mockRejectedValue(pgErr);
 
       await expect(service.punch({ id: 12 })).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('punch cooldown', () => {
+    it('rejects a punch less than 5 minutes after the last event (429)', async () => {
+      const threeMinAgo = new Date(Date.now() - 3 * 60_000);
+      repo.findOpenForEmployee.mockResolvedValue(null);
+      repo.findLatestForEmployee.mockResolvedValue({
+        ...fakeOpenEntry,
+        time_in: new Date(threeMinAgo.getTime() - 60_000),
+        time_out: threeMinAgo,
+        status: TIME_ENTRY_STATUSES.confirmed,
+      });
+
+      expect.assertions(3);
+      try {
+        await service.punch({ id: 12 });
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        expect((e as HttpException).getStatus()).toBe(429);
+      }
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('allows a punch when the last event was more than 5 minutes ago', async () => {
+      const tenMinAgo = new Date(Date.now() - 10 * 60_000);
+      repo.findOpenForEmployee.mockResolvedValue(null);
+      repo.findLatestForEmployee.mockResolvedValue({
+        ...fakeOpenEntry,
+        time_in: tenMinAgo,
+        time_out: tenMinAgo,
+        status: TIME_ENTRY_STATUSES.confirmed,
+      });
+      repo.create.mockResolvedValue(fakeOpenEntry);
+
+      await expect(service.punch({ id: 12 })).resolves.toBe(fakeOpenEntry);
+    });
+
+    it('allows the first-ever punch (no prior entry)', async () => {
+      repo.findOpenForEmployee.mockResolvedValue(null);
+      repo.findLatestForEmployee.mockResolvedValue(null);
+      repo.create.mockResolvedValue(fakeOpenEntry);
+
+      await expect(service.punch({ id: 12 })).resolves.toBe(fakeOpenEntry);
     });
   });
 

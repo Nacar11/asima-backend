@@ -1,5 +1,7 @@
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -9,6 +11,7 @@ import { TimeEntry } from '@/time-entries/domain/time-entry';
 import { TimeEntrySearchCriteria } from '@/time-entries/domain/time-entry-search-criteria';
 import { FindAllTimeEntry } from '@/time-entries/domain/find-all-time-entry';
 import {
+  PUNCH_COOLDOWN_MINUTES,
   TIME_ENTRY_SOURCES,
   TIME_ENTRY_STATUSES,
   TimeEntrySource,
@@ -48,6 +51,8 @@ export class TimeEntriesService {
    * it will see the open entry and close it.
    */
   async punch(actor: { id: number }): Promise<TimeEntry> {
+    await this.assertNotInCooldown(actor.id);
+
     const open = await this.repository.findOpenForEmployee(actor.id);
     const now = new Date();
 
@@ -262,6 +267,33 @@ export class TimeEntriesService {
         });
       }
       throw err;
+    }
+  }
+
+  /**
+   * 429 if the employee's last punch event was less than
+   * PUNCH_COOLDOWN_MINUTES ago. The "last event" is the latest entry's
+   * `time_out` when clocked out, or its `time_in` when still clocked in.
+   * Self-service only — admin `create` and `applyCorrection` bypass this.
+   */
+  private async assertNotInCooldown(employee_id: number): Promise<void> {
+    const latest = await this.repository.findLatestForEmployee(employee_id);
+    if (!latest) return;
+    const lastEvent = latest.time_out ?? latest.time_in;
+    const elapsedMs = Date.now() - new Date(lastEvent).getTime();
+    const windowMs = PUNCH_COOLDOWN_MINUTES * 60_000;
+    if (elapsedMs < windowMs) {
+      const retry_after_seconds = Math.ceil((windowMs - elapsedMs) / 1000);
+      throw new HttpException(
+        {
+          status: HttpStatus.TOO_MANY_REQUESTS,
+          errors: {
+            cooldown: `Please wait ${PUNCH_COOLDOWN_MINUTES} minutes between punches.`,
+          },
+          retry_after_seconds,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
   }
 

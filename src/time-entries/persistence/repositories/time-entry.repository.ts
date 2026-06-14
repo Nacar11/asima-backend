@@ -66,6 +66,19 @@ export class TimeEntryRepository extends BaseTimeEntryRepository {
     return entity ? TimeEntryMapper.toDomain(entity) : null;
   }
 
+  async findLatestForEmployee(employee_id: number): Promise<TimeEntry | null> {
+    // Order by the latest event on each row — `time_out` if the segment is
+    // closed, else `time_in` for an open one. QueryBuilder does not auto-apply
+    // the soft-delete filter, so exclude deleted rows explicitly.
+    const entity = await this.repo
+      .createQueryBuilder('te')
+      .where('te.employee_id = :employee_id', { employee_id })
+      .andWhere('te.deleted_at IS NULL')
+      .orderBy('COALESCE(te.time_out, te.time_in)', 'DESC')
+      .getOne();
+    return entity ? TimeEntryMapper.toDomain(entity) : null;
+  }
+
   async existsForEmployeeDate(employee_id: number, work_date: string): Promise<boolean> {
     // `findOne` honors the entity's @DeleteDateColumn, so soft-deleted rows
     // are excluded automatically.
