@@ -79,7 +79,23 @@ describe('Time Entries (e2e)', () => {
       openEntryId = res.body.id;
     });
 
-    it('POST /users/me/time-entries/punch again closes the open entry', async () => {
+    it('punching again within 5 minutes is rejected by the cooldown (429)', async () => {
+      const res = await asEmployee(
+        request(app.getHttpServer()).post(url('/users/me/time-entries/punch')),
+      ).expect(429);
+
+      expect(res.body.retry_after_seconds).toBeGreaterThan(0);
+    });
+
+    it('after the cooldown elapses, punch closes the open entry', async () => {
+      // Backdate the open entry's time_in past the cooldown window so the next
+      // punch is allowed — `findLatestForEmployee` keys an open row on time_in.
+      const sixMinAgo = new Date(Date.now() - 6 * 60_000);
+      await dataSource.query('UPDATE time_entries SET time_in = $1 WHERE id = $2', [
+        sixMinAgo,
+        openEntryId,
+      ]);
+
       const res = await asEmployee(
         request(app.getHttpServer()).post(url('/users/me/time-entries/punch')),
       ).expect(201);

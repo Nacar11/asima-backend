@@ -120,15 +120,17 @@ describe('Time Correction Requests (e2e)', () => {
       reqId = res.body.id;
     });
 
-    it('rejects a duplicate correction for the same work_date (422)', async () => {
+    it('rejects a SECOND active correction targeting the same entry (422)', async () => {
       const res = await auth(tokens.emma)(
         request(app.getHttpServer()).post(url('/users/me/time-correction-requests')).send({
+          target_entry_id: entryId,
           work_date: '2026-06-10',
           proposed_time_in: '2026-06-10T08:00:00.000Z',
-          reason: 'Another correction',
+          proposed_time_out: '2026-06-10T17:00:00.000Z',
+          reason: 'Another correction for the same entry',
         }),
       ).expect(422);
-      expect(res.body.errors.work_date).toBeDefined();
+      expect(res.body.errors.target_entry_id).toBeDefined();
     });
 
     it('L1 approves → pending_l2 (timesheet not yet touched)', async () => {
@@ -183,6 +185,58 @@ describe('Time Correction Requests (e2e)', () => {
       );
       expect(rows).toHaveLength(1);
       expect(rows[0].source).toBe('correction');
+    });
+  });
+
+  describe('per-entry corrections + ownership (I2)', () => {
+    let e1: number;
+    let e2: number;
+    let liamEntry: number;
+
+    const mkEntry = (employee_id: number, time_in: string, time_out: string) =>
+      auth(tokens.admin)(
+        request(app.getHttpServer()).post(url('/admin/time-entries')).send({
+          employee_id,
+          work_date: '2026-06-15',
+          time_in,
+          time_out,
+          source: 'admin',
+        }),
+      ).expect(201);
+
+    const correctEntry = (target_entry_id: number, proposed_time_in: string) =>
+      auth(tokens.emma)(
+        request(app.getHttpServer()).post(url('/users/me/time-correction-requests')).send({
+          target_entry_id,
+          work_date: '2026-06-15',
+          proposed_time_in,
+          proposed_time_out: '2026-06-15T17:00:00.000Z',
+          reason: 'Adjust this entry',
+        }),
+      );
+
+    it('admin seeds two same-day entries for emma + one for liam', async () => {
+      e1 = (await mkEntry(ids.emma, '2026-06-15T09:00:00.000Z', '2026-06-15T12:00:00.000Z')).body.id;
+      e2 = (await mkEntry(ids.emma, '2026-06-15T13:00:00.000Z', '2026-06-15T17:00:00.000Z')).body.id;
+      liamEntry = (await mkEntry(ids.liam, '2026-06-15T09:00:00.000Z', '2026-06-15T17:00:00.000Z'))
+        .body.id;
+    });
+
+    it('corrects entry #1 (201)', async () => {
+      await correctEntry(e1, '2026-06-15T08:30:00.000Z').expect(201);
+    });
+
+    it('corrects entry #2 on the SAME day independently (201) — the bug this fixes', async () => {
+      await correctEntry(e2, '2026-06-15T13:30:00.000Z').expect(201);
+    });
+
+    it('blocks a second correction on entry #1 (422 — one active per entry)', async () => {
+      const res = await correctEntry(e1, '2026-06-15T08:00:00.000Z').expect(422);
+      expect(res.body.errors.target_entry_id).toBeDefined();
+    });
+
+    it("blocks correcting another employee's entry (403 — ownership, C1)", async () => {
+      await correctEntry(liamEntry, '2026-06-15T08:00:00.000Z').expect(403);
     });
   });
 
