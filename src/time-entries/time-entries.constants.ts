@@ -38,3 +38,6 @@ export const TIME_ENTRY_STATUSES = {
 } as const;
 
 export type TimeEntryStatus = (typeof TIME_ENTRY_STATUSES)[keyof typeof TIME_ENTRY_STATUSES];
+
+/** Minimum minutes between two self-service punch events (in or out). */
+export const PUNCH_COOLDOWN_MINUTES = 5;
