@@ -5,8 +5,9 @@ users, roles, permissions) plus the timesheet module (time entries, work
 schedules) of **asima** — an Ashima-inspired Employee Time Management
 System.
 
-> System-level context lives in `../CLAUDE.md`. Architecture rules and
-> module conventions live in `./CLAUDE.md` and `./module-architecture.md`.
+> System-level context lives in `../CLAUDE.md`. Architecture rules live in
+> `./CLAUDE.md`; the hexagonal blueprint is
+> `../docs/universal-guidelines/module-architecture.md`.
 
 ## Prerequisites
 
@@ -95,8 +96,8 @@ Today the API ships:
 ## Architecture pointer
 
 Every feature module follows the hexagonal layout described in
-[`module-architecture.md`](./module-architecture.md). The rule that
-matters most:
+[`module-architecture.md`](../docs/universal-guidelines/module-architecture.md).
+The rule that matters most:
 
 > **The domain folder has zero `@nestjs/*` runtime and zero `typeorm`
 > imports.** Domain classes are plain TypeScript populated by mappers.
@@ -110,7 +111,7 @@ service, no `:id` on `/me` routes) lives in `./CLAUDE.md` under
 
 ```bash
 npm run start:dev          # watch mode
-npm run docker:up          # postgres only
+npm run docker:up          # dependencies: Postgres + MinIO
 npm run docker:down
 npm run migration:generate src/database/migrations/<Name>
 npm run migration:run
@@ -151,9 +152,9 @@ them block v0 ship.
 - [`../CLAUDE.md`](../CLAUDE.md) — system-level context across frontend
   and backend (terminology, admin/self-service contract, API
   conventions).
-- [`./module-architecture.md`](./module-architecture.md) — hexagonal
-  blueprint every module follows.
+- [`../docs/universal-guidelines/module-architecture.md`](../docs/universal-guidelines/module-architecture.md)
+  — hexagonal blueprint every module follows.
 - [`./tasks/plan.md`](./tasks/plan.md) — phase plan, current task,
-  acceptance criteria.
-- [`./docs/adr/`](./docs/adr/) — architectural decisions. Read the
+  acceptance criteria (gitignored working file).
+- [`../docs/adr/`](../docs/adr/) — architectural decisions. Read the
   matching ADR before changing roles, auth, or approval logic.
