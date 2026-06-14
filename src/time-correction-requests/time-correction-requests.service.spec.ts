@@ -66,6 +66,7 @@ describe('TimeCorrectionRequestsService', () => {
       findAll: jest.fn(),
       findById: jest.fn(),
       findActiveForEmployeeDate: jest.fn().mockResolvedValue([]),
+      findActiveForEntry: jest.fn().mockResolvedValue([]),
       findPendingForApprover: jest.fn(),
       findAllPending: jest.fn(),
       create: jest.fn().mockImplementation((input) => Promise.resolve(tc(input))),
@@ -80,6 +81,10 @@ describe('TimeCorrectionRequestsService', () => {
     timeEntries = {
       applyCorrection: jest.fn().mockResolvedValue({ id: 999 }),
       hasEntryOnDate: jest.fn().mockResolvedValue(false),
+      // Ownership guard: by default the target entry belongs to employee 12.
+      findById: jest
+        .fn()
+        .mockImplementation((id: number) => Promise.resolve({ id, employee_id: 12 })),
     } as unknown as jest.Mocked<TimeEntriesService>;
     service = new TimeCorrectionRequestsService(repo, chains, users, timeEntries);
   });
@@ -158,6 +163,32 @@ describe('TimeCorrectionRequestsService', () => {
       await expect(
         service.submit({ ...input, proposed_time_out: new Date('2026-06-10T08:00:00Z') }, user(12)),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+  });
+
+  describe('submit — ownership + per-entry uniqueness', () => {
+    const actor = () => user(12, { codes: ['TIME_CORRECTION:Create'] });
+
+    it('blocks correcting another employee’s entry (ownership, C1)', async () => {
+      timeEntries.findById.mockResolvedValue({ id: 50, employee_id: 999 } as never);
+      await expect(
+        service.submit({ ...input, target_entry_id: 50 }, actor()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('blocks a second active correction for the SAME entry (422)', async () => {
+      repo.findActiveForEntry.mockResolvedValue([tc({ id: 99, target_entry_id: 50 })]);
+      await expect(
+        service.submit({ ...input, target_entry_id: 50 }, actor()),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('ALLOWS a correction on a different same-day entry', async () => {
+      repo.findActiveForEntry.mockResolvedValue([]);
+      await service.submit({ ...input, target_entry_id: 51 }, actor());
+      expect(repo.findActiveForEntry).toHaveBeenCalledWith(51);
+      expect(repo.create).toHaveBeenCalled();
     });
   });
 

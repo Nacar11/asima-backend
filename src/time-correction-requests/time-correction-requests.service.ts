@@ -82,15 +82,37 @@ export class TimeCorrectionRequestsService {
       throw unprocessable('approval_chain', 'No approver assigned. Contact HR.');
     }
 
-    const existing = await this.repository.findActiveForEmployeeDate(
-      input.employee_id,
-      input.work_date,
-    );
-    if (existing.length > 0) {
-      throw unprocessable(
-        'work_date',
-        `A correction request already exists for ${input.work_date} (#${existing[0].id}).`,
+    if (input.target_entry_id != null) {
+      // Ownership guard (C1): the target must be the submitter's own entry.
+      // `submit` previously trusted the client-supplied id — an IDOR that let an
+      // employee target (and read back the times of) another employee's entry.
+      // `findById` throws NotFoundException when the entry doesn't exist.
+      const target = await this.timeEntries.findById(input.target_entry_id);
+      if (target.employee_id !== input.employee_id) {
+        throw new ForbiddenException('You can only correct your own time entries.');
+      }
+      // Per-entry uniqueness: one active correction per entry, so a regular
+      // shift and an OT entry on the same day are corrected independently.
+      const existing = await this.repository.findActiveForEntry(input.target_entry_id);
+      if (existing.length > 0) {
+        throw unprocessable(
+          'target_entry_id',
+          `A correction request already exists for this entry (#${existing[0].id}).`,
+        );
+      }
+    } else {
+      // New-log (missed punch): at most one active new-log per date.
+      const sameDate = await this.repository.findActiveForEmployeeDate(
+        input.employee_id,
+        input.work_date,
       );
+      const activeNewLog = sameDate.filter((r) => r.target_entry_id == null);
+      if (activeNewLog.length > 0) {
+        throw unprocessable(
+          'work_date',
+          `A new-log request already exists for ${input.work_date} (#${activeNewLog[0].id}).`,
+        );
+      }
     }
 
     // Manual add ("Add Logs"): no existing row to correct. These rules apply
