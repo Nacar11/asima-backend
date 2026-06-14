@@ -16,6 +16,13 @@ export abstract class BaseTimeEntryRepository {
   abstract findOpenForEmployee(employee_id: number): Promise<TimeEntry | null>;
 
   /**
+   * The employee's most recent non-deleted entry, ordered by the latest
+   * event on the row: `time_out` when present, else `time_in`. Drives the
+   * punch-cooldown check. Returns null when the employee has never punched.
+   */
+  abstract findLatestForEmployee(employee_id: number): Promise<TimeEntry | null>;
+
+  /**
    * True if the employee already has a non-deleted entry on `work_date`.
    * Used to block a manual-add ("Add Logs") onto a day that already has a
    * timelog — both at submit (friendly 422) and at correction-approval
