@@ -530,11 +530,26 @@ intentional.
   schema supports it, but seeds and tests don't exercise it.
 - Real-time presence (`/admin/time-entries/active`).
 
+## Documentation lives in the parent repo
+
+All **committed documentation** — plan snapshots, ADRs, and guidelines —
+lives ONLY in the parent repo under `asima-parent/docs/`, referenced from
+here as `../docs/`. **Do not create a `docs/` directory in this repo.**
+
+- Plan snapshots → `../docs/plans/YYYY-MM-DD-<slug>.md`
+- ADRs → `../docs/adr/` (e.g. `../docs/adr/0001-roles-and-approval-design.md`)
+- Guidelines → `../docs/universal-guidelines/`
+
+The only doc-like files that stay local are the **gitignored** `tasks/`
+working files (`tasks/plan.md`, `tasks/todo.md`) — a private workspace, not
+documentation, never committed. Code-adjacent exemplars under `reference/`
+are not docs and also stay local.
+
 ## Where to look first
 
 - `tasks/plan.md` — phase plan, current task, acceptance criteria.
 - `tasks/todo.md` — active queue.
-- `docs/adr/` — read the matching ADR before changing roles, auth, or
+- `../docs/adr/` — read the matching ADR before changing roles, auth, or
   approval logic.
 - `module-architecture.md` — the hexagonal blueprint.
 - `../docs/universal-guidelines/database-migration-conventions.md` — when to
