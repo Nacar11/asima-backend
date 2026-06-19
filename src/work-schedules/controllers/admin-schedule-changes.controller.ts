@@ -1,10 +1,12 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ScheduleChangeService } from '@/work-schedules/schedule-change.service';
 import { ScheduleChangeDto } from '@/work-schedules/dto/admin/schedule-change.dto';
+import { ApplyScheduleChangeDto } from '@/work-schedules/dto/admin/apply-schedule-change.dto';
 import {
   ScheduleChangeImpact,
   ScheduleChangeIntent,
+  ScheduleChangeResult,
 } from '@/work-schedules/domain/schedule-change';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
@@ -55,5 +57,24 @@ export class AdminScheduleChangesController {
     @CurrentUser() actor: User,
   ): Promise<ScheduleChangeImpact> {
     return this.service.preview(toIntent(dto), actor);
+  }
+
+  @Post()
+  @Permissions({ SCHEDULE: 'Update' })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Apply a schedule change + auto-cancel cascade atomically',
+    description:
+      'Commits the versioning and cancels the affected requests in one transaction. Send the ' +
+      'previewed (kind, id, status) snapshot; if the affected set changed since preview the ' +
+      'call returns 409 and you must re-preview. A mode=remove also requires SCHEDULE:Delete.',
+  })
+  @ApiResponse({ status: 200, type: ScheduleChangeResult })
+  @ApiResponse({ status: 409, description: 'Affected set drifted since preview — re-preview.' })
+  apply(
+    @Body() dto: ApplyScheduleChangeDto,
+    @CurrentUser() actor: User,
+  ): Promise<ScheduleChangeResult> {
+    return this.service.apply(toIntent(dto), actor, dto.previewed);
   }
 }
