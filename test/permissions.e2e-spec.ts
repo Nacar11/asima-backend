@@ -14,7 +14,8 @@ import { UserEntity } from '../src/users/persistence/entities/user.entity';
 import { LeaveAllocationEntity } from '../src/leave-allocations/persistence/entities/leave-allocation.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-const ADMIN = { email: 'admin@asima.inc', password: 'Asima@1234' };
+const SEED_PASSWORD = process.env.SEED_DEFAULT_PASSWORD ?? 'Asima@1234';
+const ADMIN = { email: 'admin@asima.inc', password: SEED_PASSWORD };
 
 describe('Permissions admin (e2e)', () => {
   let app: INestApplication;

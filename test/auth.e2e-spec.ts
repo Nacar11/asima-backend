@@ -14,8 +14,12 @@ import { PermissionSeedService } from '../src/database/seeds/permission/permissi
 import { RoleSeedService } from '../src/database/seeds/role/role-seed.service';
 import { UserSeedService } from '../src/database/seeds/user/user-seed.service';
 
-const ADMIN = { email: 'admin@asima.inc', password: 'Asima@1234' };
-const EMPLOYEE = { email: 'emma_thompson@asima.inc', password: 'Asima@1234' };
+// Honor the same configurable seed password the seeder uses (CI sets
+// Asima@1234; a local .env may override it). Mirrors the leave/approval
+// specs so login works whatever the seeded password is.
+const SEED_PASSWORD = process.env.SEED_DEFAULT_PASSWORD ?? 'Asima@1234';
+const ADMIN = { email: 'admin@asima.inc', password: SEED_PASSWORD };
+const EMPLOYEE = { email: 'emma_thompson@asima.inc', password: SEED_PASSWORD };
 
 describe('Auth (e2e)', () => {
   let app: INestApplication;
