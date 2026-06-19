@@ -1,5 +1,9 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { ScheduleChangeService } from '@/work-schedules/schedule-change.service';
 import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-work-schedule.repository';
 import { BaseLeaveRequestRepository } from '@/leave-requests/persistence/base-leave-request.repository';
@@ -95,7 +99,12 @@ describe('ScheduleChangeService.preview', () => {
     corrections = {
       findActiveCandidatesForScheduleChange: jest.fn().mockResolvedValue([]),
     } as never;
-    service = new TestService(schedules as never, leaves as never, corrections as never);
+    service = new TestService(
+      schedules as never,
+      leaves as never,
+      corrections as never,
+      {} as never,
+    );
   });
 
   it('rejects an effective_from in the past', async () => {
@@ -170,5 +179,94 @@ describe('ScheduleChangeService.preview', () => {
     const out = await service.preview(intent({ expected_out: '17:00:00' }), admin);
     expect(out.affected_corrections).toHaveLength(1);
     expect(out.affected_corrections[0].kind).toBe('time_correction');
+  });
+});
+
+describe('ScheduleChangeService.apply', () => {
+  let service: TestService;
+  let schedules: {
+    findActiveForEmployeeDay: jest.Mock;
+    update: jest.Mock;
+    create: jest.Mock;
+    softDelete: jest.Mock;
+  };
+  let leaves: {
+    findActiveCandidatesForScheduleChange: jest.Mock;
+    systemCancel: jest.Mock;
+  };
+  let corrections: {
+    findActiveCandidatesForScheduleChange: jest.Mock;
+    systemCancel: jest.Mock;
+  };
+  // Runs the transaction callback immediately with a sentinel manager.
+  const dataSource = { transaction: jest.fn((cb: (m: unknown) => unknown) => cb('MGR')) };
+
+  beforeEach(() => {
+    dataSource.transaction.mockClear();
+    schedules = {
+      findActiveForEmployeeDay: jest.fn().mockResolvedValue(live()),
+      update: jest.fn().mockResolvedValue(live()),
+      create: jest.fn().mockResolvedValue(live({ id: 99, effective_from: '2026-06-24' })),
+      softDelete: jest.fn().mockResolvedValue(undefined),
+    };
+    leaves = {
+      findActiveCandidatesForScheduleChange: jest.fn().mockResolvedValue([]),
+      systemCancel: jest.fn().mockResolvedValue(0),
+    };
+    corrections = {
+      findActiveCandidatesForScheduleChange: jest.fn().mockResolvedValue([]),
+      systemCancel: jest.fn().mockResolvedValue(0),
+    };
+    service = new TestService(
+      schedules as never,
+      leaves as never,
+      corrections as never,
+      dataSource as never,
+    );
+  });
+
+  it('end_and_create: ends the live row at X-1 and creates the new row', async () => {
+    const result = await service.apply(intent(), admin, []);
+    expect(schedules.update).toHaveBeenCalledWith(
+      88,
+      expect.objectContaining({ effective_to: '2026-06-23' }),
+      'MGR',
+    );
+    expect(schedules.create).toHaveBeenCalledWith(
+      expect.objectContaining({ effective_from: '2026-06-24', day_of_week: FUTURE_W }),
+      'MGR',
+    );
+    expect(result.created_row?.id).toBe(99);
+  });
+
+  it('C1 replace: soft-deletes an un-started live row instead of ending it', async () => {
+    schedules.findActiveForEmployeeDay.mockResolvedValue(live({ effective_from: '2026-06-24' }));
+    await service.apply(intent(), admin, []);
+    expect(schedules.softDelete).toHaveBeenCalledWith(88, admin.id, 'MGR');
+    expect(schedules.update).not.toHaveBeenCalled();
+    expect(schedules.create).toHaveBeenCalled();
+  });
+
+  it('cancels the affected leave inside the transaction', async () => {
+    leaves.findActiveCandidatesForScheduleChange.mockResolvedValue([leaveRow()]);
+    await service.apply(intent({ mode: 'remove' }), admin, [
+      { kind: 'leave', id: 1, status: 'approved' },
+    ]);
+    expect(leaves.systemCancel).toHaveBeenCalledWith(
+      [1],
+      admin.id,
+      expect.stringContaining('auto-cancelled'),
+      'MGR',
+    );
+  });
+
+  it('409s when the affected set drifted from the preview snapshot', async () => {
+    leaves.findActiveCandidatesForScheduleChange.mockResolvedValue([leaveRow()]);
+    // preview snapshot is empty, but recompute now finds a cancel → drift
+    await expect(service.apply(intent({ mode: 'remove' }), admin, [])).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(schedules.update).not.toHaveBeenCalled();
+    expect(schedules.softDelete).not.toHaveBeenCalled();
   });
 });

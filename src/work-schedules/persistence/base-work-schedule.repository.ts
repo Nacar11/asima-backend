@@ -1,3 +1,4 @@
+import { EntityManager } from 'typeorm';
 import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
 import { WorkScheduleSearchCriteria } from '@/work-schedules/domain/work-schedule-search-criteria';
 import { FindAllWorkSchedule } from '@/work-schedules/domain/find-all-work-schedule';
@@ -21,19 +22,23 @@ export abstract class BaseWorkScheduleRepository {
   abstract findActiveForEmployeeDay(
     employee_id: number,
     day_of_week: DayOfWeek,
+    manager?: EntityManager,
   ): Promise<WorkSchedule | null>;
 
-  abstract create(input: {
-    employee_id: number;
-    day_of_week: DayOfWeek;
-    expected_in: string;
-    expected_out: string;
-    break_minutes: number;
-    break_start?: string | null;
-    effective_from: string;
-    effective_to?: string | null;
-    created_by?: number | null;
-  }): Promise<WorkSchedule>;
+  abstract create(
+    input: {
+      employee_id: number;
+      day_of_week: DayOfWeek;
+      expected_in: string;
+      expected_out: string;
+      break_minutes: number;
+      break_start?: string | null;
+      effective_from: string;
+      effective_to?: string | null;
+      created_by?: number | null;
+    },
+    manager?: EntityManager,
+  ): Promise<WorkSchedule>;
 
   abstract update(
     id: number,
@@ -46,7 +51,12 @@ export abstract class BaseWorkScheduleRepository {
       effective_to?: string | null;
       updated_by?: number | null;
     },
+    manager?: EntityManager,
   ): Promise<WorkSchedule>;
 
-  abstract softDelete(id: number, deleted_by: number | null): Promise<void>;
+  abstract softDelete(
+    id: number,
+    deleted_by: number | null,
+    manager?: EntityManager,
+  ): Promise<void>;
 }
