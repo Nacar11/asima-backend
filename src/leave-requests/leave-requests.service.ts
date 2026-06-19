@@ -1,11 +1,7 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { conflict, forbidden, unprocessable } from '@/utils/helpers/http-errors';
+import { hasPermission } from '@/users/domain/user-permissions';
 import { BaseLeaveRequestRepository } from '@/leave-requests/persistence/base-leave-request.repository';
 import { LeaveDayCountService, SubmittableRange } from '@/leave-requests/leave-day-count.service';
 import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
@@ -270,17 +266,11 @@ export class LeaveRequestsService {
     const row = await this.findById(id);
     // Terminal requests (rejected / already cancelled) can never be cancelled.
     if (!isActive(row.status)) {
-      throw new ConflictException({
-        status: 409,
-        errors: { status: `Cannot cancel a request in state ${row.status}.` },
-      });
+      throw conflict('status', `Cannot cancel a request in state ${row.status}.`);
     }
     // Active, but the leave window has already fully elapsed.
     if (row.end_date < this.dayCount.today()) {
-      throw new ConflictException({
-        status: 409,
-        errors: { status: 'Cannot cancel a leave that has already ended.' },
-      });
+      throw conflict('status', 'Cannot cancel a leave that has already ended.');
     }
     const isOwner = caller.id === row.employee_id;
     const isHr = caller.system_admin === true || hasPermission(caller, 'LEAVE:Delete');
@@ -299,12 +289,10 @@ export class LeaveRequestsService {
   async update(id: number, patch: UpdateLeaveInput, caller: User): Promise<LeaveRequest> {
     const row = await this.findById(id);
     if (!isPending(row.status)) {
-      throw new ConflictException({
-        status: 409,
-        errors: {
-          status: `Cannot edit a request in state ${row.status}. Use cancel + resubmit.`,
-        },
-      });
+      throw conflict(
+        'status',
+        `Cannot edit a request in state ${row.status}. Use cancel + resubmit.`,
+      );
     }
 
     // Any edit to the dates, portion, or leave type re-runs the day-count so
@@ -350,16 +338,10 @@ export class LeaveRequestsService {
   async approve(id: number, caller: User): Promise<LeaveRequest> {
     const row = await this.findById(id);
     if (!isPending(row.status)) {
-      throw new ConflictException({
-        status: 409,
-        errors: { status: `Cannot approve a request in state ${row.status}.` },
-      });
+      throw conflict('status', `Cannot approve a request in state ${row.status}.`);
     }
     if (!this.canActOn(row, caller)) {
-      throw new ForbiddenException({
-        status: 403,
-        errors: { approver: 'Not the assigned approver for this step.' },
-      });
+      throw forbidden('approver', 'Not the assigned approver for this step.');
     }
 
     const override = isOverride(caller);
@@ -370,13 +352,10 @@ export class LeaveRequestsService {
       if (stepApproverId != null) {
         const approver = await this.users.findById(stepApproverId);
         if (!approver || !approver.is_active) {
-          throw new ConflictException({
-            status: 409,
-            errors: {
-              approver:
-                'Assigned approver is deactivated. HR must repair the chain before this advances.',
-            },
-          });
+          throw conflict(
+            'approver',
+            'Assigned approver is deactivated. HR must repair the chain before this advances.',
+          );
         }
       }
     }
@@ -406,16 +385,10 @@ export class LeaveRequestsService {
     }
     const row = await this.findById(id);
     if (!isPending(row.status)) {
-      throw new ConflictException({
-        status: 409,
-        errors: { status: `Cannot reject a request in state ${row.status}.` },
-      });
+      throw conflict('status', `Cannot reject a request in state ${row.status}.`);
     }
     if (!this.canActOn(row, caller)) {
-      throw new ForbiddenException({
-        status: 403,
-        errors: { approver: 'Not the assigned approver for this step.' },
-      });
+      throw forbidden('approver', 'Not the assigned approver for this step.');
     }
     return this.repository.update(id, {
       status: LEAVE_REQUEST_STATUSES.rejected,
@@ -454,19 +427,14 @@ export class LeaveRequestsService {
     // who happens to be snapshotted as an approver but lacks the role
     // can't act (defense in depth — assignment alone is not authority).
     if (!hasPermission(caller, 'LEAVE:Approve')) return false;
-    if (
-      request.status === LEAVE_REQUEST_STATUSES.pending_l1 &&
-      request.l1_approver_id !== null &&
-      caller.id === request.l1_approver_id
-    ) {
-      return true;
+    // Chain match: caller is the snapshotted approver for the current step.
+    // (`caller.id` is a number, so an equality check already excludes a null
+    // approver id — no separate null guard needed.)
+    if (request.status === LEAVE_REQUEST_STATUSES.pending_l1) {
+      return caller.id === request.l1_approver_id;
     }
-    if (
-      request.status === LEAVE_REQUEST_STATUSES.pending_l2 &&
-      request.l2_approver_id !== null &&
-      caller.id === request.l2_approver_id
-    ) {
-      return true;
+    if (request.status === LEAVE_REQUEST_STATUSES.pending_l2) {
+      return caller.id === request.l2_approver_id;
     }
     return false;
   }
@@ -498,12 +466,4 @@ function isActive(status: LeaveRequestStatus): boolean {
 
 function isOverride(caller: User): boolean {
   return caller.system_admin === true || hasPermission(caller, 'LEAVE:ApproveAny');
-}
-
-function hasPermission(user: User, code: string): boolean {
-  return (user.role?.permissions ?? []).some((p) => p.code === code);
-}
-
-function unprocessable(field: string, message: string): UnprocessableEntityException {
-  return new UnprocessableEntityException({ status: 422, errors: { [field]: message } });
 }

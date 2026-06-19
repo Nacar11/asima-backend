@@ -72,6 +72,7 @@ describe('ApprovalsService', () => {
     } as unknown as jest.Mocked<TimeCorrectionRequestsService>;
     users = {
       findById: jest.fn().mockResolvedValue(null),
+      findByIds: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<BaseUserRepository>;
     service = new ApprovalsService(leave, corrections, users);
   });
@@ -164,7 +165,9 @@ describe('ApprovalsService', () => {
           l2_approver_id: 7,
         } as LeaveRequest,
       ]);
-      users.findById.mockResolvedValue({ first_name: 'Emma', last_name: 'Thompson' } as User);
+      users.findByIds.mockResolvedValue([
+        { id: 12, first_name: 'Emma', last_name: 'Thompson' } as User,
+      ]);
 
       const result = await service.findPending(user, {});
 
@@ -202,7 +205,9 @@ describe('ApprovalsService', () => {
           l2_approver_id: null,
         } as TimeCorrectionRequest,
       ]);
-      users.findById.mockResolvedValue({ first_name: 'Emma', last_name: 'Thompson' } as User);
+      users.findByIds.mockResolvedValue([
+        { id: 12, first_name: 'Emma', last_name: 'Thompson' } as User,
+      ]);
 
       const result = await service.findPending(user, { type: 'time_correction' });
 
@@ -231,7 +236,9 @@ describe('ApprovalsService', () => {
           proposed_time_out: new Date('2026-06-10T21:36:00.000Z'),
         } as TimeCorrectionRequest,
       ]);
-      users.findById.mockResolvedValue({ first_name: 'Emma', last_name: 'Thompson' } as User);
+      users.findByIds.mockResolvedValue([
+        { id: 12, first_name: 'Emma', last_name: 'Thompson' } as User,
+      ]);
 
       const result = await service.findPending(user, { type: 'time_correction' });
 

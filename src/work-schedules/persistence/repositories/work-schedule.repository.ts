@@ -8,7 +8,7 @@ import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
 import { WorkScheduleSearchCriteria } from '@/work-schedules/domain/work-schedule-search-criteria';
 import { FindAllWorkSchedule } from '@/work-schedules/domain/find-all-work-schedule';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
-import { PAGINATION_DEFAULTS } from '@/utils/constants/api.constants';
+import { paginate, resolvePaging } from '@/utils/helpers/pagination';
 
 @Injectable()
 export class WorkScheduleRepository extends BaseWorkScheduleRepository {
@@ -20,18 +20,14 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
   }
 
   async findAll(criteria: WorkScheduleSearchCriteria): Promise<FindAllWorkSchedule> {
-    const page = criteria.page ?? PAGINATION_DEFAULTS.page;
-    const limit = Math.min(
-      criteria.limit ?? PAGINATION_DEFAULTS.limit,
-      PAGINATION_DEFAULTS.maxLimit,
-    );
+    const paging = resolvePaging(criteria);
 
     const qb = this.repo
       .createQueryBuilder('ws')
       .orderBy('ws.employee_id', 'ASC')
       .addOrderBy('ws.day_of_week', 'ASC')
-      .skip((page - 1) * limit)
-      .take(limit);
+      .skip(paging.skip)
+      .take(paging.limit);
 
     if (!criteria.includeDeleted) qb.andWhere('ws.deleted_at IS NULL');
     if (criteria.employee_id !== undefined)
@@ -41,13 +37,7 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
     if (criteria.activeOnly) qb.andWhere('ws.effective_to IS NULL');
 
     const [entities, total] = await qb.getManyAndCount();
-    return {
-      data: entities.map(WorkScheduleMapper.toDomain),
-      total,
-      page,
-      limit,
-      has_more: page * limit < total,
-    };
+    return paginate(entities.map(WorkScheduleMapper.toDomain), total, paging);
   }
 
   async findById(id: number): Promise<WorkSchedule | null> {

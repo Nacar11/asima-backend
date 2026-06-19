@@ -1,10 +1,7 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { utcDateString } from '@/utils/helpers/dates';
+import { conflict, forbidden, unprocessable } from '@/utils/helpers/http-errors';
+import { hasPermission } from '@/users/domain/user-permissions';
 import { BaseTimeCorrectionRequestRepository } from '@/time-correction-requests/persistence/base-time-correction-request.repository';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
@@ -122,7 +119,7 @@ export class TimeCorrectionRequestsService {
       if (!input.proposed_time_out) {
         throw unprocessable('proposed_time_out', 'Time out is required when adding a log.');
       }
-      const today = new Date().toISOString().slice(0, 10);
+      const today = utcDateString();
       if (input.work_date > today) {
         throw unprocessable('work_date', 'Cannot add a log for a future date.');
       }
@@ -203,10 +200,7 @@ export class TimeCorrectionRequestsService {
       throw conflict('status', `Cannot approve a request in state ${row.status}.`);
     }
     if (!this.canActOn(row, caller)) {
-      throw new ForbiddenException({
-        status: 403,
-        errors: { approver: 'Not the assigned approver for this step.' },
-      });
+      throw forbidden('approver', 'Not the assigned approver for this step.');
     }
 
     const override = isOverride(caller);
@@ -261,10 +255,7 @@ export class TimeCorrectionRequestsService {
       throw conflict('status', `Cannot reject a request in state ${row.status}.`);
     }
     if (!this.canActOn(row, caller)) {
-      throw new ForbiddenException({
-        status: 403,
-        errors: { approver: 'Not the assigned approver for this step.' },
-      });
+      throw forbidden('approver', 'Not the assigned approver for this step.');
     }
     return this.repository.update(id, {
       status: TIME_CORRECTION_STATUSES.rejected,
@@ -289,19 +280,14 @@ export class TimeCorrectionRequestsService {
     if (caller.system_admin === true) return true;
     if (hasPermission(caller, 'TIME_CORRECTION:ApproveAny')) return true;
     if (!hasPermission(caller, 'TIME_CORRECTION:Approve')) return false;
-    if (
-      request.status === TIME_CORRECTION_STATUSES.pending_l1 &&
-      request.l1_approver_id !== null &&
-      caller.id === request.l1_approver_id
-    ) {
-      return true;
+    // Chain match: caller is the snapshotted approver for the current step.
+    // (`caller.id` is a number, so an equality check already excludes a null
+    // approver id — no separate null guard needed.)
+    if (request.status === TIME_CORRECTION_STATUSES.pending_l1) {
+      return caller.id === request.l1_approver_id;
     }
-    if (
-      request.status === TIME_CORRECTION_STATUSES.pending_l2 &&
-      request.l2_approver_id !== null &&
-      caller.id === request.l2_approver_id
-    ) {
-      return true;
+    if (request.status === TIME_CORRECTION_STATUSES.pending_l2) {
+      return caller.id === request.l2_approver_id;
     }
     return false;
   }
@@ -315,16 +301,4 @@ function isPending(status: TimeCorrectionStatus): boolean {
 
 function isOverride(caller: User): boolean {
   return caller.system_admin === true || hasPermission(caller, 'TIME_CORRECTION:ApproveAny');
-}
-
-function hasPermission(user: User, code: string): boolean {
-  return (user.role?.permissions ?? []).some((p) => p.code === code);
-}
-
-function unprocessable(field: string, message: string): UnprocessableEntityException {
-  return new UnprocessableEntityException({ status: 422, errors: { [field]: message } });
-}
-
-function conflict(field: string, message: string): ConflictException {
-  return new ConflictException({ status: 409, errors: { [field]: message } });
 }

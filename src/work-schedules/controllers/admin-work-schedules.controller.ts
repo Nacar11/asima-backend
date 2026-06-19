@@ -20,6 +20,7 @@ import { UpdateWorkScheduleDto } from '@/work-schedules/dto/admin/update-work-sc
 import { QueryWorkScheduleDto } from '@/work-schedules/dto/admin/query-work-schedule.dto';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
+import { utcDateString } from '@/utils/helpers/dates';
 import { Permissions } from '@/permissions/permissions.decorator';
 import { API_VERSION } from '@/utils/constants/api.constants';
 import { User } from '@/users/domain/user';
@@ -104,7 +105,7 @@ export class AdminWorkSchedulesController {
   })
   @ApiResponse({ status: 200, type: WorkSchedule })
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: User): Promise<WorkSchedule> {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = utcDateString();
     return this.service.endLogically(id, today, actor.id);
   }
 }

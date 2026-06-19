@@ -7,7 +7,7 @@ import { PermissionMapper } from '@/permissions/persistence/mappers/permission.m
 import { Permission } from '@/permissions/domain/permission';
 import { PermissionSearchCriteria } from '@/permissions/domain/permission-search-criteria';
 import { FindAllPermission } from '@/permissions/domain/find-all-permission';
-import { PAGINATION_DEFAULTS } from '@/utils/constants/api.constants';
+import { paginate, resolvePaging } from '@/utils/helpers/pagination';
 
 @Injectable()
 export class PermissionRepository extends BasePermissionRepository {
@@ -19,11 +19,7 @@ export class PermissionRepository extends BasePermissionRepository {
   }
 
   async findAll(criteria: PermissionSearchCriteria): Promise<FindAllPermission> {
-    const page = criteria.page ?? PAGINATION_DEFAULTS.page;
-    const limit = Math.min(
-      criteria.limit ?? PAGINATION_DEFAULTS.limit,
-      PAGINATION_DEFAULTS.maxLimit,
-    );
+    const paging = resolvePaging(criteria);
 
     const qb = this.repo.createQueryBuilder('p');
     if (criteria.search) {
@@ -35,16 +31,10 @@ export class PermissionRepository extends BasePermissionRepository {
     if (criteria.action) qb.andWhere('p.action = :a', { a: criteria.action });
 
     qb.orderBy('p.resource', 'ASC').addOrderBy('p.action', 'ASC');
-    qb.skip((page - 1) * limit).take(limit);
+    qb.skip(paging.skip).take(paging.limit);
 
     const [entities, total] = await qb.getManyAndCount();
-    return {
-      data: entities.map(PermissionMapper.toDomain),
-      total,
-      page,
-      limit,
-      has_more: page * limit < total,
-    };
+    return paginate(entities.map(PermissionMapper.toDomain), total, paging);
   }
 
   async findById(id: number): Promise<Permission | null> {
@@ -55,6 +45,12 @@ export class PermissionRepository extends BasePermissionRepository {
   async findByCode(code: string): Promise<Permission | null> {
     const entity = await this.repo.findOne({ where: { code } });
     return entity ? PermissionMapper.toDomain(entity) : null;
+  }
+
+  async findByIds(ids: number[]): Promise<Permission[]> {
+    if (ids.length === 0) return [];
+    const entities = await this.repo.find({ where: { id: In(ids) } });
+    return entities.map(PermissionMapper.toDomain);
   }
 
   async findByCodes(codes: string[]): Promise<Permission[]> {

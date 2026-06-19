@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { unprocessable } from '@/utils/helpers/http-errors';
 import { BaseApprovalChainRepository } from '@/approval-chains/persistence/base-approval-chain.repository';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { ApprovalChain } from '@/approval-chains/domain/approval-chain';
@@ -295,8 +296,4 @@ export class ApprovalChainsService {
       throw unprocessable('approver_id', `Approver ${user_id} is inactive.`);
     }
   }
-}
-
-function unprocessable(field: string, message: string): UnprocessableEntityException {
-  return new UnprocessableEntityException({ status: 422, errors: { [field]: message } });
 }

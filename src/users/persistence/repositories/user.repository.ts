@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { BaseUserRepository, UserWithCredentials } from '@/users/persistence/base-user.repository';
 import { UserEntity } from '@/users/persistence/entities/user.entity';
 import { UserMapper } from '@/users/persistence/mappers/user.mapper';
@@ -8,7 +8,7 @@ import { User } from '@/users/domain/user';
 import { UserSearchCriteria } from '@/users/domain/user-search-criteria';
 import { FindAllUser } from '@/users/domain/find-all-user';
 import { CreateUserPersistence, UpdateUserPatch } from '@/users/domain/user-inputs';
-import { PAGINATION_DEFAULTS } from '@/utils/constants/api.constants';
+import { paginate, resolvePaging } from '@/utils/helpers/pagination';
 
 @Injectable()
 export class UserRepository extends BaseUserRepository {
@@ -20,19 +20,15 @@ export class UserRepository extends BaseUserRepository {
   }
 
   async findAll(criteria: UserSearchCriteria): Promise<FindAllUser> {
-    const page = criteria.page ?? PAGINATION_DEFAULTS.page;
-    const limit = Math.min(
-      criteria.limit ?? PAGINATION_DEFAULTS.limit,
-      PAGINATION_DEFAULTS.maxLimit,
-    );
+    const paging = resolvePaging(criteria);
 
     const qb = this.repo
       .createQueryBuilder('u')
       .leftJoinAndSelect('u.role', 'r')
       .leftJoinAndSelect('r.permissions', 'p')
       .orderBy('u.created_at', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit);
+      .skip(paging.skip)
+      .take(paging.limit);
 
     if (!criteria.includeDeleted) qb.andWhere('u.deleted_at IS NULL');
     if (criteria.search) {
@@ -47,13 +43,7 @@ export class UserRepository extends BaseUserRepository {
       qb.andWhere('u.is_active = :a', { a: criteria.is_active });
 
     const [entities, total] = await qb.getManyAndCount();
-    return {
-      data: entities.map(UserMapper.toDomain),
-      total,
-      page,
-      limit,
-      has_more: page * limit < total,
-    };
+    return paginate(entities.map(UserMapper.toDomain), total, paging);
   }
 
   async findById(id: number): Promise<User | null> {
@@ -62,6 +52,15 @@ export class UserRepository extends BaseUserRepository {
       relations: ['role', 'role.permissions'],
     });
     return entity ? UserMapper.toDomain(entity) : null;
+  }
+
+  async findByIds(ids: number[]): Promise<User[]> {
+    if (ids.length === 0) return [];
+    const entities = await this.repo.find({
+      where: { id: In(ids) },
+      relations: ['role', 'role.permissions'],
+    });
+    return entities.map(UserMapper.toDomain);
   }
 
   async findByEmail(email: string): Promise<User | null> {

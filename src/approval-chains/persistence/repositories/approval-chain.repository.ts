@@ -9,7 +9,7 @@ import { ApprovalChainSearchCriteria } from '@/approval-chains/domain/approval-c
 import { FindAllApprovalChain } from '@/approval-chains/domain/find-all-approval-chain';
 import { EmployeeChainView } from '@/approval-chains/domain/approval-chain-inputs';
 import { UserEntity } from '@/users/persistence/entities/user.entity';
-import { PAGINATION_DEFAULTS } from '@/utils/constants/api.constants';
+import { paginate, resolvePaging } from '@/utils/helpers/pagination';
 
 @Injectable()
 export class ApprovalChainRepository extends BaseApprovalChainRepository {
@@ -56,11 +56,7 @@ export class ApprovalChainRepository extends BaseApprovalChainRepository {
   async listEmployeesWithChains(
     criteria: ApprovalChainSearchCriteria,
   ): Promise<FindAllApprovalChain> {
-    const page = criteria.page ?? PAGINATION_DEFAULTS.page;
-    const limit = Math.min(
-      criteria.limit ?? PAGINATION_DEFAULTS.limit,
-      PAGINATION_DEFAULTS.maxLimit,
-    );
+    const paging = resolvePaging(criteria);
 
     // At most one active row per (employee, step), so the joins are 1:1 —
     // no row multiplication, the user count is the true total.
@@ -109,8 +105,8 @@ export class ApprovalChainRepository extends BaseApprovalChainRepository {
       .addSelect('GREATEST(c1.updated_at, c2.updated_at)', 'updated_at')
       .orderBy('u.first_name', 'ASC')
       .addOrderBy('u.last_name', 'ASC')
-      .offset((page - 1) * limit)
-      .limit(limit)
+      .offset(paging.skip)
+      .limit(paging.limit)
       .getRawMany<{
         employee_id: number;
         employee_name: string;
@@ -133,7 +129,7 @@ export class ApprovalChainRepository extends BaseApprovalChainRepository {
       updated_at: r.updated_at,
     }));
 
-    return { data, total, page, limit, has_more: page * limit < total };
+    return paginate(data, total, paging);
   }
 
   async listEmployeeIds(criteria: ApprovalChainSearchCriteria): Promise<number[]> {

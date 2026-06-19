@@ -12,7 +12,7 @@ import {
   TC_PENDING_STATUSES,
   TimeCorrectionStatus,
 } from '@/time-correction-requests/time-correction-requests.constants';
-import { PAGINATION_DEFAULTS } from '@/utils/constants/api.constants';
+import { paginate, resolvePaging } from '@/utils/helpers/pagination';
 
 @Injectable()
 export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRepository {
@@ -26,11 +26,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
   async findAll(
     criteria: TimeCorrectionRequestSearchCriteria,
   ): Promise<FindAllTimeCorrectionRequest> {
-    const page = criteria.page ?? PAGINATION_DEFAULTS.page;
-    const limit = Math.min(
-      criteria.limit ?? PAGINATION_DEFAULTS.limit,
-      PAGINATION_DEFAULTS.maxLimit,
-    );
+    const paging = resolvePaging(criteria);
 
     const qb = this.repo
       .createQueryBuilder('tc')
@@ -41,8 +37,8 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
       .leftJoinAndSelect('tc.l1_approver', 'l1_approver')
       .leftJoinAndSelect('tc.l2_approver', 'l2_approver')
       .orderBy('tc.submitted_at', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit);
+      .skip(paging.skip)
+      .take(paging.limit);
 
     if (!criteria.includeDeleted) qb.andWhere('tc.deleted_at IS NULL');
     if (criteria.employee_id !== undefined)
@@ -53,13 +49,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
     if (criteria.to !== undefined) qb.andWhere('tc.work_date <= :to', { to: criteria.to });
 
     const [entities, total] = await qb.getManyAndCount();
-    return {
-      data: entities.map(TimeCorrectionRequestMapper.toListItem),
-      total,
-      page,
-      limit,
-      has_more: page * limit < total,
-    };
+    return paginate(entities.map(TimeCorrectionRequestMapper.toListItem), total, paging);
   }
 
   async findById(id: number): Promise<TimeCorrectionRequest | null> {

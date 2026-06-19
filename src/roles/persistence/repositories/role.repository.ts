@@ -8,7 +8,7 @@ import { Role } from '@/roles/domain/role';
 import { RoleSearchCriteria } from '@/roles/domain/role-search-criteria';
 import { FindAllRole } from '@/roles/domain/find-all-role';
 import { PermissionEntity } from '@/permissions/persistence/entities/permission.entity';
-import { PAGINATION_DEFAULTS } from '@/utils/constants/api.constants';
+import { paginate, resolvePaging } from '@/utils/helpers/pagination';
 
 @Injectable()
 export class RoleRepository extends BaseRoleRepository {
@@ -22,30 +22,20 @@ export class RoleRepository extends BaseRoleRepository {
   }
 
   async findAll(criteria: RoleSearchCriteria): Promise<FindAllRole> {
-    const page = criteria.page ?? PAGINATION_DEFAULTS.page;
-    const limit = Math.min(
-      criteria.limit ?? PAGINATION_DEFAULTS.limit,
-      PAGINATION_DEFAULTS.maxLimit,
-    );
+    const paging = resolvePaging(criteria);
 
     const qb = this.repo
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.permissions', 'p')
       .orderBy('r.name', 'ASC')
-      .skip((page - 1) * limit)
-      .take(limit);
+      .skip(paging.skip)
+      .take(paging.limit);
 
     if (!criteria.includeDeleted) qb.andWhere('r.deleted_at IS NULL');
     if (criteria.search) qb.andWhere('r.name ILIKE :s', { s: `%${criteria.search}%` });
 
     const [entities, total] = await qb.getManyAndCount();
-    return {
-      data: entities.map(RoleMapper.toDomain),
-      total,
-      page,
-      limit,
-      has_more: page * limit < total,
-    };
+    return paginate(entities.map(RoleMapper.toDomain), total, paging);
   }
 
   async findById(id: number): Promise<Role | null> {

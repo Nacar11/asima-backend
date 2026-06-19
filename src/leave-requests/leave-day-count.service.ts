@@ -1,4 +1,6 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { unprocessable } from '@/utils/helpers/http-errors';
+import { toClock, toSeconds } from '@/utils/helpers/time-of-day';
 import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-work-schedule.repository';
 import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
 import {
@@ -149,22 +151,6 @@ function halfDayWindow(
     : { start_time: toClock(splitSec), end_time: toClock(outSec) };
 }
 
-/** Seconds-of-day for a zero-padded `HH:MM` or `HH:MM:SS` string. */
-function toSeconds(time: string): number {
-  const [h, m, s] = time.split(':').map(Number);
-  return h * 3600 + m * 60 + (s ?? 0);
-}
-
-/** Seconds-of-day back to `HH:MM:SS`. */
-function toClock(totalSeconds: number): string {
-  const s = Math.round(totalSeconds);
-  const hh = Math.floor(s / 3600);
-  const mm = Math.floor((s % 3600) / 60);
-  const ss = s % 60;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(hh)}:${pad(mm)}:${pad(ss)}`;
-}
-
 /** Weekday (0=Sun..6=Sat) for a `YYYY-MM-DD` string, timezone-independent. */
 function weekdayOf(date: string): number {
   return new Date(`${date}T00:00:00Z`).getUTCDay();
@@ -177,8 +163,4 @@ function countAgainst(workdays: Set<number>, start_date: string, end_date: strin
     if (workdays.has(new Date(t).getUTCDay())) count += 1;
   }
   return count;
-}
-
-function unprocessable(field: string, message: string): UnprocessableEntityException {
-  return new UnprocessableEntityException({ status: 422, errors: { [field]: message } });
 }

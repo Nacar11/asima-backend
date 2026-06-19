@@ -1,10 +1,6 @@
-import {
-  Injectable,
-  NotFoundException,
-  UnauthorizedException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { unprocessable } from '@/utils/helpers/http-errors';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { BaseRoleRepository } from '@/roles/persistence/base-role.repository';
 import { User } from '@/users/domain/user';
@@ -44,18 +40,12 @@ export class UsersService {
     const email = input.email.trim().toLowerCase();
 
     if (await this.repository.existsByEmail(email)) {
-      throw new UnprocessableEntityException({
-        status: 422,
-        errors: { email: `User with email '${email}' already exists` },
-      });
+      throw unprocessable('email', `User with email '${email}' already exists`);
     }
 
     const role = await this.roleRepository.findById(input.role_id);
     if (!role) {
-      throw new UnprocessableEntityException({
-        status: 422,
-        errors: { role_id: `Unknown role id: ${input.role_id}` },
-      });
+      throw unprocessable('role_id', `Unknown role id: ${input.role_id}`);
     }
 
     const password_hash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
@@ -98,10 +88,7 @@ export class UsersService {
     if (patch.role_id !== undefined) {
       const role = await this.roleRepository.findById(patch.role_id);
       if (!role) {
-        throw new UnprocessableEntityException({
-          status: 422,
-          errors: { role_id: `Unknown role id: ${patch.role_id}` },
-        });
+        throw unprocessable('role_id', `Unknown role id: ${patch.role_id}`);
       }
     }
 

@@ -7,6 +7,13 @@ export abstract class BasePermissionRepository {
 
   abstract findById(id: number): Promise<Permission | null>;
 
+  /**
+   * Batch lookup by id. Returns only the rows that exist (missing ids are
+   * omitted), in no guaranteed order. Lets callers validate a set of ids
+   * in ONE query instead of N — e.g. RolesService checking permission ids.
+   */
+  abstract findByIds(ids: number[]): Promise<Permission[]>;
+
   abstract findByCode(code: string): Promise<Permission | null>;
 
   abstract findByCodes(codes: string[]): Promise<Permission[]>;

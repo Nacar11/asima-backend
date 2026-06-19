@@ -3,8 +3,8 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  UnprocessableEntityException,
 } from '@nestjs/common';
+import { unprocessable } from '@/utils/helpers/http-errors';
 import { BaseRoleRepository } from '@/roles/persistence/base-role.repository';
 import { BasePermissionRepository } from '@/permissions/persistence/base-permission.repository';
 import { Role } from '@/roles/domain/role';
@@ -76,15 +76,12 @@ export class RolesService {
   private async assertPermissionsExist(ids: number[]): Promise<void> {
     if (ids.length === 0) return;
     const dedup = Array.from(new Set(ids));
-    const checks = await Promise.all(
-      dedup.map(async (id) => ({ id, exists: !!(await this.permissionRepository.findById(id)) })),
-    );
-    const missing = checks.filter((c) => !c.exists).map((c) => c.id);
+    // One batch query (WHERE id IN (...)) instead of one findById per id.
+    const found = await this.permissionRepository.findByIds(dedup);
+    const foundIds = new Set(found.map((p) => p.id));
+    const missing = dedup.filter((id) => !foundIds.has(id));
     if (missing.length > 0) {
-      throw new UnprocessableEntityException({
-        status: 422,
-        errors: { permission_ids: `Unknown permission ids: ${missing.join(', ')}` },
-      });
+      throw unprocessable('permission_ids', `Unknown permission ids: ${missing.join(', ')}`);
     }
   }
 }

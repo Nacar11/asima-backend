@@ -12,7 +12,7 @@ import {
   TimeEntrySource,
   TimeEntryStatus,
 } from '@/time-entries/time-entries.constants';
-import { PAGINATION_DEFAULTS } from '@/utils/constants/api.constants';
+import { paginate, resolvePaging } from '@/utils/helpers/pagination';
 
 @Injectable()
 export class TimeEntryRepository extends BaseTimeEntryRepository {
@@ -24,18 +24,14 @@ export class TimeEntryRepository extends BaseTimeEntryRepository {
   }
 
   async findAll(criteria: TimeEntrySearchCriteria): Promise<FindAllTimeEntry> {
-    const page = criteria.page ?? PAGINATION_DEFAULTS.page;
-    const limit = Math.min(
-      criteria.limit ?? PAGINATION_DEFAULTS.limit,
-      PAGINATION_DEFAULTS.maxLimit,
-    );
+    const paging = resolvePaging(criteria);
 
     const qb = this.repo
       .createQueryBuilder('te')
       .orderBy('te.work_date', 'DESC')
       .addOrderBy('te.time_in', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit);
+      .skip(paging.skip)
+      .take(paging.limit);
 
     if (!criteria.includeDeleted) qb.andWhere('te.deleted_at IS NULL');
     if (criteria.employee_id !== undefined)
@@ -45,13 +41,7 @@ export class TimeEntryRepository extends BaseTimeEntryRepository {
     if (criteria.status) qb.andWhere('te.status = :status', { status: criteria.status });
 
     const [entities, total] = await qb.getManyAndCount();
-    return {
-      data: entities.map(TimeEntryMapper.toDomain),
-      total,
-      page,
-      limit,
-      has_more: page * limit < total,
-    };
+    return paginate(entities.map(TimeEntryMapper.toDomain), total, paging);
   }
 
   async findById(id: number): Promise<TimeEntry | null> {

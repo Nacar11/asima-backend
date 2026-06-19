@@ -41,6 +41,7 @@ describe('RolesService', () => {
     permissionRepo = {
       findAll: jest.fn(),
       findById: jest.fn(),
+      findByIds: jest.fn().mockResolvedValue([]),
       findByCodes: jest.fn(),
       update: jest.fn(),
     } as unknown as jest.Mocked<BasePermissionRepository>;
@@ -58,9 +59,8 @@ describe('RolesService', () => {
 
     it('rejects unknown permission_ids with UnprocessableEntityException', async () => {
       repo.findByName.mockResolvedValue(null);
-      permissionRepo.findById.mockImplementation(async (id: number) =>
-        id === 1 ? ({ id: 1 } as never) : null,
-      );
+      // 999 is absent from the batch result → reported as missing.
+      permissionRepo.findByIds.mockResolvedValue([{ id: 1 } as never]);
       await expect(
         service.create({ name: 'SUPERVISOR', permission_ids: [1, 999], created_by: 1 }),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
@@ -68,7 +68,7 @@ describe('RolesService', () => {
 
     it('creates with valid permissions', async () => {
       repo.findByName.mockResolvedValue(null);
-      permissionRepo.findById.mockResolvedValue({ id: 1 } as never);
+      permissionRepo.findByIds.mockResolvedValue([{ id: 1 } as never]);
       repo.create.mockResolvedValue(fakeRole);
       const result = await service.create({
         name: 'SUPERVISOR',
@@ -113,7 +113,7 @@ describe('RolesService', () => {
 
     it('throws UnprocessableEntityException for unknown ids', async () => {
       repo.findById.mockResolvedValue(fakeRole);
-      permissionRepo.findById.mockResolvedValue(null);
+      permissionRepo.findByIds.mockResolvedValue([]);
       await expect(service.assignPermissions(99, [42])).rejects.toBeInstanceOf(
         UnprocessableEntityException,
       );
@@ -121,7 +121,7 @@ describe('RolesService', () => {
 
     it('delegates to repo.setPermissions when valid', async () => {
       repo.findById.mockResolvedValue(fakeRole);
-      permissionRepo.findById.mockResolvedValue({ id: 1 } as never);
+      permissionRepo.findByIds.mockResolvedValue([{ id: 1 } as never]);
       repo.setPermissions.mockResolvedValue(fakeRole);
       const result = await service.assignPermissions(99, [1]);
       expect(result).toBe(fakeRole);

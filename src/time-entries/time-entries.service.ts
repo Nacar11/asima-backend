@@ -4,26 +4,20 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
-  UnprocessableEntityException,
 } from '@nestjs/common';
 import { BaseTimeEntryRepository } from '@/time-entries/persistence/base-time-entry.repository';
 import { TimeEntry } from '@/time-entries/domain/time-entry';
 import { TimeEntrySearchCriteria } from '@/time-entries/domain/time-entry-search-criteria';
 import { FindAllTimeEntry } from '@/time-entries/domain/find-all-time-entry';
+import { utcDateString } from '@/utils/helpers/dates';
+import { conflict, unprocessable } from '@/utils/helpers/http-errors';
+import { isUniqueViolation } from '@/utils/helpers/pg-errors';
 import {
   PUNCH_COOLDOWN_MINUTES,
   TIME_ENTRY_SOURCES,
   TIME_ENTRY_STATUSES,
   TimeEntrySource,
 } from '@/time-entries/time-entries.constants';
-
-/**
- * Postgres unique-violation error code. The DB-level partial unique index
- * `(employee_id) WHERE status='open' AND deleted_at IS NULL` raises this
- * if two concurrent punches both try to create an open entry — the loser
- * gets mapped to a friendly 409.
- */
-const PG_UNIQUE_VIOLATION = '23505';
 
 @Injectable()
 export class TimeEntriesService {
@@ -67,7 +61,7 @@ export class TimeEntriesService {
     try {
       return await this.repository.create({
         employee_id: actor.id,
-        work_date: toWorkDate(now),
+        work_date: utcDateString(now),
         time_in: now,
         time_out: null,
         source: TIME_ENTRY_SOURCES.manual,
@@ -104,20 +98,15 @@ export class TimeEntriesService {
     if (status === TIME_ENTRY_STATUSES.open) {
       const existingOpen = await this.repository.findOpenForEmployee(input.employee_id);
       if (existingOpen) {
-        throw new UnprocessableEntityException({
-          status: 422,
-          errors: {
-            employee_id: `Employee ${input.employee_id} already has an open time entry (id ${existingOpen.id})`,
-          },
-        });
+        throw unprocessable(
+          'employee_id',
+          `Employee ${input.employee_id} already has an open time entry (id ${existingOpen.id})`,
+        );
       }
     }
 
     if (input.time_out && input.time_out <= input.time_in) {
-      throw new UnprocessableEntityException({
-        status: 422,
-        errors: { time_out: 'time_out must be strictly after time_in' },
-      });
+      throw unprocessable('time_out', 'time_out must be strictly after time_in');
     }
 
     try {
@@ -158,10 +147,7 @@ export class TimeEntriesService {
     const time_out = patch.time_out !== undefined ? patch.time_out : existing.time_out;
 
     if (time_out && time_out <= time_in) {
-      throw new UnprocessableEntityException({
-        status: 422,
-        errors: { time_out: 'time_out must be strictly after time_in' },
-      });
+      throw unprocessable('time_out', 'time_out must be strictly after time_in');
     }
 
     const status =
@@ -204,10 +190,10 @@ export class TimeEntriesService {
     decided_by: number | null;
   }): Promise<TimeEntry> {
     if (input.proposed_time_out && input.proposed_time_out <= input.proposed_time_in) {
-      throw new UnprocessableEntityException({
-        status: 422,
-        errors: { proposed_time_out: 'proposed_time_out must be strictly after proposed_time_in' },
-      });
+      throw unprocessable(
+        'proposed_time_out',
+        'proposed_time_out must be strictly after proposed_time_in',
+      );
     }
 
     const willBeOpen = input.proposed_time_out == null;
@@ -237,12 +223,10 @@ export class TimeEntriesService {
     // approver acted. Two confirmed entries on one day are NOT caught by the
     // open-only partial unique index, so block the duplicate here.
     if (await this.repository.existsForEmployeeDate(input.employee_id, input.work_date)) {
-      throw new ConflictException({
-        status: 409,
-        errors: {
-          work_date: `Employee ${input.employee_id} already has a time entry on ${input.work_date}.`,
-        },
-      });
+      throw conflict(
+        'work_date',
+        `Employee ${input.employee_id} already has a time entry on ${input.work_date}.`,
+      );
     }
 
     if (willBeOpen) await this.assertNoOtherOpenEntry(input.employee_id, null);
@@ -259,12 +243,10 @@ export class TimeEntriesService {
       });
     } catch (err) {
       if (isUniqueViolation(err)) {
-        throw new ConflictException({
-          status: 409,
-          errors: {
-            conflict: `Employee ${input.employee_id} already has an open time entry on this date.`,
-          },
-        });
+        throw conflict(
+          'conflict',
+          `Employee ${input.employee_id} already has an open time entry on this date.`,
+        );
       }
       throw err;
     }
@@ -304,30 +286,10 @@ export class TimeEntriesService {
   ): Promise<void> {
     const open = await this.repository.findOpenForEmployee(employee_id);
     if (open && open.id !== exceptId) {
-      throw new ConflictException({
-        status: 409,
-        errors: {
-          conflict: `Employee ${employee_id} already has an open time entry (id ${open.id}).`,
-        },
-      });
+      throw conflict(
+        'conflict',
+        `Employee ${employee_id} already has an open time entry (id ${open.id}).`,
+      );
     }
   }
-}
-
-/**
- * Derive YYYY-MM-DD from a Date, in UTC. Overnight shifts that span
- * midnight UTC are still attributed to the date the punch-in landed on —
- * matches the schema.dbml note on `work_date`.
- */
-function toWorkDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === PG_UNIQUE_VIOLATION
-  );
 }

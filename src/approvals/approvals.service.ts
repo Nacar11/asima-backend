@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { User } from '@/users/domain/user';
-import { PAGINATION_DEFAULTS } from '@/utils/constants/api.constants';
+import { hasPermission } from '@/users/domain/user-permissions';
+import { paginate, resolvePaging } from '@/utils/helpers/pagination';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
 import { LeaveRequest } from '@/leave-requests/domain/leave-request';
@@ -30,8 +31,7 @@ export class ApprovalsService {
   ) {}
 
   async findPending(user: User, query: QueryPendingApprovalsDto): Promise<FindPendingApprovals> {
-    const page = query.page ?? PAGINATION_DEFAULTS.page;
-    const limit = Math.min(query.limit ?? PAGINATION_DEFAULTS.limit, PAGINATION_DEFAULTS.maxLimit);
+    const paging = resolvePaging(query);
     const seeAll = this.canSeeAll(user);
 
     let items: PendingApproval[] = [];
@@ -53,9 +53,8 @@ export class ApprovalsService {
     items.sort((a, b) => a.requested_at.getTime() - b.requested_at.getTime());
 
     const total = items.length;
-    const start = (page - 1) * limit;
-    const data = items.slice(start, start + limit);
-    return { data, total, page, limit, has_more: page * limit < total };
+    const data = items.slice(paging.skip, paging.skip + paging.limit);
+    return paginate(data, total, paging);
   }
 
   private async mapLeaves(leaves: LeaveRequest[]): Promise<PendingApproval[]> {
@@ -101,17 +100,12 @@ export class ApprovalsService {
     });
   }
 
-  /** Resolve unique employee_ids to "First Last" display names in one pass. */
+  /** Resolve unique employee_ids to "First Last" display names in one query. */
   private async resolveNames(ids: number[]): Promise<Map<number, string>> {
     const unique = [...new Set(ids)];
-    const map = new Map<number, string>();
-    await Promise.all(
-      unique.map(async (id) => {
-        const u = await this.users.findById(id);
-        if (u) map.set(id, `${u.first_name} ${u.last_name}`);
-      }),
-    );
-    return map;
+    if (unique.length === 0) return new Map();
+    const users = await this.users.findByIds(unique);
+    return new Map(users.map((u) => [u.id, `${u.first_name} ${u.last_name}`]));
   }
 
   /**
@@ -120,7 +114,6 @@ export class ApprovalsService {
    */
   canSeeAll(user: User): boolean {
     if (user.system_admin === true) return true;
-    const codes = user.role?.permissions?.map((p) => p.code) ?? [];
-    return codes.includes('APPROVAL:ApproveAny');
+    return hasPermission(user, 'APPROVAL:ApproveAny');
   }
 }

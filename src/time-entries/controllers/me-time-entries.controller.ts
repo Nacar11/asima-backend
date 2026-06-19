@@ -5,6 +5,7 @@ import { TimeEntry } from '@/time-entries/domain/time-entry';
 import { FindAllTimeEntry } from '@/time-entries/domain/find-all-time-entry';
 import { QueryMyTimeEntryDto } from '@/time-entries/dto/me/query-my-time-entry.dto';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
+import { utcDateString } from '@/utils/helpers/dates';
 import { API_VERSION } from '@/utils/constants/api.constants';
 import { User } from '@/users/domain/user';
 
@@ -61,7 +62,7 @@ export class MeTimeEntriesController {
   })
   @ApiResponse({ status: 200 })
   async today(@CurrentUser() actor: User): Promise<FindAllTimeEntry> {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = utcDateString();
     return this.service.findAll({ employee_id: actor.id, from: today, to: today });
   }
 }

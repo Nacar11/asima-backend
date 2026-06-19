@@ -18,7 +18,7 @@ import {
   LeaveType,
   PENDING_STATUSES,
 } from '@/leave-requests/leave-requests.constants';
-import { PAGINATION_DEFAULTS } from '@/utils/constants/api.constants';
+import { paginate, resolvePaging } from '@/utils/helpers/pagination';
 
 @Injectable()
 export class LeaveRequestRepository extends BaseLeaveRequestRepository {
@@ -30,11 +30,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
   }
 
   async findAll(criteria: LeaveRequestSearchCriteria): Promise<FindAllLeaveRequest> {
-    const page = criteria.page ?? PAGINATION_DEFAULTS.page;
-    const limit = Math.min(
-      criteria.limit ?? PAGINATION_DEFAULTS.limit,
-      PAGINATION_DEFAULTS.maxLimit,
-    );
+    const paging = resolvePaging(criteria);
 
     const qb = this.repo
       .createQueryBuilder('lr')
@@ -46,8 +42,8 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       .leftJoinAndSelect('lr.l2_approver', 'l2_approver')
       .leftJoinAndSelect('lr.decided_by_user', 'decided_by_user')
       .orderBy('lr.submitted_at', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit);
+      .skip(paging.skip)
+      .take(paging.limit);
 
     if (!criteria.includeDeleted) qb.andWhere('lr.deleted_at IS NULL');
     if (criteria.employee_id !== undefined)
@@ -60,13 +56,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
     if (criteria.to !== undefined) qb.andWhere('lr.start_date <= :to', { to: criteria.to });
 
     const [entities, total] = await qb.getManyAndCount();
-    return {
-      data: entities.map(LeaveRequestMapper.toListItem),
-      total,
-      page,
-      limit,
-      has_more: page * limit < total,
-    };
+    return paginate(entities.map(LeaveRequestMapper.toListItem), total, paging);
   }
 
   async findById(id: number): Promise<LeaveRequest | null> {
@@ -84,7 +74,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       .where('lr.employee_id = :eid', { eid: employee_id })
       .andWhere('lr.deleted_at IS NULL')
       .andWhere('lr.status IN (:...statuses)', {
-        statuses: ['pending_l1', 'pending_l2', 'approved'],
+        statuses: [LEAVE_REQUEST_STATUSES.approved, ...PENDING_STATUSES],
       })
       // Two ranges overlap unless one ends before the other starts.
       .andWhere('NOT (lr.end_date < :start OR lr.start_date > :end)', {

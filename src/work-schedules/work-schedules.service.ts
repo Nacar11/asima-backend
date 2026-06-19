@@ -1,22 +1,12 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-work-schedule.repository';
 import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
 import { WorkScheduleSearchCriteria } from '@/work-schedules/domain/work-schedule-search-criteria';
 import { FindAllWorkSchedule } from '@/work-schedules/domain/find-all-work-schedule';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
-
-/**
- * Postgres unique-violation error code. The DB-level partial unique index
- *   (employee_id, day_of_week) WHERE effective_to IS NULL
- * raises this if two creates race for the same (employee, day) and both
- * see "no active row" — the loser gets mapped to 409.
- */
-const PG_UNIQUE_VIOLATION = '23505';
+import { unprocessable } from '@/utils/helpers/http-errors';
+import { isUniqueViolation } from '@/utils/helpers/pg-errors';
+import { toSeconds } from '@/utils/helpers/time-of-day';
 
 @Injectable()
 export class WorkSchedulesService {
@@ -141,10 +131,7 @@ export class WorkSchedulesService {
 function assertWindowOk(expected_in: string, expected_out: string): void {
   // Lexicographic comparison works for zero-padded HH:MM:SS strings.
   if (expected_out <= expected_in) {
-    throw new UnprocessableEntityException({
-      status: 422,
-      errors: { expected_out: 'expected_out must be strictly after expected_in' },
-    });
+    throw unprocessable('expected_out', 'expected_out must be strictly after expected_in');
   }
 }
 
@@ -169,23 +156,4 @@ function assertBreakOk(
   if (startSec + break_minutes * 60 > toSeconds(expected_out)) {
     throw unprocessable('break_start', 'the break must end on or before expected_out');
   }
-}
-
-/** Seconds-of-day for a zero-padded `HH:MM` or `HH:MM:SS` string. */
-function toSeconds(time: string): number {
-  const [h, m, s] = time.split(':').map(Number);
-  return h * 3600 + m * 60 + (s ?? 0);
-}
-
-function unprocessable(field: string, message: string): UnprocessableEntityException {
-  return new UnprocessableEntityException({ status: 422, errors: { [field]: message } });
-}
-
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === PG_UNIQUE_VIOLATION
-  );
 }

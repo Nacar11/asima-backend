@@ -1,4 +1,4 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import { unprocessable } from '@/utils/helpers/http-errors';
 
 /** What an attachment is, persistence-side. Images get versions; PDFs don't. */
 export type FileKind = 'image' | 'pdf';
@@ -35,10 +35,6 @@ function sniff(buffer: Buffer): SniffedType | null {
   return null;
 }
 
-function unprocessable(message: string): UnprocessableEntityException {
-  return new UnprocessableEntityException({ status: 422, errors: { file: message } });
-}
-
 /**
  * Validate an uploaded buffer. **Size is checked first** (before any
  * type sniffing or downstream image processing) so an out-of-bound buffer
@@ -48,15 +44,15 @@ function unprocessable(message: string): UnprocessableEntityException {
  */
 export function validateUpload(buffer: Buffer, maxFileMb: number): SniffedType {
   if (buffer.length === 0) {
-    throw unprocessable('File is empty.');
+    throw unprocessable('file', 'File is empty.');
   }
   const maxBytes = maxFileMb * 1024 * 1024;
   if (buffer.length > maxBytes) {
-    throw unprocessable(`File exceeds the ${maxFileMb} MB size limit.`);
+    throw unprocessable('file', `File exceeds the ${maxFileMb} MB size limit.`);
   }
   const sniffed = sniff(buffer);
   if (!sniffed) {
-    throw unprocessable('Unsupported file type. Allowed: JPEG, PNG, WebP, PDF.');
+    throw unprocessable('file', 'Unsupported file type. Allowed: JPEG, PNG, WebP, PDF.');
   }
   return sniffed;
 }

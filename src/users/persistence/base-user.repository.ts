@@ -19,6 +19,14 @@ export abstract class BaseUserRepository {
 
   abstract findById(id: number): Promise<User | null>;
 
+  /**
+   * Batch lookup by id. Returns only the rows that exist (missing /
+   * soft-deleted ids are omitted), in no guaranteed order. Lets list and
+   * inbox views resolve many user ids in ONE query instead of N calls to
+   * `findById` — e.g. the cross-resource approvals inbox.
+   */
+  abstract findByIds(ids: number[]): Promise<User[]>;
+
   abstract findByEmail(email: string): Promise<User | null>;
 
   /**
