@@ -66,6 +66,12 @@ export class PendingApproval {
   @ApiProperty({ example: 12 })
   current_approver_id!: number;
 
+  @ApiProperty({
+    example: 'Danielle Aguilar',
+    description: 'Display name of the current-step approver (or "User #<id>" if unresolved).',
+  })
+  current_approver_name!: string;
+
   @ApiProperty({ example: 'Vacation leave, 2026-06-01 to 2026-06-05' })
   summary!: string;
 

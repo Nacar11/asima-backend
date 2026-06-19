@@ -58,9 +58,17 @@ export class ApprovalsService {
   }
 
   private async mapLeaves(leaves: LeaveRequest[]): Promise<PendingApproval[]> {
-    const names = await this.resolveNames(leaves.map((l) => l.employee_id));
+    const approverIdOf = (l: LeaveRequest) =>
+      (l.status === LEAVE_REQUEST_STATUSES.pending_l1 ? l.l1_approver_id : l.l2_approver_id) ??
+      l.l1_approver_id;
+    // Resolve employee + current-approver names in one findByIds (no N+1).
+    const names = await this.resolveNames([
+      ...leaves.map((l) => l.employee_id),
+      ...leaves.map(approverIdOf),
+    ]);
     return leaves.map((l) => {
       const isL1 = l.status === LEAVE_REQUEST_STATUSES.pending_l1;
+      const approverId = approverIdOf(l);
       const item = new PendingApproval();
       item.id = l.id;
       item.kind = 'leave';
@@ -68,16 +76,25 @@ export class ApprovalsService {
       item.employee_name = names.get(l.employee_id) ?? `User #${l.employee_id}`;
       item.requested_at = l.submitted_at;
       item.current_step = isL1 ? 1 : 2;
-      item.current_approver_id = (isL1 ? l.l1_approver_id : l.l2_approver_id) ?? l.l1_approver_id;
+      item.current_approver_id = approverId;
+      item.current_approver_name = names.get(approverId) ?? `User #${approverId}`;
       item.summary = `${l.leave_type} leave, ${l.start_date} to ${l.end_date}`;
       return item;
     });
   }
 
   private async mapCorrections(tcs: TimeCorrectionRequest[]): Promise<PendingApproval[]> {
-    const names = await this.resolveNames(tcs.map((t) => t.employee_id));
+    const approverIdOf = (t: TimeCorrectionRequest) =>
+      (t.status === TIME_CORRECTION_STATUSES.pending_l1 ? t.l1_approver_id : t.l2_approver_id) ??
+      t.l1_approver_id;
+    // Resolve employee + current-approver names in one findByIds (no N+1).
+    const names = await this.resolveNames([
+      ...tcs.map((t) => t.employee_id),
+      ...tcs.map(approverIdOf),
+    ]);
     return tcs.map((t) => {
       const isL1 = t.status === TIME_CORRECTION_STATUSES.pending_l1;
+      const approverId = approverIdOf(t);
       const item = new PendingApproval();
       item.id = t.id;
       item.kind = 'time_correction';
@@ -85,7 +102,8 @@ export class ApprovalsService {
       item.employee_name = names.get(t.employee_id) ?? `User #${t.employee_id}`;
       item.requested_at = t.submitted_at;
       item.current_step = isL1 ? 1 : 2;
-      item.current_approver_id = (isL1 ? t.l1_approver_id : t.l2_approver_id) ?? t.l1_approver_id;
+      item.current_approver_id = approverId;
+      item.current_approver_name = names.get(approverId) ?? `User #${approverId}`;
       item.summary = `Time correction for ${t.work_date}`;
       // Raw times for the inbox in/out diff; original_* come from the joined
       // target entry (null for a new manual log). Frontend formats them.

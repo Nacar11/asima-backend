@@ -167,6 +167,7 @@ describe('ApprovalsService', () => {
       ]);
       users.findByIds.mockResolvedValue([
         { id: 12, first_name: 'Emma', last_name: 'Thompson' } as User,
+        { id: 5, first_name: 'Daniel', last_name: 'Aguilar' } as User,
       ]);
 
       const result = await service.findPending(user, {});
@@ -181,8 +182,60 @@ describe('ApprovalsService', () => {
           employee_name: 'Emma Thompson',
           current_step: 1,
           current_approver_id: 5,
+          current_approver_name: 'Daniel Aguilar',
         }),
       );
+    });
+
+    it('resolves employee + current approver names in a single findByIds (no N+1)', async () => {
+      const user = buildUser({ id: 5, permission_codes: ['APPROVAL:View'] });
+      leave.findInboxForApprover.mockResolvedValue([
+        {
+          id: 42,
+          employee_id: 12,
+          leave_type: 'vacation',
+          start_date: '2026-06-01',
+          end_date: '2026-06-05',
+          status: 'pending_l1',
+          submitted_at: new Date('2026-05-30'),
+          l1_approver_id: 5,
+          l2_approver_id: 7,
+        } as LeaveRequest,
+      ]);
+      users.findByIds.mockResolvedValue([
+        { id: 12, first_name: 'Emma', last_name: 'Thompson' } as User,
+        { id: 5, first_name: 'Daniel', last_name: 'Aguilar' } as User,
+      ]);
+
+      await service.findPending(user, { type: 'leave' });
+
+      expect(users.findByIds).toHaveBeenCalledTimes(1);
+      expect(users.findByIds).toHaveBeenCalledWith(expect.arrayContaining([12, 5]));
+    });
+
+    it('falls back to "User #<id>" when the current approver cannot be resolved', async () => {
+      const user = buildUser({ id: 5, permission_codes: ['APPROVAL:View'] });
+      leave.findInboxForApprover.mockResolvedValue([
+        {
+          id: 42,
+          employee_id: 12,
+          leave_type: 'vacation',
+          start_date: '2026-06-01',
+          end_date: '2026-06-05',
+          status: 'pending_l1',
+          submitted_at: new Date('2026-05-30'),
+          l1_approver_id: 5,
+          l2_approver_id: 7,
+        } as LeaveRequest,
+      ]);
+      // Only the employee resolves; the approver (id 5) is missing (deactivated).
+      users.findByIds.mockResolvedValue([
+        { id: 12, first_name: 'Emma', last_name: 'Thompson' } as User,
+      ]);
+
+      const result = await service.findPending(user, { type: 'leave' });
+
+      expect(result.data[0].current_approver_name).toBe('User #5');
     });
 
     it('uses the org-wide query when the caller canSeeAll', async () => {
