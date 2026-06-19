@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { BaseTimeCorrectionRequestRepository } from '@/time-correction-requests/persistence/base-time-correction-request.repository';
 import { TimeCorrectionRequestEntity } from '@/time-correction-requests/persistence/entities/time-correction-request.entity';
 import { TimeCorrectionRequestMapper } from '@/time-correction-requests/persistence/mappers/time-correction-request.mapper';
@@ -8,8 +8,9 @@ import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-co
 import { TimeCorrectionRequestSearchCriteria } from '@/time-correction-requests/domain/time-correction-request-search-criteria';
 import { FindAllTimeCorrectionRequest } from '@/time-correction-requests/domain/find-all-time-correction-request';
 import {
-  TcDecisionPath,
   TC_PENDING_STATUSES,
+  TIME_CORRECTION_STATUSES,
+  TcDecisionPath,
   TimeCorrectionStatus,
 } from '@/time-correction-requests/time-correction-requests.constants';
 import { paginate, resolvePaging } from '@/utils/helpers/pagination';
@@ -114,6 +115,51 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
       .orderBy('tc.submitted_at', 'ASC')
       .getMany();
     return entities.map(TimeCorrectionRequestMapper.toDomain);
+  }
+
+  async findActiveCandidatesForScheduleChange(
+    employee_id: number,
+    from_date: string,
+    manager?: EntityManager,
+  ): Promise<TimeCorrectionRequest[]> {
+    const repo = manager ? manager.getRepository(TimeCorrectionRequestEntity) : this.repo;
+    const entities = await repo
+      .createQueryBuilder('tc')
+      .where('tc.employee_id = :eid', { eid: employee_id })
+      .andWhere('tc.deleted_at IS NULL')
+      .andWhere('tc.status IN (:...statuses)', {
+        statuses: [TIME_CORRECTION_STATUSES.approved, ...TC_PENDING_STATUSES],
+      })
+      .andWhere('tc.work_date >= :from', { from: from_date })
+      .getMany();
+    return entities.map(TimeCorrectionRequestMapper.toDomain);
+  }
+
+  async systemCancel(
+    ids: number[],
+    actor_id: number,
+    note: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    if (ids.length === 0) return 0;
+    const repo = manager ? manager.getRepository(TimeCorrectionRequestEntity) : this.repo;
+    const result = await repo
+      .createQueryBuilder()
+      .update(TimeCorrectionRequestEntity)
+      .set({
+        status: TIME_CORRECTION_STATUSES.cancelled,
+        cancelled_at: new Date(),
+        cancelled_by: actor_id,
+        decision_note: note,
+        updated_by: actor_id,
+      })
+      .where('id IN (:...ids)', { ids })
+      .andWhere('status IN (:...active)', {
+        active: [TIME_CORRECTION_STATUSES.approved, ...TC_PENDING_STATUSES],
+      })
+      .andWhere('deleted_at IS NULL')
+      .execute();
+    return result.affected ?? 0;
   }
 
   async create(input: {
