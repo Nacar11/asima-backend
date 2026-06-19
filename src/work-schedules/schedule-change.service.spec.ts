@@ -73,25 +73,35 @@ function correctionRow(over: Record<string, unknown> = {}) {
 }
 
 const admin = { id: 5, system_admin: true } as User;
-const updateOnly = { id: 6, system_admin: false, role: { permissions: [{ code: 'SCHEDULE:Update' }] } } as unknown as User;
+const updateOnly = {
+  id: 6,
+  system_admin: false,
+  role: { permissions: [{ code: 'SCHEDULE:Update' }] },
+} as unknown as User;
 
 describe('ScheduleChangeService.preview', () => {
   let service: TestService;
   let schedules: jest.Mocked<Pick<BaseWorkScheduleRepository, 'findActiveForEmployeeDay'>>;
-  let leaves: jest.Mocked<Pick<BaseLeaveRequestRepository, 'findActiveCandidatesForScheduleChange'>>;
-  let corrections: jest.Mocked<Pick<BaseTimeCorrectionRequestRepository, 'findActiveCandidatesForScheduleChange'>>;
+  let leaves: jest.Mocked<
+    Pick<BaseLeaveRequestRepository, 'findActiveCandidatesForScheduleChange'>
+  >;
+  let corrections: jest.Mocked<
+    Pick<BaseTimeCorrectionRequestRepository, 'findActiveCandidatesForScheduleChange'>
+  >;
 
   beforeEach(() => {
     schedules = { findActiveForEmployeeDay: jest.fn().mockResolvedValue(live()) } as never;
     leaves = { findActiveCandidatesForScheduleChange: jest.fn().mockResolvedValue([]) } as never;
-    corrections = { findActiveCandidatesForScheduleChange: jest.fn().mockResolvedValue([]) } as never;
+    corrections = {
+      findActiveCandidatesForScheduleChange: jest.fn().mockResolvedValue([]),
+    } as never;
     service = new TestService(schedules as never, leaves as never, corrections as never);
   });
 
   it('rejects an effective_from in the past', async () => {
-    await expect(service.preview(intent({ effective_from: '2026-06-01' }), admin)).rejects.toBeInstanceOf(
-      UnprocessableEntityException,
-    );
+    await expect(
+      service.preview(intent({ effective_from: '2026-06-01' }), admin),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
   it('rejects a remove without SCHEDULE:Delete', async () => {
@@ -123,7 +133,9 @@ describe('ScheduleChangeService.preview', () => {
   });
 
   it('removal cancels a full-day future leave and frees its days', async () => {
-    leaves.findActiveCandidatesForScheduleChange.mockResolvedValue([leaveRow({ working_days: 2, end_date: '2026-07-08' })] as never);
+    leaves.findActiveCandidatesForScheduleChange.mockResolvedValue([
+      leaveRow({ working_days: 2, end_date: '2026-07-08' }),
+    ] as never);
     const out = await service.preview(intent({ mode: 'remove' }), admin);
     expect(out.affected_leaves).toHaveLength(1);
     expect(out.affected_leaves[0].trigger_dates).toContain('2026-07-01');

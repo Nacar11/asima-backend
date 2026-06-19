@@ -73,24 +73,36 @@ describe('planVersioning', () => {
     expect(planVersioning(null, modify())).toBe('create');
   });
   it('modify with a started live row → end_and_create', () => {
-    expect(planVersioning(schedule({ effective_from: '2026-01-01' }), modify({ effective_from: '2026-06-24' }))).toBe(
-      'end_and_create',
-    );
+    expect(
+      planVersioning(
+        schedule({ effective_from: '2026-01-01' }),
+        modify({ effective_from: '2026-06-24' }),
+      ),
+    ).toBe('end_and_create');
   });
   it('C1: modify with an un-started live row (effective_from >= X) → replace', () => {
-    expect(planVersioning(schedule({ effective_from: '2026-06-24' }), modify({ effective_from: '2026-06-24' }))).toBe(
-      'replace',
-    );
+    expect(
+      planVersioning(
+        schedule({ effective_from: '2026-06-24' }),
+        modify({ effective_from: '2026-06-24' }),
+      ),
+    ).toBe('replace');
   });
   it('remove with a started live row → end_only', () => {
-    expect(planVersioning(schedule({ effective_from: '2026-01-01' }), modify({ mode: 'remove', effective_from: '2026-06-24' }))).toBe(
-      'end_only',
-    );
+    expect(
+      planVersioning(
+        schedule({ effective_from: '2026-01-01' }),
+        modify({ mode: 'remove', effective_from: '2026-06-24' }),
+      ),
+    ).toBe('end_only');
   });
   it('C1: remove with an un-started live row → delete_only', () => {
-    expect(planVersioning(schedule({ effective_from: '2026-06-30' }), modify({ mode: 'remove', effective_from: '2026-06-24' }))).toBe(
-      'delete_only',
-    );
+    expect(
+      planVersioning(
+        schedule({ effective_from: '2026-06-30' }),
+        modify({ mode: 'remove', effective_from: '2026-06-24' }),
+      ),
+    ).toBe('delete_only');
   });
   it('remove with no live row → noop', () => {
     expect(planVersioning(null, modify({ mode: 'remove' }))).toBe('noop');
@@ -117,7 +129,10 @@ describe('windowChanged / breakChanged', () => {
 
 describe('governedDates', () => {
   it('keeps only dates on weekday W and >= X', () => {
-    const intent = modify({ day_of_week: weekdayOf('2026-07-01') as DayOfWeek, effective_from: '2026-06-24' });
+    const intent = modify({
+      day_of_week: weekdayOf('2026-07-01') as DayOfWeek,
+      effective_from: '2026-06-24',
+    });
     const dates = ['2026-06-10', '2026-07-01', '2026-07-08']; // 07-01 & 07-08 are same weekday
     const got = governedDates(dates, intent);
     expect(got).toContain('2026-07-01');
@@ -154,12 +169,22 @@ describe('evaluateLeave', () => {
   const futureW = weekdayOf('2026-07-01') as DayOfWeek;
 
   it('full-day future leave + removal → cancel', () => {
-    const got = evaluateLeave(leave(), schedule(), modify({ mode: 'remove', day_of_week: futureW }), today);
+    const got = evaluateLeave(
+      leave(),
+      schedule(),
+      modify({ mode: 'remove', day_of_week: futureW }),
+      today,
+    );
     expect(got?.decision).toBe('cancel');
     expect(got?.trigger_dates).toEqual(['2026-07-01']);
   });
   it('full-day future leave + pure window change → not affected (null)', () => {
-    const got = evaluateLeave(leave(), schedule(), modify({ day_of_week: futureW, expected_in: '10:00:00' }), today);
+    const got = evaluateLeave(
+      leave(),
+      schedule(),
+      modify({ day_of_week: futureW, expected_in: '10:00:00' }),
+      today,
+    );
     expect(got).toBeNull();
   });
   it('half-day future leave + window change → cancel', () => {
@@ -184,17 +209,29 @@ describe('evaluateLeave', () => {
     // today inside the leave range; one governed date in the future tail
     const inProgress = leave({ start_date: '2026-06-20', end_date: '2026-06-29' });
     const W = weekdayOf('2026-06-27') as DayOfWeek;
-    const got = evaluateLeave(inProgress, schedule(), modify({ mode: 'remove', day_of_week: W, effective_from: '2026-06-24' }), '2026-06-25');
+    const got = evaluateLeave(
+      inProgress,
+      schedule(),
+      modify({ mode: 'remove', day_of_week: W, effective_from: '2026-06-24' }),
+      '2026-06-25',
+    );
     expect(got?.temporal).toBe('present');
     expect(got?.decision).toBe('keep');
   });
   it('pending future leave + removal → cancel', () => {
-    const got = evaluateLeave(leave({ status: 'pending_l1' }), schedule(), modify({ mode: 'remove', day_of_week: futureW }), today);
+    const got = evaluateLeave(
+      leave({ status: 'pending_l1' }),
+      schedule(),
+      modify({ mode: 'remove', day_of_week: futureW }),
+      today,
+    );
     expect(got?.decision).toBe('cancel');
   });
   it('leave on a different weekday → null', () => {
     const otherW = ((futureW + 1) % 7) as DayOfWeek;
-    expect(evaluateLeave(leave(), schedule(), modify({ mode: 'remove', day_of_week: otherW }), today)).toBeNull();
+    expect(
+      evaluateLeave(leave(), schedule(), modify({ mode: 'remove', day_of_week: otherW }), today),
+    ).toBeNull();
   });
 });
 
@@ -203,15 +240,30 @@ describe('evaluateCorrection', () => {
   const futureW = weekdayOf('2026-07-01') as DayOfWeek;
 
   it('future correction + window change → cancel', () => {
-    const got = evaluateCorrection(correction(), schedule(), modify({ day_of_week: futureW, expected_out: '17:00:00' }), today);
+    const got = evaluateCorrection(
+      correction(),
+      schedule(),
+      modify({ day_of_week: futureW, expected_out: '17:00:00' }),
+      today,
+    );
     expect(got?.decision).toBe('cancel');
   });
   it('future correction + break-only change → not affected (null)', () => {
-    const got = evaluateCorrection(correction(), schedule(), modify({ day_of_week: futureW, break_minutes: 30 }), today);
+    const got = evaluateCorrection(
+      correction(),
+      schedule(),
+      modify({ day_of_week: futureW, break_minutes: 30 }),
+      today,
+    );
     expect(got).toBeNull();
   });
   it('correction + removal → cancel', () => {
-    const got = evaluateCorrection(correction(), schedule(), modify({ mode: 'remove', day_of_week: futureW }), today);
+    const got = evaluateCorrection(
+      correction(),
+      schedule(),
+      modify({ mode: 'remove', day_of_week: futureW }),
+      today,
+    );
     expect(got?.decision).toBe('cancel');
   });
   it('approved correction for today + window change → keep', () => {

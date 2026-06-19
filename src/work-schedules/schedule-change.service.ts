@@ -7,7 +7,11 @@ import {
   ScheduleChangeImpact,
   ScheduleChangeIntent,
 } from '@/work-schedules/domain/schedule-change';
-import { evaluateCorrection, evaluateLeave, planVersioning } from '@/work-schedules/domain/cascade-policy';
+import {
+  evaluateCorrection,
+  evaluateLeave,
+  planVersioning,
+} from '@/work-schedules/domain/cascade-policy';
 import { businessDateString } from '@/utils/helpers/dates';
 import { unprocessable } from '@/utils/helpers/http-errors';
 import { hasPermission } from '@/users/domain/user-permissions';
@@ -57,10 +61,18 @@ export class ScheduleChangeService {
         intent.expected_out == null ||
         intent.break_minutes == null
       ) {
-        throw unprocessable('expected_in', 'expected_in, expected_out and break_minutes are required for a modify');
+        throw unprocessable(
+          'expected_in',
+          'expected_in, expected_out and break_minutes are required for a modify',
+        );
       }
       assertWindowOk(intent.expected_in, intent.expected_out);
-      assertBreakOk(intent.break_minutes, intent.break_start ?? null, intent.expected_in, intent.expected_out);
+      assertBreakOk(
+        intent.break_minutes,
+        intent.break_start ?? null,
+        intent.expected_in,
+        intent.expected_out,
+      );
     }
     if (intent.mode === 'remove') {
       const allowed = caller.system_admin === true || hasPermission(caller, 'SCHEDULE:Delete');

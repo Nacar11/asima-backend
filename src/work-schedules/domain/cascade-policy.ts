@@ -125,7 +125,8 @@ export function evaluateLeave(
   if (intent.mode === 'remove') {
     affected = true;
   } else if (isHalfDay) {
-    affected = (live != null && windowChanged(live, intent)) || (live != null && breakChanged(live, intent));
+    affected =
+      (live != null && windowChanged(live, intent)) || (live != null && breakChanged(live, intent));
   } else {
     affected = false; // full-day modify
   }
