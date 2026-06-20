@@ -1,3 +1,4 @@
+import { EntityManager } from 'typeorm';
 import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
 import { TimeCorrectionRequestSearchCriteria } from '@/time-correction-requests/domain/time-correction-request-search-criteria';
 import { FindAllTimeCorrectionRequest } from '@/time-correction-requests/domain/find-all-time-correction-request';
@@ -33,6 +34,31 @@ export abstract class BaseTimeCorrectionRequestRepository {
   abstract findPendingForApprover(approver_id: number): Promise<TimeCorrectionRequest[]>;
 
   abstract findAllPending(): Promise<TimeCorrectionRequest[]>;
+
+  /**
+   * Active (pending/approved) corrections for an employee with
+   * `work_date >= from_date` — the candidates a forward-only schedule change
+   * can still touch. Read inside `manager`'s transaction when supplied. Backs
+   * the schedule-change cascade (plan Task 3).
+   */
+  abstract findActiveCandidatesForScheduleChange(
+    employee_id: number,
+    from_date: string,
+    manager?: EntityManager,
+  ): Promise<TimeCorrectionRequest[]>;
+
+  /**
+   * System cancel of the given corrections as part of a schedule change —
+   * flips active rows to `cancelled` with audit fields + `note` inside
+   * `manager`'s transaction, skipping the per-user ownership check. Returns the
+   * rows affected (terminal rows are a no-op via the status guard).
+   */
+  abstract systemCancel(
+    ids: number[],
+    actor_id: number,
+    note: string,
+    manager?: EntityManager,
+  ): Promise<number>;
 
   abstract create(input: {
     employee_id: number;

@@ -108,6 +108,52 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
     return entities.map(LeaveRequestMapper.toDomain);
   }
 
+  async findActiveCandidatesForScheduleChange(
+    employee_id: number,
+    from_date: string,
+    manager?: EntityManager,
+  ): Promise<LeaveRequest[]> {
+    const repo = manager ? manager.getRepository(LeaveRequestEntity) : this.repo;
+    const entities = await repo
+      .createQueryBuilder('lr')
+      .where('lr.employee_id = :eid', { eid: employee_id })
+      .andWhere('lr.deleted_at IS NULL')
+      .andWhere('lr.status IN (:...statuses)', {
+        statuses: [LEAVE_REQUEST_STATUSES.approved, ...PENDING_STATUSES],
+      })
+      .andWhere('lr.end_date >= :from', { from: from_date })
+      .getMany();
+    return entities.map(LeaveRequestMapper.toDomain);
+  }
+
+  async systemCancel(
+    ids: number[],
+    actor_id: number,
+    note: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    if (ids.length === 0) return 0;
+    const repo = manager ? manager.getRepository(LeaveRequestEntity) : this.repo;
+    const result = await repo
+      .createQueryBuilder()
+      .update(LeaveRequestEntity)
+      .set({
+        status: LEAVE_REQUEST_STATUSES.cancelled,
+        cancelled_at: new Date(),
+        cancelled_by: actor_id,
+        decision_note: note,
+        updated_by: actor_id,
+      })
+      .where('id IN (:...ids)', { ids })
+      // Guard: only flip rows that are still active — never resurrect a terminal row.
+      .andWhere('status IN (:...active)', {
+        active: [LEAVE_REQUEST_STATUSES.approved, ...PENDING_STATUSES],
+      })
+      .andWhere('deleted_at IS NULL')
+      .execute();
+    return result.affected ?? 0;
+  }
+
   async create(
     input: {
       employee_id: number;

@@ -128,14 +128,14 @@ export class WorkSchedulesService {
   }
 }
 
-function assertWindowOk(expected_in: string, expected_out: string): void {
+export function assertWindowOk(expected_in: string, expected_out: string): void {
   // Lexicographic comparison works for zero-padded HH:MM:SS strings.
   if (expected_out <= expected_in) {
     throw unprocessable('expected_out', 'expected_out must be strictly after expected_in');
   }
 }
 
-function assertBreakOk(
+export function assertBreakOk(
   break_minutes: number,
   break_start: string | null,
   expected_in: string,

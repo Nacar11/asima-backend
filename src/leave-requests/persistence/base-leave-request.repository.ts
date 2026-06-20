@@ -54,6 +54,32 @@ export abstract class BaseLeaveRequestRepository {
   /** Every currently-pending request (for ApproveAny / system_admin inbox). */
   abstract findAllPending(): Promise<LeaveRequest[]>;
 
+  /**
+   * Active (pending/approved) requests for an employee whose range can still
+   * be touched by a forward-only schedule change — `end_date >= from_date`.
+   * Read inside `manager`'s transaction when one is supplied so the cascade's
+   * recompute is isolated. Backs the schedule-change cascade (plan Task 2).
+   */
+  abstract findActiveCandidatesForScheduleChange(
+    employee_id: number,
+    from_date: string,
+    manager?: EntityManager,
+  ): Promise<LeaveRequest[]>;
+
+  /**
+   * System cancel of the given requests as part of a schedule change: flips
+   * active rows to `cancelled` with `cancelled_by`/`cancelled_at` and the audit
+   * `note`, inside `manager`'s transaction. Skips the per-user ownership check
+   * (justified by the upstream `SCHEDULE:*` gate). Returns the rows affected;
+   * the status guard means an already-terminal row is a no-op.
+   */
+  abstract systemCancel(
+    ids: number[],
+    actor_id: number,
+    note: string,
+    manager?: EntityManager,
+  ): Promise<number>;
+
   abstract create(
     input: {
       employee_id: number;
