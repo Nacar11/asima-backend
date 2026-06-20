@@ -5,6 +5,9 @@ import { BaseCompensationRepository } from '@/compensation/persistence/base-comp
 import { CompensationEntity } from '@/compensation/persistence/entities/compensation.entity';
 import { CompensationMapper } from '@/compensation/persistence/mappers/compensation.mapper';
 import { Compensation } from '@/compensation/domain/compensation';
+import { CompensationSearchCriteria } from '@/compensation/domain/compensation-search-criteria';
+import { FindAllCompensation } from '@/compensation/domain/find-all-compensation';
+import { paginate, resolvePaging } from '@/utils/helpers/pagination';
 
 @Injectable()
 export class CompensationRepository extends BaseCompensationRepository {
@@ -21,15 +24,59 @@ export class CompensationRepository extends BaseCompensationRepository {
   }
 
   /**
-   * Base query builder that opts the `select: false` money columns back in
-   * and excludes soft-deleted rows. Every finder goes through this so pay
-   * is loaded explicitly, never by accident.
+   * Base query builder that opts the `select: false` money columns back in.
+   * Every finder goes through this so pay is loaded explicitly, never by
+   * accident. Soft-delete / employee filters are added per finder.
    */
   private baseQb(manager?: EntityManager): SelectQueryBuilder<CompensationEntity> {
     return this.repoFor(manager)
       .createQueryBuilder('c')
-      .addSelect(['c.monthly_salary', 'c.hourly_rate'])
-      .where('c.deleted_at IS NULL');
+      .addSelect(['c.monthly_salary', 'c.hourly_rate']);
+  }
+
+  async findAll(criteria: CompensationSearchCriteria): Promise<FindAllCompensation> {
+    const paging = resolvePaging(criteria);
+    const qb = this.baseQb()
+      .orderBy('c.employee_id', 'ASC')
+      .addOrderBy('c.effective_from', 'DESC')
+      .skip(paging.skip)
+      .take(paging.limit);
+
+    if (!criteria.includeDeleted) qb.andWhere('c.deleted_at IS NULL');
+    if (criteria.employee_id !== undefined)
+      qb.andWhere('c.employee_id = :eid', { eid: criteria.employee_id });
+    if (criteria.activeOnly) qb.andWhere('c.effective_to IS NULL');
+
+    const [entities, total] = await qb.getManyAndCount();
+    return paginate(entities.map(CompensationMapper.toDomain), total, paging);
+  }
+
+  async findById(id: number): Promise<Compensation | null> {
+    const entity = await this.baseQb()
+      .where('c.id = :id', { id })
+      .andWhere('c.deleted_at IS NULL')
+      .getOne();
+    return entity ? CompensationMapper.toDomain(entity) : null;
+  }
+
+  async findHistoryForEmployee(employee_id: number): Promise<Compensation[]> {
+    const entities = await this.baseQb()
+      .where('c.employee_id = :eid', { eid: employee_id })
+      .andWhere('c.deleted_at IS NULL')
+      .orderBy('c.effective_from', 'DESC')
+      .getMany();
+    return entities.map(CompensationMapper.toDomain);
+  }
+
+  async findRateOnDate(employee_id: number, date: string): Promise<Compensation | null> {
+    const entity = await this.baseQb()
+      .where('c.employee_id = :eid', { eid: employee_id })
+      .andWhere('c.deleted_at IS NULL')
+      .andWhere('c.effective_from <= :date', { date })
+      .andWhere('(c.effective_to IS NULL OR c.effective_to >= :date)', { date })
+      .orderBy('c.effective_from', 'DESC')
+      .getOne();
+    return entity ? CompensationMapper.toDomain(entity) : null;
   }
 
   async findActiveForEmployee(
@@ -37,8 +84,23 @@ export class CompensationRepository extends BaseCompensationRepository {
     manager?: EntityManager,
   ): Promise<Compensation | null> {
     const entity = await this.baseQb(manager)
-      .andWhere('c.employee_id = :eid', { eid: employee_id })
+      .where('c.employee_id = :eid', { eid: employee_id })
+      .andWhere('c.deleted_at IS NULL')
       .andWhere('c.effective_to IS NULL')
+      .getOne();
+    return entity ? CompensationMapper.toDomain(entity) : null;
+  }
+
+  async findPreviousForEmployee(
+    employee_id: number,
+    before_effective_from: string,
+    manager?: EntityManager,
+  ): Promise<Compensation | null> {
+    const entity = await this.baseQb(manager)
+      .where('c.employee_id = :eid', { eid: employee_id })
+      .andWhere('c.deleted_at IS NULL')
+      .andWhere('c.effective_from < :before', { before: before_effective_from })
+      .orderBy('c.effective_from', 'DESC')
       .getOne();
     return entity ? CompensationMapper.toDomain(entity) : null;
   }
@@ -95,8 +157,16 @@ export class CompensationRepository extends BaseCompensationRepository {
     return this.requireById(id, manager);
   }
 
+  async softDelete(id: number, deleted_by: number | null, manager?: EntityManager): Promise<void> {
+    const repo = this.repoFor(manager);
+    const existing = await repo.findOneOrFail({ where: { id } });
+    existing.deleted_by = deleted_by;
+    await repo.save(existing);
+    await repo.softDelete(id);
+  }
+
   private async requireById(id: number, manager?: EntityManager): Promise<Compensation> {
-    const entity = await this.baseQb(manager).andWhere('c.id = :id', { id }).getOneOrFail();
+    const entity = await this.baseQb(manager).where('c.id = :id', { id }).getOneOrFail();
     return CompensationMapper.toDomain(entity);
   }
 }

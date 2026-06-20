@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { BaseCompensationRepository } from '@/compensation/persistence/base-compensation.repository';
 import { Compensation } from '@/compensation/domain/compensation';
+import { CompensationSearchCriteria } from '@/compensation/domain/compensation-search-criteria';
+import { FindAllCompensation } from '@/compensation/domain/find-all-compensation';
 import { deriveHourlyRate } from '@/compensation/compensation.constants';
 import { conflict, unprocessable } from '@/utils/helpers/http-errors';
 import { isUniqueViolation } from '@/utils/helpers/pg-errors';
@@ -75,6 +77,101 @@ export class CompensationService {
       }
       throw err;
     }
+  }
+
+  findAll(criteria: CompensationSearchCriteria): Promise<FindAllCompensation> {
+    return this.repository.findAll(criteria);
+  }
+
+  async findById(id: number): Promise<Compensation> {
+    const row = await this.repository.findById(id);
+    if (!row) throw new NotFoundException(`Compensation with id ${id} not found`);
+    return row;
+  }
+
+  findHistoryForEmployee(employee_id: number): Promise<Compensation[]> {
+    return this.repository.findHistoryForEmployee(employee_id);
+  }
+
+  /** The rate in effect on `date` (YYYY-MM-DD) — the OT-facing seam. Null when none. */
+  findRateOnDate(employee_id: number, date: string): Promise<Compensation | null> {
+    return this.repository.findRateOnDate(employee_id, date);
+  }
+
+  /**
+   * The employee's current compensation (the active row). Backs `/me`.
+   * Null for a new hire with no rate yet — the caller returns 200 + null.
+   */
+  findCurrentForEmployee(employee_id: number): Promise<Compensation | null> {
+    return this.repository.findActiveForEmployee(employee_id);
+  }
+
+  /**
+   * Correct an erroneous row IN PLACE (no new history row). Recomputes the
+   * hourly rate when monthly_salary changes on a non-overridden row; an
+   * explicit hourly_rate is treated as an override.
+   */
+  async update(
+    id: number,
+    patch: { monthly_salary?: number; hourly_rate?: number; effective_from?: string },
+    updated_by: number | null,
+  ): Promise<Compensation> {
+    const existing = await this.findById(id);
+    if (patch.effective_from !== undefined) assertNotFutureDated(patch.effective_from);
+
+    const next: {
+      monthly_salary?: number;
+      hourly_rate?: number;
+      hourly_rate_is_overridden?: boolean;
+      effective_from?: string;
+      updated_by: number | null;
+    } = { updated_by };
+
+    if (patch.monthly_salary !== undefined) next.monthly_salary = patch.monthly_salary;
+    if (patch.effective_from !== undefined) next.effective_from = patch.effective_from;
+
+    if (patch.hourly_rate !== undefined) {
+      next.hourly_rate = patch.hourly_rate;
+      next.hourly_rate_is_overridden = true;
+    } else if (patch.monthly_salary !== undefined && !existing.hourly_rate_is_overridden) {
+      next.hourly_rate = deriveHourlyRate(patch.monthly_salary);
+    }
+
+    return this.repository.update(id, next);
+  }
+
+  /**
+   * Soft-delete an erroneous row. Only the ACTIVE row is deletable; deleting
+   * it reactivates the immediately-prior row so the employee isn't left with
+   * a gap. A historical row is rejected — deleting it would punch a hole in
+   * findRateOnDate. Runs in a transaction: the active row is soft-deleted
+   * (leaving the partial unique index free) before the prior row is
+   * reactivated.
+   */
+  async softDelete(id: number, deleted_by: number | null): Promise<void> {
+    const existing = await this.findById(id);
+    if (existing.effective_to != null) {
+      throw conflict(
+        'id',
+        'Only the active compensation row can be deleted; this row is already ended.',
+      );
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      await this.repository.softDelete(id, deleted_by, manager);
+      const prior = await this.repository.findPreviousForEmployee(
+        existing.employee_id,
+        existing.effective_from,
+        manager,
+      );
+      if (prior) {
+        await this.repository.update(
+          prior.id,
+          { effective_to: null, updated_by: deleted_by },
+          manager,
+        );
+      }
+    });
   }
 }
 

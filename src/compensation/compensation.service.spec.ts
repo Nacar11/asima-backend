@@ -1,4 +1,4 @@
-import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { CompensationService } from './compensation.service';
 import { BaseCompensationRepository } from './persistence/base-compensation.repository';
 import { Compensation } from './domain/compensation';
@@ -34,9 +34,17 @@ describe('CompensationService', () => {
   beforeEach(() => {
     dataSource.transaction.mockClear();
     repo = {
+      findAll: jest.fn(),
+      findById: jest.fn(),
+      findHistoryForEmployee: jest.fn(),
+      findRateOnDate: jest.fn(),
       findActiveForEmployee: jest.fn().mockResolvedValue(null),
+      findPreviousForEmployee: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockImplementation((input) => Promise.resolve(fakeRow(input))),
-      update: jest.fn().mockResolvedValue(fakeRow()),
+      update: jest
+        .fn()
+        .mockImplementation((id, patch) => Promise.resolve(fakeRow({ id, ...patch }))),
+      softDelete: jest.fn().mockResolvedValue(undefined),
     };
     service = new CompensationService(repo, dataSource as never);
   });
@@ -151,6 +159,83 @@ describe('CompensationService', () => {
           created_by: 1,
         }),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('findById', () => {
+    it('throws NotFound when the row does not exist', async () => {
+      repo.findById.mockResolvedValue(null);
+      await expect(service.findById(999)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('update (correct a row)', () => {
+    it('recomputes hourly_rate when monthly_salary changes and the row is not overridden', async () => {
+      repo.findById.mockResolvedValue(fakeRow({ id: 5, hourly_rate_is_overridden: false }));
+      await service.update(5, { monthly_salary: 60000 }, 1);
+      expect(repo.update).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ monthly_salary: 60000, hourly_rate: deriveHourlyRate(60000) }),
+      );
+    });
+
+    it('preserves the manual hourly_rate when an overridden row only changes monthly_salary', async () => {
+      repo.findById.mockResolvedValue(
+        fakeRow({ id: 5, hourly_rate_is_overridden: true, hourly_rate: 300 }),
+      );
+      await service.update(5, { monthly_salary: 60000 }, 1);
+      const patch = repo.update.mock.calls[0][1];
+      expect(patch.hourly_rate).toBeUndefined();
+    });
+
+    it('treats an explicit hourly_rate as an override', async () => {
+      repo.findById.mockResolvedValue(fakeRow({ id: 5 }));
+      await service.update(5, { hourly_rate: 275 }, 1);
+      expect(repo.update).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ hourly_rate: 275, hourly_rate_is_overridden: true }),
+      );
+    });
+
+    it('throws NotFound for a missing row', async () => {
+      repo.findById.mockResolvedValue(null);
+      await expect(service.update(999, { monthly_salary: 10 }, 1)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('softDelete', () => {
+    it('rejects deleting a non-active (already ended) row', async () => {
+      repo.findById.mockResolvedValue(fakeRow({ id: 5, effective_to: '2001-01-01' }));
+      await expect(service.softDelete(5, 1)).rejects.toBeInstanceOf(ConflictException);
+      expect(repo.softDelete).not.toHaveBeenCalled();
+    });
+
+    it('soft-deletes the active row and reactivates the prior row, in a transaction', async () => {
+      repo.findById.mockResolvedValue(
+        fakeRow({ id: 9, effective_from: '2001-01-01', effective_to: null }),
+      );
+      repo.findPreviousForEmployee.mockResolvedValue(
+        fakeRow({ id: 8, effective_to: '2000-12-31' }),
+      );
+
+      await service.softDelete(9, 1);
+
+      expect(repo.softDelete).toHaveBeenCalledWith(9, 1, 'MGR');
+      expect(repo.update).toHaveBeenCalledWith(
+        8,
+        expect.objectContaining({ effective_to: null }),
+        'MGR',
+      );
+    });
+
+    it('soft-deletes when there is no prior row to reactivate', async () => {
+      repo.findById.mockResolvedValue(fakeRow({ id: 9, effective_to: null }));
+      repo.findPreviousForEmployee.mockResolvedValue(null);
+      await service.softDelete(9, 1);
+      expect(repo.softDelete).toHaveBeenCalledWith(9, 1, 'MGR');
+      expect(repo.update).not.toHaveBeenCalled();
     });
   });
 });
