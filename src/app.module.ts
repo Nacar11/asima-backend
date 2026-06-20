@@ -23,6 +23,7 @@ import { ApprovalChainsModule } from '@/approval-chains/approval-chains.module';
 import { LeaveRequestsModule } from '@/leave-requests/leave-requests.module';
 import { LeaveAllocationsModule } from '@/leave-allocations/leave-allocations.module';
 import { TimeCorrectionRequestsModule } from '@/time-correction-requests/time-correction-requests.module';
+import { CompensationModule } from '@/compensation/compensation.module';
 import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
 
 @Module({
@@ -69,6 +70,7 @@ import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
     LeaveRequestsModule,
     LeaveAllocationsModule,
     TimeCorrectionRequestsModule,
+    CompensationModule,
   ],
   // Guard pipeline runs in declared order:
   //   1. ThrottlerGuard   — rate limit before paying any auth cost
