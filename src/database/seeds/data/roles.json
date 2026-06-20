@@ -7,7 +7,7 @@
   },
   {
     "name": "HR_ADMIN",
-    "description": "HR back office. Manages users, sees roles + permissions, manages time entries and work schedules for any employee. Holds the ApproveAny override for leave + time-correction; never sits ON a chain (no Approve / Create).",
+    "description": "HR back office. Manages users, time entries, work schedules, and compensation for any employee (only role that sees/sets pay); sees roles + permissions. Holds the ApproveAny override for leave + time-correction; never sits ON a chain.",
     "permission_codes": [
       "USER:Create",
       "USER:View",
@@ -38,7 +38,12 @@
       "APPROVAL_CHAIN:View",
       "APPROVAL_CHAIN:Update",
       "LEAVE_ALLOCATION:Create",
-      "LEAVE_ALLOCATION:View"
+      "LEAVE_ALLOCATION:View",
+      "COMPENSATION:Create",
+      "COMPENSATION:ViewOwn",
+      "COMPENSATION:ViewAll",
+      "COMPENSATION:Update",
+      "COMPENSATION:Delete"
     ]
   },
   {
@@ -48,7 +53,8 @@
       "USER:View",
       "ROLE:View",
       "PERMISSION:View",
-      "APPROVAL:View"
+      "APPROVAL:View",
+      "COMPENSATION:ViewOwn"
     ]
   },
   {
@@ -59,7 +65,8 @@
       "LEAVE:Approve",
       "LEAVE:ViewOwn",
       "TIME_CORRECTION:Approve",
-      "TIME_CORRECTION:ViewOwn"
+      "TIME_CORRECTION:ViewOwn",
+      "COMPENSATION:ViewOwn"
     ]
   },
   {
@@ -70,17 +77,19 @@
       "LEAVE:Approve",
       "LEAVE:ViewOwn",
       "TIME_CORRECTION:Approve",
-      "TIME_CORRECTION:ViewOwn"
+      "TIME_CORRECTION:ViewOwn",
+      "COMPENSATION:ViewOwn"
     ]
   },
   {
     "name": "EMPLOYEE",
-    "description": "Default role for new registrations. Self-service routes only — can submit leave + correction requests and see their own.",
+    "description": "Default role for new registrations. Self-service routes only — can submit leave + correction requests, see their own, and view their own compensation.",
     "permission_codes": [
       "LEAVE:Create",
       "LEAVE:ViewOwn",
       "TIME_CORRECTION:Create",
-      "TIME_CORRECTION:ViewOwn"
+      "TIME_CORRECTION:ViewOwn",
+      "COMPENSATION:ViewOwn"
     ]
   }
 ]
