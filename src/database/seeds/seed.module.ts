@@ -9,6 +9,7 @@ import storageConfig from '@/storage/config/storage.config';
 import { TypeOrmConfigService } from '@/database/typeorm-config.service';
 import { StorageModule } from '@/storage/storage.module';
 import { LeaveRequestEntity } from '@/leave-requests/persistence/entities/leave-request.entity';
+import { TimeCorrectionRequestEntity } from '@/time-correction-requests/persistence/entities/time-correction-request.entity';
 import { PermissionEntity } from '@/permissions/persistence/entities/permission.entity';
 import { RoleEntity } from '@/roles/persistence/entities/role.entity';
 import { UserEntity } from '@/users/persistence/entities/user.entity';
@@ -25,6 +26,7 @@ import { WorkScheduleSeedService } from './work-schedule/work-schedule-seed.serv
 import { CompensationSeedService } from './compensation/compensation-seed.service';
 import { ApprovalChainSeedService } from './approval-chain/approval-chain-seed.service';
 import { LeaveRequestSeedService } from './leave-request/leave-request-seed.service';
+import { TimeCorrectionSeedService } from './time-correction/time-correction-seed.service';
 
 @Module({
   imports: [
@@ -47,6 +49,7 @@ import { LeaveRequestSeedService } from './leave-request/leave-request-seed.serv
       CompensationEntity,
       ApprovalChainEntity,
       LeaveRequestEntity,
+      TimeCorrectionRequestEntity,
     ]),
     StorageModule,
   ],
@@ -59,6 +62,7 @@ import { LeaveRequestSeedService } from './leave-request/leave-request-seed.serv
     CompensationSeedService,
     ApprovalChainSeedService,
     LeaveRequestSeedService,
+    TimeCorrectionSeedService,
   ],
   exports: [
     PermissionSeedService,
@@ -69,6 +73,7 @@ import { LeaveRequestSeedService } from './leave-request/leave-request-seed.serv
     CompensationSeedService,
     ApprovalChainSeedService,
     LeaveRequestSeedService,
+    TimeCorrectionSeedService,
   ],
 })
 export class SeedModule {}
