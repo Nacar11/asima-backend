@@ -45,5 +45,11 @@
   { "code": "APPROVAL_CHAIN:Update", "resource": "APPROVAL_CHAIN", "action": "Update", "description": "Assign / reassign / repair approvers in approval chains" },
 
   { "code": "LEAVE_ALLOCATION:Create", "resource": "LEAVE_ALLOCATION", "action": "Create", "description": "Grant leave days (sick/vacation/bereavement/birthday/emergency) to any employee" },
-  { "code": "LEAVE_ALLOCATION:View", "resource": "LEAVE_ALLOCATION", "action": "View", "description": "View an employee's leave balances and grant history" }
+  { "code": "LEAVE_ALLOCATION:View", "resource": "LEAVE_ALLOCATION", "action": "View", "description": "View an employee's leave balances and grant history" },
+
+  { "code": "COMPENSATION:Create", "resource": "COMPENSATION", "action": "Create", "description": "Set / change an employee's compensation (effective-dated; HR only)" },
+  { "code": "COMPENSATION:ViewOwn", "resource": "COMPENSATION", "action": "ViewOwn", "description": "See my own compensation (read-only /users/me/compensation)" },
+  { "code": "COMPENSATION:ViewAll", "resource": "COMPENSATION", "action": "ViewAll", "description": "See any employee's compensation across the org (HR scope)" },
+  { "code": "COMPENSATION:Update", "resource": "COMPENSATION", "action": "Update", "description": "Correct an erroneous compensation row in place (HR only)" },
+  { "code": "COMPENSATION:Delete", "resource": "COMPENSATION", "action": "Delete", "description": "Soft-delete an erroneous compensation row (HR only)" }
 ]
