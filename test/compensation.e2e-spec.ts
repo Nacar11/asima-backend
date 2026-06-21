@@ -193,4 +193,111 @@ describe('Compensation (e2e)', () => {
       .set(auth(adminToken));
     expect(res.status).toBe(409);
   });
+
+  // --- Phase 4 additions: currency, bulk, audit trail -----------------------
+
+  describe('Phase 4', () => {
+    let liamId: number;
+    let oliviaId: number;
+    let noahId: number;
+    let liamRowId: number;
+
+    beforeAll(async () => {
+      const ids = (await dataSource.query(
+        `SELECT id, email FROM users WHERE email IN ($1, $2, $3)`,
+        ['liam_garcia@asima.inc', 'olivia_martinez@asima.inc', 'noah_rodriguez@asima.inc'],
+      )) as { id: number; email: string }[];
+      const byEmail = new Map(ids.map((r) => [r.email, r.id]));
+      liamId = byEmail.get('liam_garcia@asima.inc')!;
+      oliviaId = byEmail.get('olivia_martinez@asima.inc')!;
+      noahId = byEmail.get('noah_rodriguez@asima.inc')!;
+    });
+
+    it('surfaces currency on read payloads (/me and admin detail)', async () => {
+      const me = await request(app.getHttpServer())
+        .get(url('/users/me/compensation'))
+        .set(auth(employeeToken));
+      expect(me.body.currency).toBe('PHP');
+
+      const detail = await request(app.getHttpServer())
+        .get(url(`/admin/compensation/${firstRowId}`))
+        .set(auth(adminToken));
+      expect(detail.body.currency).toBe('PHP');
+    });
+
+    it('bulk-sets pay for several employees in one transaction', async () => {
+      const res = await request(app.getHttpServer())
+        .post(url('/admin/compensation/bulk'))
+        .set(auth(adminToken))
+        .send({
+          items: [
+            { employee_id: liamId, monthly_salary: 50000, effective_from: FROM_2 },
+            { employee_id: oliviaId, monthly_salary: 55000, effective_from: FROM_2 },
+          ],
+        });
+      expect(res.status).toBe(201);
+      expect(res.body).toHaveLength(2);
+      expect(res.body[0].currency).toBe('PHP');
+      liamRowId = res.body.find((r: { employee_id: number }) => r.employee_id === liamId).id;
+    });
+
+    it('rejects a bulk payload with a duplicate employee_id (422)', async () => {
+      const res = await request(app.getHttpServer())
+        .post(url('/admin/compensation/bulk'))
+        .set(auth(adminToken))
+        .send({
+          items: [
+            { employee_id: noahId, monthly_salary: 40000, effective_from: FROM_3 },
+            { employee_id: noahId, monthly_salary: 41000, effective_from: FROM_3 },
+          ],
+        });
+      expect(res.status).toBe(422);
+    });
+
+    it('rolls back the whole batch when one item fails mid-transaction', async () => {
+      // liam already has an active row at FROM_2; FROM_1 is before it → that item
+      // throws inside the transaction, so noah's valid item must NOT persist.
+      const res = await request(app.getHttpServer())
+        .post(url('/admin/compensation/bulk'))
+        .set(auth(adminToken))
+        .send({
+          items: [
+            { employee_id: liamId, monthly_salary: 99000, effective_from: FROM_1 },
+            { employee_id: noahId, monthly_salary: 40000, effective_from: FROM_2 },
+          ],
+        });
+      expect(res.status).toBe(422);
+
+      const noahHistory = await request(app.getHttpServer())
+        .get(url(`/admin/compensation/employees/${noahId}`))
+        .set(auth(adminToken));
+      expect(noahHistory.body).toHaveLength(0); // rolled back
+    });
+
+    it('records an audit trail (created, then updated) for a corrected row', async () => {
+      await request(app.getHttpServer())
+        .patch(url(`/admin/compensation/${liamRowId}`))
+        .set(auth(adminToken))
+        .send({ monthly_salary: 52000 });
+
+      const res = await request(app.getHttpServer())
+        .get(url(`/admin/compensation/${liamRowId}/audit`))
+        .set(auth(adminToken));
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(2);
+      // newest first: the correction, then the creation
+      expect(res.body[0].action).toBe('updated');
+      expect(res.body[0].before_monthly_salary).toBe(50000);
+      expect(res.body[0].after_monthly_salary).toBe(52000);
+      expect(res.body[1].action).toBe('created');
+      expect(res.body[1].after_monthly_salary).toBe(50000);
+    });
+
+    it('forbids a non-HR employee from reading an audit trail (403)', async () => {
+      const res = await request(app.getHttpServer())
+        .get(url(`/admin/compensation/${liamRowId}/audit`))
+        .set(auth(employeeToken));
+      expect(res.status).toBe(403);
+    });
+  });
 });

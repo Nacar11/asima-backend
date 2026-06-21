@@ -1,18 +1,30 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { BaseCompensationRepository } from '@/compensation/persistence/base-compensation.repository';
+import { BaseCompensationAuditRepository } from '@/compensation/persistence/base-compensation-audit.repository';
 import { Compensation } from '@/compensation/domain/compensation';
+import { CompensationAudit } from '@/compensation/domain/compensation-audit';
 import { CompensationSearchCriteria } from '@/compensation/domain/compensation-search-criteria';
 import { FindAllCompensation } from '@/compensation/domain/find-all-compensation';
-import { deriveHourlyRate } from '@/compensation/compensation.constants';
+import { COMPENSATION_AUDIT_ACTION, deriveHourlyRate } from '@/compensation/compensation.constants';
 import { conflict, unprocessable } from '@/utils/helpers/http-errors';
 import { isUniqueViolation } from '@/utils/helpers/pg-errors';
 import { businessDateString, dayBefore } from '@/utils/helpers/dates';
+
+/** One set-pay item — shared by single `create` and `createBulk`. */
+export interface SetPayInput {
+  employee_id: number;
+  monthly_salary: number;
+  hourly_rate?: number | null;
+  effective_from: string;
+  created_by?: number | null;
+}
 
 @Injectable()
 export class CompensationService {
   constructor(
     private readonly repository: BaseCompensationRepository,
+    private readonly auditRepo: BaseCompensationAuditRepository,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -27,47 +39,10 @@ export class CompensationService {
    * `hourly_rate` is derived from `monthly_salary` unless the caller
    * supplies one (an override, flagged on the row).
    */
-  async create(input: {
-    employee_id: number;
-    monthly_salary: number;
-    hourly_rate?: number | null;
-    effective_from: string;
-    created_by?: number | null;
-  }): Promise<Compensation> {
+  async create(input: SetPayInput): Promise<Compensation> {
     assertNotFutureDated(input.effective_from);
-
-    const overridden = input.hourly_rate != null;
-    const hourly_rate = overridden ? input.hourly_rate! : deriveHourlyRate(input.monthly_salary);
-
     try {
-      return await this.dataSource.transaction(async (manager) => {
-        const prior = await this.repository.findActiveForEmployee(input.employee_id, manager);
-        if (prior) {
-          if (input.effective_from <= prior.effective_from) {
-            throw unprocessable(
-              'effective_from',
-              `effective_from must be after the current rate's effective_from (${prior.effective_from})`,
-            );
-          }
-          await this.repository.update(
-            prior.id,
-            { effective_to: dayBefore(input.effective_from), updated_by: input.created_by ?? null },
-            manager,
-          );
-        }
-
-        return this.repository.create(
-          {
-            employee_id: input.employee_id,
-            monthly_salary: input.monthly_salary,
-            hourly_rate,
-            hourly_rate_is_overridden: overridden,
-            effective_from: input.effective_from,
-            created_by: input.created_by ?? null,
-          },
-          manager,
-        );
-      });
+      return await this.dataSource.transaction((manager) => this.insertWithin(input, manager));
     } catch (err) {
       if (isUniqueViolation(err)) {
         throw conflict(
@@ -77,6 +52,94 @@ export class CompensationService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Set pay for several employees in ONE all-or-nothing transaction — any
+   * item failing rolls back the whole batch. Used for onboarding/import.
+   * Duplicate `employee_id`s in the payload are rejected up front (one set-pay
+   * per employee per call); future dates are rejected per item.
+   */
+  async createBulk(items: SetPayInput[], actorId: number | null): Promise<Compensation[]> {
+    const ids = items.map((i) => i.employee_id);
+    const duplicate = ids.find((id, i) => ids.indexOf(id) !== i);
+    if (duplicate !== undefined) {
+      throw unprocessable(
+        'employee_id',
+        `employee_id ${duplicate} appears more than once in the bulk payload`,
+      );
+    }
+    items.forEach((item) => assertNotFutureDated(item.effective_from));
+
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const created: Compensation[] = [];
+        for (const item of items) {
+          created.push(await this.insertWithin({ ...item, created_by: actorId }, manager));
+        }
+        return created;
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw conflict(
+          'employee_id',
+          'A concurrent active compensation row already exists for one of the employees.',
+        );
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * The shared set-pay body: end-date the prior active row (if any) and insert
+   * the new one, recording a `created` audit row — all on the given manager so
+   * a caller can compose it into a larger transaction (single or bulk).
+   */
+  private async insertWithin(input: SetPayInput, manager: EntityManager): Promise<Compensation> {
+    const overridden = input.hourly_rate != null;
+    const hourly_rate = overridden ? input.hourly_rate! : deriveHourlyRate(input.monthly_salary);
+
+    const prior = await this.repository.findActiveForEmployee(input.employee_id, manager);
+    if (prior) {
+      if (input.effective_from <= prior.effective_from) {
+        throw unprocessable(
+          'effective_from',
+          `effective_from must be after the current rate's effective_from (${prior.effective_from})`,
+        );
+      }
+      await this.repository.update(
+        prior.id,
+        { effective_to: dayBefore(input.effective_from), updated_by: input.created_by ?? null },
+        manager,
+      );
+    }
+
+    const created = await this.repository.create(
+      {
+        employee_id: input.employee_id,
+        monthly_salary: input.monthly_salary,
+        hourly_rate,
+        hourly_rate_is_overridden: overridden,
+        effective_from: input.effective_from,
+        created_by: input.created_by ?? null,
+      },
+      manager,
+    );
+
+    await this.auditRepo.record(
+      {
+        compensation_id: created.id,
+        employee_id: created.employee_id,
+        action: COMPENSATION_AUDIT_ACTION.CREATED,
+        after_monthly_salary: created.monthly_salary,
+        after_hourly_rate: created.hourly_rate,
+        after_effective_from: created.effective_from,
+        actor_id: input.created_by ?? null,
+      },
+      manager,
+    );
+
+    return created;
   }
 
   findAll(criteria: CompensationSearchCriteria): Promise<FindAllCompensation> {
@@ -99,6 +162,16 @@ export class CompensationService {
   }
 
   /**
+   * Batched OT/DTR seam: the rate in effect on `date` for each employee,
+   * keyed by `employee_id`. Employees with no rate on that date are absent
+   * from the map. One query, no N+1.
+   */
+  async findRatesOnDate(employee_ids: number[], date: string): Promise<Map<number, Compensation>> {
+    const rows = await this.repository.findRatesOnDate(employee_ids, date);
+    return new Map(rows.map((row) => [row.employee_id, row]));
+  }
+
+  /**
    * The employee's current compensation (the active row). Backs `/me`.
    * Null for a new hire with no rate yet — the caller returns 200 + null.
    */
@@ -107,16 +180,17 @@ export class CompensationService {
   }
 
   /**
-   * Correct an erroneous row IN PLACE (no new history row). Recomputes the
-   * hourly rate when monthly_salary changes on a non-overridden row; an
-   * explicit hourly_rate is treated as an override.
+   * Correct an erroneous row IN PLACE (no new history row). A monthly_salary
+   * change always re-derives the hourly rate and clears the override flag
+   * (open-question #3, resolved 2026-06-21); an explicit hourly_rate in the
+   * same patch wins and (re)sets the override.
    */
   async update(
     id: number,
     patch: { monthly_salary?: number; hourly_rate?: number; effective_from?: string },
     updated_by: number | null,
   ): Promise<Compensation> {
-    const existing = await this.findById(id);
+    const existing = await this.findById(id); // 404 if the row doesn't exist
     if (patch.effective_from !== undefined) assertNotFutureDated(patch.effective_from);
 
     const next: {
@@ -133,11 +207,33 @@ export class CompensationService {
     if (patch.hourly_rate !== undefined) {
       next.hourly_rate = patch.hourly_rate;
       next.hourly_rate_is_overridden = true;
-    } else if (patch.monthly_salary !== undefined && !existing.hourly_rate_is_overridden) {
+    } else if (patch.monthly_salary !== undefined) {
+      // A salary correction always re-derives hourly and discards any prior
+      // manual override — the new salary is the fresh basis.
       next.hourly_rate = deriveHourlyRate(patch.monthly_salary);
+      next.hourly_rate_is_overridden = false;
     }
 
-    return this.repository.update(id, next);
+    // The correction and its audit row land atomically — the trail can't drift.
+    return this.dataSource.transaction(async (manager) => {
+      const updated = await this.repository.update(id, next, manager);
+      await this.auditRepo.record(
+        {
+          compensation_id: id,
+          employee_id: existing.employee_id,
+          action: COMPENSATION_AUDIT_ACTION.UPDATED,
+          before_monthly_salary: existing.monthly_salary,
+          after_monthly_salary: updated.monthly_salary,
+          before_hourly_rate: existing.hourly_rate,
+          after_hourly_rate: updated.hourly_rate,
+          before_effective_from: existing.effective_from,
+          after_effective_from: updated.effective_from,
+          actor_id: updated_by,
+        },
+        manager,
+      );
+      return updated;
+    });
   }
 
   /**
@@ -171,7 +267,29 @@ export class CompensationService {
           manager,
         );
       }
+
+      await this.auditRepo.record(
+        {
+          compensation_id: id,
+          employee_id: existing.employee_id,
+          action: COMPENSATION_AUDIT_ACTION.DELETED,
+          before_monthly_salary: existing.monthly_salary,
+          before_hourly_rate: existing.hourly_rate,
+          before_effective_from: existing.effective_from,
+          actor_id: deleted_by,
+        },
+        manager,
+      );
     });
+  }
+
+  /**
+   * The audit trail for one compensation row (newest first). 404s if the row
+   * doesn't exist so the route can't be used to probe for ids.
+   */
+  async findAuditTrail(compensation_id: number): Promise<CompensationAudit[]> {
+    await this.findById(compensation_id); // 404 if the row doesn't exist
+    return this.auditRepo.findByCompensationId(compensation_id);
   }
 }
 

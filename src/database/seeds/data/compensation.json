@@ -1,0 +1,42 @@
+{
+  "_doc": "Seed compensation rows for seeded users so downstream OT/DTR dev has rates to compute on. Each entry resolves an employee by email (users seeded first). hourly_rate is DERIVED from monthly_salary (divisor 208.67) unless an explicit hourly_rate is given (an override). Idempotent on the natural key (employee_id, effective_from): re-running skips existing rows and never touches already-ended ones. Deliberate edge cases for testing: karen_taylor has an OVERRIDDEN hourly_rate; liam_garcia has a prior ENDED row + a current one (exercises findRateOnDate on past dates); harper_vargas is intentionally ABSENT (new-hire null case for GET /users/me/compensation); admin@asima.inc (system_admin) is not an employee and is omitted.",
+
+  "compensations": [
+    { "email": "jane_smith@asima.inc",      "monthly_salary": 75000, "effective_from": "2026-01-01" },
+    { "email": "john_doe@asima.inc",        "monthly_salary": 75000, "effective_from": "2026-01-01" },
+
+    { "email": "mary_brown@asima.inc",      "monthly_salary": 95000, "effective_from": "2026-01-01" },
+
+    { "email": "james_wilson@asima.inc",    "monthly_salary": 85000, "effective_from": "2026-01-01" },
+    { "email": "robert_johnson@asima.inc",  "monthly_salary": 85000, "effective_from": "2026-01-01" },
+    { "email": "linda_miller@asima.inc",    "monthly_salary": 85000, "effective_from": "2026-01-01" },
+
+    { "email": "karen_taylor@asima.inc",    "monthly_salary": 130000, "hourly_rate": 700, "effective_from": "2026-01-01" },
+    { "email": "michael_jones@asima.inc",   "monthly_salary": 130000, "effective_from": "2026-01-01" },
+    { "email": "fred_bloggs@asima.inc",     "monthly_salary": 130000, "effective_from": "2026-01-01" },
+    { "email": "joe_bloggs@asima.inc",      "monthly_salary": 130000, "effective_from": "2026-01-01" },
+    { "email": "alice_bob@asima.inc",       "monthly_salary": 130000, "effective_from": "2026-01-01" },
+
+    { "email": "liam_garcia@asima.inc",     "monthly_salary": 60000, "effective_from": "2025-01-01", "effective_to": "2025-12-31" },
+    { "email": "liam_garcia@asima.inc",     "monthly_salary": 70000, "effective_from": "2026-01-01" },
+
+    { "email": "emma_thompson@asima.inc",   "monthly_salary": 48000, "effective_from": "2026-01-01" },
+    { "email": "olivia_martinez@asima.inc", "monthly_salary": 50000, "effective_from": "2026-01-01" },
+    { "email": "noah_rodriguez@asima.inc",  "monthly_salary": 45000, "effective_from": "2026-01-01" },
+    { "email": "ava_hernandez@asima.inc",   "monthly_salary": 55000, "effective_from": "2026-01-01" },
+    { "email": "william_lopez@asima.inc",   "monthly_salary": 52000, "effective_from": "2026-01-01" },
+    { "email": "sophia_gonzalez@asima.inc", "monthly_salary": 50000, "effective_from": "2026-01-01" },
+    { "email": "ethan_perez@asima.inc",     "monthly_salary": 47000, "effective_from": "2026-01-01" },
+    { "email": "isabella_torres@asima.inc", "monthly_salary": 48000, "effective_from": "2026-01-01" },
+    { "email": "mason_ramirez@asima.inc",   "monthly_salary": 52000, "effective_from": "2026-01-01" },
+    { "email": "mia_flores@asima.inc",      "monthly_salary": 42000, "effective_from": "2026-01-01" },
+    { "email": "lucas_rivera@asima.inc",    "monthly_salary": 48000, "effective_from": "2026-01-01" },
+    { "email": "charlotte_morales@asima.inc","monthly_salary": 48000, "effective_from": "2026-01-01" },
+    { "email": "henry_ortiz@asima.inc",     "monthly_salary": 58000, "effective_from": "2026-01-01" },
+    { "email": "amelia_gutierrez@asima.inc","monthly_salary": 50000, "effective_from": "2026-01-01" },
+    { "email": "jackson_castro@asima.inc",  "monthly_salary": 48000, "effective_from": "2026-01-01" },
+    { "email": "sebastian_mendoza@asima.inc","monthly_salary": 52000, "effective_from": "2026-01-01" },
+    { "email": "evelyn_reyes@asima.inc",    "monthly_salary": 55000, "effective_from": "2026-01-01" },
+    { "email": "daniel_aguilar@asima.inc",  "monthly_salary": 48000, "effective_from": "2026-01-01" }
+  ]
+}

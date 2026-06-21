@@ -79,6 +79,19 @@ export class CompensationRepository extends BaseCompensationRepository {
     return entity ? CompensationMapper.toDomain(entity) : null;
   }
 
+  async findRatesOnDate(employee_ids: number[], date: string): Promise<Compensation[]> {
+    if (employee_ids.length === 0) return [];
+    // Effective-dating is non-overlapping by construction, so at most one row
+    // per employee matches — a single IN-query, riding (employee_id, effective_to).
+    const entities = await this.baseQb()
+      .where('c.employee_id IN (:...ids)', { ids: employee_ids })
+      .andWhere('c.deleted_at IS NULL')
+      .andWhere('c.effective_from <= :date', { date })
+      .andWhere('(c.effective_to IS NULL OR c.effective_to >= :date)', { date })
+      .getMany();
+    return entities.map(CompensationMapper.toDomain);
+  }
+
   async findActiveForEmployee(
     employee_id: number,
     manager?: EntityManager,

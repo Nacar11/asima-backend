@@ -14,8 +14,10 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CompensationService } from '@/compensation/compensation.service';
 import { Compensation } from '@/compensation/domain/compensation';
+import { CompensationAudit } from '@/compensation/domain/compensation-audit';
 import { FindAllCompensation } from '@/compensation/domain/find-all-compensation';
 import { CreateCompensationDto } from '@/compensation/dto/admin/create-compensation.dto';
+import { BulkCreateCompensationDto } from '@/compensation/dto/admin/bulk-create-compensation.dto';
 import { UpdateCompensationDto } from '@/compensation/dto/admin/update-compensation.dto';
 import { QueryCompensationDto } from '@/compensation/dto/admin/query-compensation.dto';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
@@ -69,6 +71,19 @@ export class AdminCompensationController {
     return this.service.findById(id);
   }
 
+  @Get(':id/audit')
+  @Permissions({ COMPENSATION: 'ViewAll' })
+  @ApiOperation({
+    summary: "A compensation row's audit trail (before→after each write, newest first)",
+  })
+  @ApiResponse({
+    status: 200,
+    schema: { type: 'array', items: { $ref: '#/components/schemas/CompensationAudit' } },
+  })
+  auditTrail(@Param('id', ParseIntPipe) id: number): Promise<CompensationAudit[]> {
+    return this.service.findAuditTrail(id);
+  }
+
   @Post()
   @Permissions({ COMPENSATION: 'Create' })
   @ApiOperation({
@@ -83,13 +98,34 @@ export class AdminCompensationController {
     return this.service.create({ ...dto, created_by: actor.id });
   }
 
+  @Post('bulk')
+  @Permissions({ COMPENSATION: 'Create' })
+  @ApiOperation({
+    summary: 'Set pay for multiple employees (all-or-nothing)',
+    description:
+      'One transaction for the whole batch — any item failing rolls back all. Duplicate ' +
+      'employee_id in the payload is rejected (422); each item follows the same rules as the ' +
+      'single set-pay route.',
+  })
+  @ApiResponse({
+    status: 201,
+    schema: { type: 'array', items: { $ref: '#/components/schemas/Compensation' } },
+  })
+  createBulk(
+    @Body() dto: BulkCreateCompensationDto,
+    @CurrentUser() actor: User,
+  ): Promise<Compensation[]> {
+    return this.service.createBulk(dto.items, actor.id);
+  }
+
   @Patch(':id')
   @Permissions({ COMPENSATION: 'Update' })
   @ApiOperation({
     summary: 'Correct an erroneous compensation row in place',
     description:
       'No new history row — use POST to record a real pay change. A monthly_salary change ' +
-      'recomputes the derived hourly rate; an explicit hourly_rate marks the row overridden.',
+      'always re-derives the hourly rate and clears any override; an explicit hourly_rate ' +
+      'marks the row overridden.',
   })
   @ApiResponse({ status: 200, type: Compensation })
   update(

@@ -43,6 +43,14 @@ export class Compensation {
   hourly_rate_is_overridden!: boolean;
 
   @ApiProperty({
+    example: 'PHP',
+    description:
+      'Company currency for these amounts. A single-tenant constant surfaced on reads ' +
+      '(not a DB column); the mapper fills it from COMPENSATION_CURRENCY.',
+  })
+  currency!: string;
+
+  @ApiProperty({
     example: '2026-06-01',
     description: 'First calendar date this rate applies (inclusive, YYYY-MM-DD).',
   })

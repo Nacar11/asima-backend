@@ -1,3 +1,4 @@
+import { COMPENSATION_CURRENCY } from '@/compensation/compensation.constants';
 import { Compensation } from '@/compensation/domain/compensation';
 import { CompensationEntity } from '@/compensation/persistence/entities/compensation.entity';
 
@@ -9,6 +10,8 @@ export class CompensationMapper {
     c.monthly_salary = raw.monthly_salary;
     c.hourly_rate = raw.hourly_rate;
     c.hourly_rate_is_overridden = raw.hourly_rate_is_overridden;
+    // Single-tenant constant surfaced on every read payload (not a column).
+    c.currency = COMPENSATION_CURRENCY;
     c.effective_from = raw.effective_from;
     c.effective_to = raw.effective_to;
     c.created_by = raw.created_by;

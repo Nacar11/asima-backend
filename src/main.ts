@@ -94,7 +94,9 @@ async function bootstrap() {
         name: 'Admin - Compensation',
         schemas: [
           'Compensation',
+          'CompensationAudit',
           'CreateCompensationDto',
+          'BulkCreateCompensationDto',
           'UpdateCompensationDto',
           'QueryCompensationDto',
         ],

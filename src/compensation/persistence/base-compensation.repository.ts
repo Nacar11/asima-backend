@@ -26,6 +26,15 @@ export abstract class BaseCompensationRepository {
   abstract findRateOnDate(employee_id: number, date: string): Promise<Compensation | null>;
 
   /**
+   * Batched form of `findRateOnDate` — the rate in effect on `date` for each
+   * of `employee_ids`, as a single query (no per-employee N+1). The OT/DTR
+   * seam for per-day, whole-team pay classification. Employees with no rate
+   * on that date are simply absent from the result. A full date-range matrix
+   * is deferred to the OT slice that defines its query shape.
+   */
+  abstract findRatesOnDate(employee_ids: number[], date: string): Promise<Compensation[]>;
+
+  /**
    * The single active row for an employee (`effective_to IS NULL`), or
    * null. Because future-dating is disallowed, this IS the current rate.
    */

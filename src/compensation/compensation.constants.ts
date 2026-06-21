@@ -35,3 +35,18 @@ export function deriveHourlyRate(monthly_salary: number): number {
   const factor = 10 ** HOURLY_RATE_SCALE;
   return Math.round((monthly_salary / COMPENSATION_MONTHLY_HOURS_DIVISOR) * factor) / factor;
 }
+
+/**
+ * Audit actions recorded in `compensation_audits` — one row per write to a
+ * compensation record, capturing before→after pay so a salary change leaves
+ * a value-level trail (the effective-dated rows alone can't show an in-place
+ * correction's prior value).
+ */
+export const COMPENSATION_AUDIT_ACTION = {
+  CREATED: 'created',
+  UPDATED: 'updated',
+  DELETED: 'deleted',
+} as const;
+
+export type CompensationAuditAction =
+  (typeof COMPENSATION_AUDIT_ACTION)[keyof typeof COMPENSATION_AUDIT_ACTION];
