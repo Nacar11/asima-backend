@@ -5,7 +5,10 @@ import { DataSource } from 'typeorm';
 import appConfig from '@/config/app.config';
 import databaseConfig from '@/database/config/database.config';
 import authConfig from '@/auth/config/auth.config';
+import storageConfig from '@/storage/config/storage.config';
 import { TypeOrmConfigService } from '@/database/typeorm-config.service';
+import { StorageModule } from '@/storage/storage.module';
+import { LeaveRequestEntity } from '@/leave-requests/persistence/entities/leave-request.entity';
 import { PermissionEntity } from '@/permissions/persistence/entities/permission.entity';
 import { RoleEntity } from '@/roles/persistence/entities/role.entity';
 import { UserEntity } from '@/users/persistence/entities/user.entity';
@@ -21,12 +24,13 @@ import { TimeEntrySeedService } from './time-entry/time-entry-seed.service';
 import { WorkScheduleSeedService } from './work-schedule/work-schedule-seed.service';
 import { CompensationSeedService } from './compensation/compensation-seed.service';
 import { ApprovalChainSeedService } from './approval-chain/approval-chain-seed.service';
+import { LeaveRequestSeedService } from './leave-request/leave-request-seed.service';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, authConfig],
+      load: [appConfig, databaseConfig, authConfig, storageConfig],
       envFilePath: ['.env'],
     }),
     TypeOrmModule.forRootAsync({
@@ -42,7 +46,9 @@ import { ApprovalChainSeedService } from './approval-chain/approval-chain-seed.s
       LeaveAllocationEntity,
       CompensationEntity,
       ApprovalChainEntity,
+      LeaveRequestEntity,
     ]),
+    StorageModule,
   ],
   providers: [
     PermissionSeedService,
@@ -52,6 +58,7 @@ import { ApprovalChainSeedService } from './approval-chain/approval-chain-seed.s
     WorkScheduleSeedService,
     CompensationSeedService,
     ApprovalChainSeedService,
+    LeaveRequestSeedService,
   ],
   exports: [
     PermissionSeedService,
@@ -61,6 +68,7 @@ import { ApprovalChainSeedService } from './approval-chain/approval-chain-seed.s
     WorkScheduleSeedService,
     CompensationSeedService,
     ApprovalChainSeedService,
+    LeaveRequestSeedService,
   ],
 })
 export class SeedModule {}

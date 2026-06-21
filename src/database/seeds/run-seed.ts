@@ -9,6 +9,7 @@ import { TimeEntrySeedService } from './time-entry/time-entry-seed.service';
 import { WorkScheduleSeedService } from './work-schedule/work-schedule-seed.service';
 import { CompensationSeedService } from './compensation/compensation-seed.service';
 import { ApprovalChainSeedService } from './approval-chain/approval-chain-seed.service';
+import { LeaveRequestSeedService } from './leave-request/leave-request-seed.service';
 
 async function runSeed() {
   const logger = new Logger('Seed');
@@ -24,6 +25,7 @@ async function runSeed() {
     await app.get(WorkScheduleSeedService).run();
     await app.get(CompensationSeedService).run();
     await app.get(ApprovalChainSeedService).run();
+    await app.get(LeaveRequestSeedService).run();
     logger.log('All seeds complete');
   } catch (err) {
     logger.error('Seed failed', err instanceof Error ? err.stack : String(err));
