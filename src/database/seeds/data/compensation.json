@@ -20,6 +20,10 @@
     { "email": "liam_garcia@asima.inc",     "monthly_salary": 60000, "effective_from": "2025-01-01", "effective_to": "2025-12-31" },
     { "email": "liam_garcia@asima.inc",     "monthly_salary": 70000, "effective_from": "2026-01-01" },
 
+    { "email": "michael_jones@asima.inc",   "monthly_salary": 120000, "effective_from": "2025-01-01", "effective_to": "2025-12-31" },
+    { "email": "william_lopez@asima.inc",   "monthly_salary": 46000, "effective_from": "2025-01-01", "effective_to": "2025-12-31" },
+    { "email": "sophia_gonzalez@asima.inc", "monthly_salary": 47000, "hourly_rate": 250, "effective_from": "2025-06-01", "effective_to": "2025-12-31" },
+
     { "email": "emma_thompson@asima.inc",   "monthly_salary": 48000, "effective_from": "2026-01-01" },
     { "email": "olivia_martinez@asima.inc", "monthly_salary": 50000, "effective_from": "2026-01-01" },
     { "email": "noah_rodriguez@asima.inc",  "monthly_salary": 45000, "effective_from": "2026-01-01" },
