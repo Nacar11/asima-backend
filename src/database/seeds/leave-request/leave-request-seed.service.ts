@@ -6,10 +6,26 @@ import * as fs from 'fs';
 import { UserEntity } from '@/users/persistence/entities/user.entity';
 import { ApprovalChainEntity } from '@/approval-chains/persistence/entities/approval-chain.entity';
 import { LeaveRequestEntity } from '@/leave-requests/persistence/entities/leave-request.entity';
+import { WorkScheduleEntity } from '@/work-schedules/persistence/entities/work-schedule.entity';
 import { AttachmentService } from '@/storage/attachment.service';
-import { buildLeaveRows, LeaveRowSpec } from './leave-rows';
+import { buildLeaveRows, DayPortion, LeaveRowSpec } from './leave-rows';
 
 const BASE_DATE = '2025-03-03'; // a Monday — all generated dates are weekdays in the past
+
+type ScheduleWindow = {
+  expected_in: string;
+  expected_out: string;
+  break_start: string;
+  break_end: string;
+};
+
+/** Add `mins` to an `HH:MM:SS` time string (same-day; seeded schedules never wrap). */
+function addMinutesToTime(time: string, mins: number): string {
+  const [h = 0, m = 0, s = 0] = time.split(':').map(Number);
+  const total = h * 60 + m + mins;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(Math.floor(total / 60) % 24)}:${pad(total % 60)}:${pad(s)}`;
+}
 
 /**
  * Seeds a spread of leave requests per employee (pending in approver inboxes +
@@ -31,6 +47,8 @@ export class LeaveRequestSeedService {
     private readonly chainRepo: Repository<ApprovalChainEntity>,
     @InjectRepository(LeaveRequestEntity)
     private readonly leaveRepo: Repository<LeaveRequestEntity>,
+    @InjectRepository(WorkScheduleEntity)
+    private readonly scheduleRepo: Repository<WorkScheduleEntity>,
     private readonly attachments: AttachmentService,
     private readonly dataSource: DataSource,
   ) {}
@@ -48,20 +66,33 @@ export class LeaveRequestSeedService {
       chainByEmp.set(c.employee_id, e);
     }
 
+    // One schedule window per employee (seeded schedules are uniform per weekday)
+    // — used to fill start_time/end_time on half-day rows.
+    const schedules = await this.scheduleRepo.find({ where: { effective_to: IsNull() } });
+    const windowByEmp = new Map<number, ScheduleWindow>();
+    for (const s of schedules) {
+      if (windowByEmp.has(s.employee_id) || !s.break_start) continue; // need a break to split the day
+      windowByEmp.set(s.employee_id, {
+        expected_in: s.expected_in,
+        expected_out: s.expected_out,
+        break_start: s.break_start,
+        break_end: addMinutesToTime(s.break_start, s.break_minutes),
+      });
+    }
+
     const placeholder = this.loadPlaceholder();
     const employees = users.filter((u) => chainByEmp.has(u.id)).sort((a, b) => a.id - b.id);
 
     let inserted = 0;
     let skipped = 0;
     let skippedNoAttachment = 0;
-    let attachmentIndex = 0;
+    let index = 0;
 
     for (const emp of employees) {
       const chain = chainByEmp.get(emp.id)!;
       if (chain.l1 == null) continue;
 
-      const wantAttachment = placeholder != null && attachmentIndex % 3 === 0;
-      attachmentIndex += 1;
+      const wantAttachment = placeholder != null && index % 3 === 0;
 
       const rows = buildLeaveRows({
         employee_id: emp.id,
@@ -70,7 +101,9 @@ export class LeaveRequestSeedService {
         admin_id: adminId,
         base_date: BASE_DATE,
         with_attachment_types: wantAttachment,
+        variant_index: index,
       });
+      index += 1;
 
       const missing: LeaveRowSpec[] = [];
       for (const r of rows) {
@@ -98,21 +131,24 @@ export class LeaveRequestSeedService {
         }
       }
 
+      const window = windowByEmp.get(emp.id) ?? null;
+
       for (const r of missing) {
         if (r.requires_attachment && attachmentId == null) {
           skippedNoAttachment += 1; // R5: never seed sick/bereavement with a null attachment_id
           continue;
         }
+        const slot = this.halfDaySlot(r.day_portion, window);
         await this.leaveRepo.save(
           this.leaveRepo.create({
             employee_id: r.employee_id,
             leave_type: r.leave_type,
             start_date: r.start_date,
             end_date: r.end_date,
-            working_days: r.working_days,
-            day_portion: r.day_portion,
-            start_time: null,
-            end_time: null,
+            working_days: slot.working_days ?? r.working_days,
+            day_portion: slot.day_portion,
+            start_time: slot.start_time,
+            end_time: slot.end_time,
             reason: r.reason,
             status: r.status,
             submitted_at: r.submitted_at,
@@ -137,6 +173,28 @@ export class LeaveRequestSeedService {
       `LeaveRequests seed complete: ${inserted} inserted, ${skipped} already existed` +
         (skippedNoAttachment ? `, ${skippedNoAttachment} skipped (no attachment)` : ''),
     );
+  }
+
+  /**
+   * Resolve a row's day-portion into persisted columns. A half-day needs the
+   * employee's schedule window for start_time/end_time; with no schedule it
+   * degrades to a full day so the row is still valid.
+   */
+  private halfDaySlot(
+    portion: DayPortion,
+    window: ScheduleWindow | null,
+  ): {
+    day_portion: DayPortion;
+    start_time: string | null;
+    end_time: string | null;
+    working_days?: number;
+  } {
+    if (portion === 'full') return { day_portion: 'full', start_time: null, end_time: null };
+    if (!window) return { day_portion: 'full', start_time: null, end_time: null, working_days: 1 };
+    if (portion === 'first_half') {
+      return { day_portion: portion, start_time: window.expected_in, end_time: window.break_start };
+    }
+    return { day_portion: portion, start_time: window.break_end, end_time: window.expected_out };
   }
 
   /** Upload + persist one per-employee placeholder attachment; returns its id. */
