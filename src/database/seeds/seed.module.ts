@@ -13,12 +13,14 @@ import { TimeEntryEntity } from '@/time-entries/persistence/entities/time-entry.
 import { WorkScheduleEntity } from '@/work-schedules/persistence/entities/work-schedule.entity';
 import { LeaveAllocationEntity } from '@/leave-allocations/persistence/entities/leave-allocation.entity';
 import { CompensationEntity } from '@/compensation/persistence/entities/compensation.entity';
+import { ApprovalChainEntity } from '@/approval-chains/persistence/entities/approval-chain.entity';
 import { PermissionSeedService } from './permission/permission-seed.service';
 import { RoleSeedService } from './role/role-seed.service';
 import { UserSeedService } from './user/user-seed.service';
 import { TimeEntrySeedService } from './time-entry/time-entry-seed.service';
 import { WorkScheduleSeedService } from './work-schedule/work-schedule-seed.service';
 import { CompensationSeedService } from './compensation/compensation-seed.service';
+import { ApprovalChainSeedService } from './approval-chain/approval-chain-seed.service';
 
 @Module({
   imports: [
@@ -39,6 +41,7 @@ import { CompensationSeedService } from './compensation/compensation-seed.servic
       WorkScheduleEntity,
       LeaveAllocationEntity,
       CompensationEntity,
+      ApprovalChainEntity,
     ]),
   ],
   providers: [
@@ -48,6 +51,7 @@ import { CompensationSeedService } from './compensation/compensation-seed.servic
     TimeEntrySeedService,
     WorkScheduleSeedService,
     CompensationSeedService,
+    ApprovalChainSeedService,
   ],
   exports: [
     PermissionSeedService,
@@ -56,6 +60,7 @@ import { CompensationSeedService } from './compensation/compensation-seed.servic
     TimeEntrySeedService,
     WorkScheduleSeedService,
     CompensationSeedService,
+    ApprovalChainSeedService,
   ],
 })
 export class SeedModule {}
