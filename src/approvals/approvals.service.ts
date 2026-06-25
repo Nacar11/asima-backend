@@ -4,7 +4,7 @@ import { hasPermission } from '@/users/domain/user-permissions';
 import { paginate, resolvePaging } from '@/utils/helpers/pagination';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
-import { LeaveRequest } from '@/leave-requests/domain/leave-request';
+import { LeaveRequestRecord } from '@/leave-requests/domain/leave-request';
 import { LEAVE_REQUEST_STATUSES } from '@/leave-requests/leave-requests.constants';
 import { TimeCorrectionRequestsService } from '@/time-correction-requests/time-correction-requests.service';
 import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
@@ -57,8 +57,8 @@ export class ApprovalsService {
     return paginate(data, total, paging);
   }
 
-  private async mapLeaves(leaves: LeaveRequest[]): Promise<PendingApproval[]> {
-    const approverIdOf = (l: LeaveRequest) =>
+  private async mapLeaves(leaves: LeaveRequestRecord[]): Promise<PendingApproval[]> {
+    const approverIdOf = (l: LeaveRequestRecord) =>
       (l.status === LEAVE_REQUEST_STATUSES.pending_l1 ? l.l1_approver_id : l.l2_approver_id) ??
       l.l1_approver_id;
     // Resolve employee + current-approver names in one findByIds (no N+1).

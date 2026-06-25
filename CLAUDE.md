@@ -1,51 +1,69 @@
 # asima-backend
 
-NestJS 10 + TypeORM 0.3 + PostgreSQL 16. Node ≥ 20. Hexagonal per module.
+NestJS 10 + TypeORM 0.3 + PostgreSQL 16. Node ≥ 20. Domain-Driven Design per module.
 
 System-level context (cross-cutting concepts, terminology, API conventions)
 lives in the parent `CLAUDE.md`. This file is **backend-only rules**.
 
-## Hexagonal layout (non-negotiable)
+## DDD layout (non-negotiable)
 
-Every feature module mirrors this shape:
+Every feature module is **Domain-Driven Design**: business rules live on rich
+aggregates, the domain is framework-free, validated primitives are value
+objects, and aggregates raise domain events. Each aggregate module mirrors
+this shape:
 
 ```
 src/<feature>/
-├── domain/                 # pure TS — no @nestjs/* runtime, no typeorm
-│   ├── <feature>.ts                   # domain class
-│   ├── <feature>-search-criteria.ts   # filter shape
-│   └── find-all-<feature>.ts          # PaginatedResponse alias
+├── domain/                 # PURE TS — no @nestjs/* (not even @ApiProperty), no typeorm, no class-validator
+│   ├── <root>.aggregate.ts            # aggregate ROOT: private ctor + factory + reconstitute + behavior + events
+│   ├── <root>.ts                      # persisted data record (reconstitution input + read shape)
+│   ├── value-objects/<vo>.ts          # self-validating, immutable value objects
+│   ├── events/<feature>-events.ts     # past-tense domain events the aggregate raises
+│   ├── <root>-errors.ts               # plain domain errors the use-case maps to HTTP
+│   ├── <root>-search-criteria.ts      # read filter shape
+│   └── find-all-<root>.ts             # PaginatedResponse alias (read-model)
 ├── persistence/
-│   ├── entities/<feature>.entity.ts          # TypeORM @Entity
-│   ├── mappers/<feature>.mapper.ts           # toDomain / toPersistence
-│   ├── repositories/<feature>.repository.ts  # concrete impl
-│   ├── base-<feature>.repository.ts          # abstract port
-│   └── persistence.module.ts                 # binds Base→Concrete
-├── dto/                    # class-validator inputs
+│   ├── entities/<root>.entity.ts            # TypeORM @Entity
+│   ├── mappers/<root>.mapper.ts             # toAggregate (write load) / toDomain (read)
+│   ├── repositories/<root>.repository.ts    # concrete impl
+│   ├── base-<root>.repository.ts            # abstract port (one per aggregate ROOT)
+│   └── persistence.module.ts                # binds Base→Concrete
+├── dto/
+│   ├── admin/  me/                    # class-validator REQUEST DTOs (audience-split)
+│   └── response/<resource>-response.dto.ts  # @ApiProperty WIRE shape (the domain has none)
 ├── controllers/            # @Controller({ version: API_VERSION })
-├── <feature>.service.ts    # depends on Base*Repository (the port)
+├── <resource>.assembler.ts # aggregate / read-model → response DTO
+├── <feature>.service.ts    # thin use-case: load → behave → save → publish; depends on Base*Repository (the port)
 ├── <feature>.module.ts
 └── <feature>.constants.ts  # if the module has stable enums
 ```
 
-Reference exemplar: `src/permissions/` (already in tree). When unsure how a
-new piece fits, mirror what permissions does. The original blueprint is
-`module-architecture.md`; the categories prototype in `reference/` is a
-deeper pattern source — read but never import from `reference/`.
+Reference exemplar: `src/leave-requests/` — a rich aggregate with a real state
+machine, value objects, domain events, a response DTO, and a thin use-case
+service. When unsure how a piece fits, mirror what `leave-requests` does. The
+full blueprint (templates + the new-aggregate checklist) is
+`module-architecture.md`. The shared DDD kit lives in `src/utils/domain/`
+(`AggregateRoot`, `DomainEvent`, `DomainEventPublisher`, `ValueObject`,
+`AuditStamp`, shared value objects).
 
 ### The rules that make this work
 
-1. **Domain has zero `@nestjs/*` runtime imports and zero `typeorm`
-   imports.** `@nestjs/swagger` decorators are the only allowed exception
-   (they're stripped at runtime). Putting `@Injectable()` or `@Entity()` on
-   a domain class breaks every test that mocks the repository.
-2. **Service depends on the abstract `Base<Feature>Repository`.** The
-   concrete repository extends it; the persistence module binds them with
-   `{ provide: BaseFooRepository, useClass: FooRepository }`. Tests mock
-   the abstract — that's the whole point of the port.
-3. **Every cross-layer hop goes through a mapper.** `toDomain(entity)` on
-   the way out, `toPersistence(domain)` on the way in. Repositories never
-   return entities; controllers never see entities.
+1. **The domain is pure.** Zero `@nestjs/*` (not even `@ApiProperty`), zero
+   `typeorm`, zero `class-validator` anywhere under `domain/`. The aggregate
+   imports only other domain code + the shared kit. The Swagger/HTTP shape
+   lives on the response DTO; the persisted columns on the entity.
+2. **Behavior lives on the aggregate, not the service.** Transitions, guards,
+   and invariants are methods on the root; invalid objects can't be
+   constructed (private constructor + static factory; `reconstitute` rebuilds
+   persisted state — never `Object.assign`). The service orchestrates: load →
+   call behavior → persist → publish events. It maps the aggregate's plain
+   domain errors to the HTTP envelope.
+3. **Service depends on the abstract `Base<Root>Repository`.** The concrete
+   repository extends it; the persistence module binds them with
+   `{ provide: BaseFooRepository, useClass: FooRepository }`. Tests mock the
+   abstract — that's the DI/test seam. Reconstitution lives at the mapper
+   (`toAggregate`); repositories never return entities and never throw 404
+   (they return null; the service owns the 404).
 4. **Snake_case end-to-end.** DB columns, domain field names, and JSON
    payloads all use `created_at`, `password_hash`, `is_active`. Don't add a
    naming-strategy plugin to translate.
@@ -461,8 +479,8 @@ npm run build              # nest build → dist/
 
 ## Time-tracking module
 
-Two modules — `src/time-entries/` and `src/work-schedules/` — both follow
-the standard hexagonal layout above. A few invariants that exist at the
+Two modules — `src/time-entries/` and `src/work-schedules/` — follow the
+standard DDD layout above. A few invariants that exist at the
 DB level, not just in the service, and matter when you change anything
 in this area:
 
@@ -542,7 +560,7 @@ here as `../docs/`. **Do not create a `docs/` directory in this repo.**
 
 The only doc-like files that stay local are the **gitignored** `tasks/`
 working files (`tasks/plan.md`, `tasks/todo.md`) — a private workspace, not
-documentation, never committed. Code-adjacent exemplars under `reference/`
+documentation, never committed. Code-adjacent prototypes under `reference/`
 are not docs and also stay local.
 
 ## Where to look first
@@ -551,10 +569,13 @@ are not docs and also stay local.
 - `tasks/todo.md` — active queue.
 - `../docs/adr/` — read the matching ADR before changing roles, auth, or
   approval logic.
-- `module-architecture.md` — the hexagonal blueprint.
+- `module-architecture.md` — the DDD blueprint (aggregate templates + checklist).
+- `src/leave-requests/` — the DDD reference exemplar (aggregate, value objects,
+  domain events, response DTO, thin use-case service). New modules mirror it.
 - `../docs/universal-guidelines/database-migration-conventions.md` — when to
   edit a CREATE migration vs. add an ALTER (one table = one CREATE migration).
-- `reference/categories/` — pattern reference. Read for shape; do not import.
+- `reference/categories/` — a **pre-DDD** prototype, kept for historical shape
+  only. Do NOT mirror it and never import from it — follow `leave-requests`.
 
 ## Out of scope for v0
 

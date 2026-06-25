@@ -21,8 +21,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
-import { LeaveRequest } from '@/leave-requests/domain/leave-request';
-import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
+import { LeaveRequestAssembler } from '@/leave-requests/leave-request.assembler';
+import { LeaveRequestResponseDto } from '@/leave-requests/dto/response/leave-request-response.dto';
+import { LeaveRequestListItemResponseDto } from '@/leave-requests/dto/response/leave-request-list-item-response.dto';
+import { PaginatedResponse } from '@/utils/types/paginated-response.type';
 import { SubmitLeaveRequestDto } from '@/leave-requests/dto/me/submit-leave-request.dto';
 import { DayCountQueryDto } from '@/leave-requests/dto/me/day-count-query.dto';
 import { QueryLeaveRequestDto } from '@/leave-requests/dto/admin/query-leave-request.dto';
@@ -47,11 +49,12 @@ export class MeLeaveRequestsController {
   @Permissions({ LEAVE: 'ViewOwn' })
   @ApiOperation({ summary: 'List my leave requests (paginated)' })
   @ApiResponse({ status: 200 })
-  list(
+  async list(
     @Query() query: QueryLeaveRequestDto,
     @CurrentUser() me: User,
-  ): Promise<FindAllLeaveRequest> {
-    return this.service.findAll({ ...query, employee_id: me.id });
+  ): Promise<PaginatedResponse<LeaveRequestListItemResponseDto>> {
+    const page = await this.service.findAll({ ...query, employee_id: me.id });
+    return LeaveRequestAssembler.toPaginatedResponse(page);
   }
 
   @Post()
@@ -79,12 +82,14 @@ export class MeLeaveRequestsController {
     },
   })
   @ApiResponse({ status: 201 })
-  submit(
+  async submit(
     @Body() dto: SubmitLeaveRequestDto,
     @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser() me: User,
-  ): Promise<LeaveRequest> {
-    return this.service.submit({ ...dto, employee_id: me.id }, me, file);
+  ): Promise<LeaveRequestResponseDto> {
+    return LeaveRequestAssembler.toResponse(
+      await this.service.submit({ ...dto, employee_id: me.id }, me, file),
+    );
   }
 
   @Get('day-count')
@@ -104,15 +109,21 @@ export class MeLeaveRequestsController {
   @Get(':id')
   @Permissions({ LEAVE: 'ViewOwn' })
   @ApiOperation({ summary: 'Get one of my leave requests' })
-  getOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() me: User): Promise<LeaveRequest> {
-    return this.service.findByIdForViewer(id, me);
+  async getOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() me: User,
+  ): Promise<LeaveRequestResponseDto> {
+    return LeaveRequestAssembler.toResponse(await this.service.findByIdForViewer(id, me));
   }
 
   @Post(':id/cancel')
   @Permissions({ LEAVE: 'ViewOwn' })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel one of my pending leave requests' })
-  cancel(@Param('id', ParseIntPipe) id: number, @CurrentUser() me: User): Promise<LeaveRequest> {
-    return this.service.cancel(id, me);
+  async cancel(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() me: User,
+  ): Promise<LeaveRequestResponseDto> {
+    return LeaveRequestAssembler.toResponse(await this.service.cancel(id, me));
   }
 }

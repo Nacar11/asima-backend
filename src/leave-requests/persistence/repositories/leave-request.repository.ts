@@ -7,7 +7,8 @@ import {
 } from '@/leave-requests/persistence/base-leave-request.repository';
 import { LeaveRequestEntity } from '@/leave-requests/persistence/entities/leave-request.entity';
 import { LeaveRequestMapper } from '@/leave-requests/persistence/mappers/leave-request.mapper';
-import { LeaveRequest } from '@/leave-requests/domain/leave-request';
+import { LeaveRequestRecord } from '@/leave-requests/domain/leave-request';
+import { LeaveRequest } from '@/leave-requests/domain/leave-request.aggregate';
 import { LeaveRequestSearchCriteria } from '@/leave-requests/domain/leave-request-search-criteria';
 import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
 import {
@@ -59,16 +60,21 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
     return paginate(entities.map(LeaveRequestMapper.toListItem), total, paging);
   }
 
-  async findById(id: number): Promise<LeaveRequest | null> {
+  async findById(id: number): Promise<LeaveRequestRecord | null> {
     const entity = await this.repo.findOne({ where: { id } });
     return entity ? LeaveRequestMapper.toDomain(entity) : null;
+  }
+
+  async findAggregateById(id: number): Promise<LeaveRequest | null> {
+    const entity = await this.repo.findOne({ where: { id } });
+    return entity ? LeaveRequestMapper.toAggregate(entity) : null;
   }
 
   async findOverlapping(
     employee_id: number,
     start_date: string,
     end_date: string,
-  ): Promise<LeaveRequest[]> {
+  ): Promise<LeaveRequestRecord[]> {
     const entities = await this.repo
       .createQueryBuilder('lr')
       .where('lr.employee_id = :eid', { eid: employee_id })
@@ -85,7 +91,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
     return entities.map(LeaveRequestMapper.toDomain);
   }
 
-  async findPendingForApprover(approver_id: number): Promise<LeaveRequest[]> {
+  async findPendingForApprover(approver_id: number): Promise<LeaveRequestRecord[]> {
     const entities = await this.repo
       .createQueryBuilder('lr')
       .where('lr.deleted_at IS NULL')
@@ -98,7 +104,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
     return entities.map(LeaveRequestMapper.toDomain);
   }
 
-  async findAllPending(): Promise<LeaveRequest[]> {
+  async findAllPending(): Promise<LeaveRequestRecord[]> {
     const entities = await this.repo
       .createQueryBuilder('lr')
       .where('lr.deleted_at IS NULL')
@@ -112,7 +118,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
     employee_id: number,
     from_date: string,
     manager?: EntityManager,
-  ): Promise<LeaveRequest[]> {
+  ): Promise<LeaveRequestRecord[]> {
     const repo = manager ? manager.getRepository(LeaveRequestEntity) : this.repo;
     const entities = await repo
       .createQueryBuilder('lr')
@@ -172,7 +178,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       created_by?: number | null;
     },
     manager?: EntityManager,
-  ): Promise<LeaveRequest> {
+  ): Promise<LeaveRequestRecord> {
     // When a manager is passed, the insert (and its reload) join that
     // transaction — required for reserve-on-submit (plan C3).
     const repo = manager ? manager.getRepository(LeaveRequestEntity) : this.repo;
@@ -261,14 +267,14 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
       cancelled_by?: number | null;
       updated_by?: number | null;
     },
-  ): Promise<LeaveRequest> {
+  ): Promise<LeaveRequestRecord> {
     const existing = await this.repo.findOneOrFail({ where: { id } });
     Object.assign(existing, patch);
     await this.repo.save(existing);
     return this.requireById(id);
   }
 
-  private async requireById(id: number): Promise<LeaveRequest> {
+  private async requireById(id: number): Promise<LeaveRequestRecord> {
     const entity = await this.repo.findOneOrFail({ where: { id } });
     return LeaveRequestMapper.toDomain(entity);
   }

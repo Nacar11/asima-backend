@@ -2,7 +2,8 @@ import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { LeaveAllocationsService } from '@/leave-allocations/leave-allocations.service';
 import { LeaveAllocation } from '@/leave-allocations/domain/leave-allocation';
-import { LeaveBalance } from '@/leave-requests/domain/leave-balance';
+import { LeaveBalanceResponseDto } from '@/leave-requests/dto/response/leave-balance-response.dto';
+import { LeaveRequestAssembler } from '@/leave-requests/leave-request.assembler';
 import { GrantLeaveAllocationDto } from '@/leave-allocations/dto/admin/grant-leave-allocation.dto';
 import { Permissions } from '@/permissions/permissions.decorator';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
@@ -43,8 +44,8 @@ export class AdminLeaveAllocationsController {
   @Get('leave-balances')
   @Permissions({ LEAVE_ALLOCATION: 'View' })
   @ApiOperation({ summary: "An employee's leave balances (available / used / reserved per type)" })
-  @ApiResponse({ status: 200, type: [LeaveBalance] })
-  balances(@Param('id', ParseIntPipe) id: number): Promise<LeaveBalance[]> {
-    return this.service.balancesFor(id);
+  @ApiResponse({ status: 200, type: [LeaveBalanceResponseDto] })
+  async balances(@Param('id', ParseIntPipe) id: number): Promise<LeaveBalanceResponseDto[]> {
+    return LeaveRequestAssembler.toBalanceResponseList(await this.service.balancesFor(id));
   }
 }

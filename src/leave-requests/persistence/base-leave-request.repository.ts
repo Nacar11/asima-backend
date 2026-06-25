@@ -1,5 +1,6 @@
 import { EntityManager } from 'typeorm';
-import { LeaveRequest } from '@/leave-requests/domain/leave-request';
+import { LeaveRequestRecord } from '@/leave-requests/domain/leave-request';
+import { LeaveRequest } from '@/leave-requests/domain/leave-request.aggregate';
 import { LeaveRequestSearchCriteria } from '@/leave-requests/domain/leave-request-search-criteria';
 import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
 import {
@@ -33,7 +34,15 @@ export abstract class BaseLeaveRequestRepository {
     leave_type: LeaveType,
   ): Promise<number>;
 
-  abstract findById(id: number): Promise<LeaveRequest | null>;
+  abstract findById(id: number): Promise<LeaveRequestRecord | null>;
+
+  /**
+   * Load the rich aggregate for a write/transition (approve/reject/cancel).
+   * Returns null on a miss — the service owns the 404. Distinct from
+   * `findById` (the read-path data record) so reconstitution happens only
+   * where behavior will run.
+   */
+  abstract findAggregateById(id: number): Promise<LeaveRequest | null>;
 
   /**
    * Pending/approved requests for an employee whose date range overlaps
@@ -43,16 +52,16 @@ export abstract class BaseLeaveRequestRepository {
     employee_id: number,
     start_date: string,
     end_date: string,
-  ): Promise<LeaveRequest[]>;
+  ): Promise<LeaveRequestRecord[]>;
 
   /**
    * Rows a given user can currently act on as the assigned approver:
    * (pending_l1 AND l1 = user) OR (pending_l2 AND l2 = user).
    */
-  abstract findPendingForApprover(approver_id: number): Promise<LeaveRequest[]>;
+  abstract findPendingForApprover(approver_id: number): Promise<LeaveRequestRecord[]>;
 
   /** Every currently-pending request (for ApproveAny / system_admin inbox). */
-  abstract findAllPending(): Promise<LeaveRequest[]>;
+  abstract findAllPending(): Promise<LeaveRequestRecord[]>;
 
   /**
    * Active (pending/approved) requests for an employee whose range can still
@@ -64,7 +73,7 @@ export abstract class BaseLeaveRequestRepository {
     employee_id: number,
     from_date: string,
     manager?: EntityManager,
-  ): Promise<LeaveRequest[]>;
+  ): Promise<LeaveRequestRecord[]>;
 
   /**
    * System cancel of the given requests as part of a schedule change: flips
@@ -98,7 +107,7 @@ export abstract class BaseLeaveRequestRepository {
       created_by?: number | null;
     },
     manager?: EntityManager,
-  ): Promise<LeaveRequest>;
+  ): Promise<LeaveRequestRecord>;
 
   abstract update(
     id: number,
@@ -120,5 +129,5 @@ export abstract class BaseLeaveRequestRepository {
       cancelled_by?: number | null;
       updated_by?: number | null;
     },
-  ): Promise<LeaveRequest>;
+  ): Promise<LeaveRequestRecord>;
 }

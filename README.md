@@ -6,7 +6,7 @@ schedules) of **asima** — an Ashima-inspired Employee Time Management
 System.
 
 > System-level context lives in `../CLAUDE.md`. Architecture rules live in
-> `./CLAUDE.md`; the hexagonal blueprint is
+> `./CLAUDE.md`; the DDD blueprint is
 > `../docs/universal-guidelines/module-architecture.md`.
 
 ## Prerequisites
@@ -95,14 +95,17 @@ Today the API ships:
 
 ## Architecture pointer
 
-Every feature module follows the hexagonal layout described in
+Every feature module is **Domain-Driven Design** — the layout and templates
+are in
 [`module-architecture.md`](../docs/universal-guidelines/module-architecture.md).
 The rule that matters most:
 
-> **The domain folder has zero `@nestjs/*` runtime and zero `typeorm`
-> imports.** Domain classes are plain TypeScript populated by mappers.
+> **The domain folder is pure: zero `@nestjs/*` (not even `@ApiProperty`),
+> zero `typeorm`, zero `class-validator`.** Business rules live on rich
+> aggregates; value objects make invalid state unconstructable; aggregates
+> raise domain events; the HTTP shape lives on a response DTO.
 
-The exemplar module is `src/permissions/`. New modules mirror it. The
+The exemplar module is `src/leave-requests/`. New modules mirror it. The
 admin / self-service split convention (separate DTO folders, shared
 service, no `:id` on `/me` routes) lives in `./CLAUDE.md` under
 "Admin / self-service split — folder convention".
@@ -147,13 +150,13 @@ them block v0 ship.
 
 ## Where to look first
 
-- [`./CLAUDE.md`](./CLAUDE.md) — backend-only rules (hexagonal layout,
+- [`./CLAUDE.md`](./CLAUDE.md) — backend-only rules (DDD layout,
   auth pipeline, migration conventions, Swagger tag rules).
 - [`../CLAUDE.md`](../CLAUDE.md) — system-level context across frontend
   and backend (terminology, admin/self-service contract, API
   conventions).
 - [`../docs/universal-guidelines/module-architecture.md`](../docs/universal-guidelines/module-architecture.md)
-  — hexagonal blueprint every module follows.
+  — DDD blueprint every module follows.
 - [`./tasks/plan.md`](./tasks/plan.md) — phase plan, current task,
   acceptance criteria (gitignored working file).
 - [`../docs/adr/`](../docs/adr/) — architectural decisions. Read the

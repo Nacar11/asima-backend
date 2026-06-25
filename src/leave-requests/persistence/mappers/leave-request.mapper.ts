@@ -1,10 +1,21 @@
-import { LeaveRequest } from '@/leave-requests/domain/leave-request';
+import { LeaveRequestRecord } from '@/leave-requests/domain/leave-request';
+import { LeaveRequest } from '@/leave-requests/domain/leave-request.aggregate';
 import { LeaveRequestListItem } from '@/leave-requests/domain/leave-request-list-item';
 import { LeaveRequestEntity } from '@/leave-requests/persistence/entities/leave-request.entity';
 
 export class LeaveRequestMapper {
-  static toDomain(raw: LeaveRequestEntity): LeaveRequest {
-    const lr = new LeaveRequest();
+  /**
+   * Reconstitute the rich aggregate from a persisted row — the write-path
+   * load. The data the row holds was valid when written, so reconstitution
+   * rebuilds the aggregate (and its value objects) without re-running the
+   * creation invariants. Reconstitution lives here, at the persistence seam.
+   */
+  static toAggregate(raw: LeaveRequestEntity): LeaveRequest {
+    return LeaveRequest.reconstitute(LeaveRequestMapper.toDomain(raw));
+  }
+
+  static toDomain(raw: LeaveRequestEntity): LeaveRequestRecord {
+    const lr = new LeaveRequestRecord();
     lr.id = raw.id;
     lr.employee_id = raw.employee_id;
     lr.leave_type = raw.leave_type;

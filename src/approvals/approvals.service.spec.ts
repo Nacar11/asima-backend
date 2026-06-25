@@ -5,7 +5,7 @@ import { Permission } from '@/permissions/domain/permission';
 import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
 import { TimeCorrectionRequestsService } from '@/time-correction-requests/time-correction-requests.service';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
-import { LeaveRequest } from '@/leave-requests/domain/leave-request';
+import { LeaveRequestRecord } from '@/leave-requests/domain/leave-request';
 import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
 
 function buildPermission(code: string): Permission {
@@ -163,7 +163,7 @@ describe('ApprovalsService', () => {
           submitted_at: new Date('2026-05-30'),
           l1_approver_id: 5,
           l2_approver_id: 7,
-        } as LeaveRequest,
+        } as LeaveRequestRecord,
       ]);
       users.findByIds.mockResolvedValue([
         { id: 12, first_name: 'Emma', last_name: 'Thompson' } as User,
@@ -200,7 +200,7 @@ describe('ApprovalsService', () => {
           submitted_at: new Date('2026-05-30'),
           l1_approver_id: 5,
           l2_approver_id: 7,
-        } as LeaveRequest,
+        } as LeaveRequestRecord,
       ]);
       users.findByIds.mockResolvedValue([
         { id: 12, first_name: 'Emma', last_name: 'Thompson' } as User,
@@ -226,7 +226,7 @@ describe('ApprovalsService', () => {
           submitted_at: new Date('2026-05-30'),
           l1_approver_id: 5,
           l2_approver_id: 7,
-        } as LeaveRequest,
+        } as LeaveRequestRecord,
       ]);
       // Only the employee resolves; the approver (id 5) is missing (deactivated).
       users.findByIds.mockResolvedValue([

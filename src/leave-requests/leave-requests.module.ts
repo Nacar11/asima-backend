@@ -12,6 +12,7 @@ import { UserPersistenceModule } from '@/users/persistence/persistence.module';
 import { WorkSchedulePersistenceModule } from '@/work-schedules/persistence/persistence.module';
 import { LeaveAllocationPersistenceModule } from '@/leave-allocations/persistence/persistence.module';
 import { StorageModule } from '@/storage/storage.module';
+import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
 
 @Module({
   imports: [
@@ -28,7 +29,12 @@ import { StorageModule } from '@/storage/storage.module';
     MeLeaveBalancesController,
     LeaveRequestsController,
   ],
-  providers: [LeaveRequestsService, LeaveDayCountService, LeaveBalanceService],
+  providers: [
+    LeaveRequestsService,
+    LeaveDayCountService,
+    LeaveBalanceService,
+    DomainEventPublisher,
+  ],
   exports: [
     LeaveRequestsService,
     LeaveDayCountService,

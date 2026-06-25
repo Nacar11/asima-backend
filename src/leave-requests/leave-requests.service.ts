@@ -7,7 +7,18 @@ import { LeaveDayCountService, SubmittableRange } from '@/leave-requests/leave-d
 import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
-import { LeaveRequest } from '@/leave-requests/domain/leave-request';
+import { LeaveRequestRecord } from '@/leave-requests/domain/leave-request';
+import { LeaveRequest } from '@/leave-requests/domain/leave-request.aggregate';
+import { LeaveActor } from '@/leave-requests/domain/leave-actor';
+import {
+  AttachmentContractError,
+  LeaveStatusError,
+  NotAllowedToCancelError,
+  NotCurrentApproverError,
+  RejectionNoteRequiredError,
+} from '@/leave-requests/domain/leave-request-errors';
+import { LeaveRequestSubmitted } from '@/leave-requests/domain/events/leave-request-events';
+import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
 import { LeaveRequestSearchCriteria } from '@/leave-requests/domain/leave-request-search-criteria';
 import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
 import { SubmitLeaveInput, UpdateLeaveInput } from '@/leave-requests/domain/leave-request-inputs';
@@ -16,21 +27,20 @@ import { User } from '@/users/domain/user';
 import { AttachmentService, UploadedFile } from '@/storage/attachment.service';
 import { FILE_VERSIONS, FileVersion } from '@/storage/domain/file-version';
 import {
-  ATTACHMENT_REQUIRED_LEAVE_TYPES,
-  DAY_PORTIONS,
   DayPortion,
-  DECISION_PATHS,
   LEAVE_REQUEST_STATUSES,
   LeaveRequestStatus,
   LeaveType,
 } from '@/leave-requests/leave-requests.constants';
 
 /**
- * Leave-request service — owns the request lifecycle and the 2-step
- * approval state machine (plan §3.2, §8). Authorization is two checks:
- * the route's `@Permissions` gate (role capability), then the
- * service-layer `canActOn` (chain placement OR ApproveAny / system_admin).
- * See ADR 0001 for why these axes are orthogonal.
+ * Leave-request use-case service — orchestrates the request lifecycle: loads
+ * the `LeaveRequest` aggregate, calls its behavior (the 2-step approval state
+ * machine lives on the aggregate, plan §3.2, §8), persists the result, and
+ * publishes the buffered events. Authorization is two checks: the route's
+ * `@Permissions` gate (role capability), then the aggregate's `isActionableBy`
+ * (chain placement OR ApproveAny / system_admin), fed a `LeaveActor` built
+ * from the caller. See ADR 0001 for why these axes are orthogonal.
  */
 @Injectable()
 export class LeaveRequestsService {
@@ -42,13 +52,14 @@ export class LeaveRequestsService {
     private readonly allocations: BaseLeaveAllocationRepository,
     private readonly attachments: AttachmentService,
     private readonly dataSource: DataSource,
+    private readonly publisher: DomainEventPublisher,
   ) {}
 
   findAll(criteria: LeaveRequestSearchCriteria): Promise<FindAllLeaveRequest> {
     return this.repository.findAll(criteria);
   }
 
-  async findById(id: number): Promise<LeaveRequest> {
+  async findById(id: number): Promise<LeaveRequestRecord> {
     const row = await this.repository.findById(id);
     if (!row) throw new NotFoundException(`LeaveRequest with id ${id} not found`);
     return row;
@@ -58,7 +69,7 @@ export class LeaveRequestsService {
    * Detail view with access control: the requester, either snapshotted
    * approver, a `LEAVE:ViewAll` holder, or `system_admin` may read it.
    */
-  async findByIdForViewer(id: number, caller: User): Promise<LeaveRequest> {
+  async findByIdForViewer(id: number, caller: User): Promise<LeaveRequestRecord> {
     const row = await this.findById(id);
     const allowed =
       caller.id === row.employee_id ||
@@ -83,21 +94,24 @@ export class LeaveRequestsService {
    * transaction; the attachment row + leave_request commit together, and a
    * failed commit triggers a compensating object delete.
    */
-  async submit(input: SubmitLeaveInput, actor: User, file?: UploadedFile): Promise<LeaveRequest> {
-    // Leave-side rule (this service's concern): the attachment is part of
-    // sick/bereavement's contract; any other type must not carry one.
-    const requiresAttachment = ATTACHMENT_REQUIRED_LEAVE_TYPES.has(input.leave_type);
-    if (requiresAttachment && !file) {
-      throw unprocessable('attachment', `${input.leave_type} leave requires one attachment.`);
-    }
-    if (!requiresAttachment && file) {
-      throw unprocessable('attachment', `${input.leave_type} leave does not accept an attachment.`);
+  async submit(
+    input: SubmitLeaveInput,
+    actor: User,
+    file?: UploadedFile,
+  ): Promise<LeaveRequestRecord> {
+    // Leave-side invariant (lives on the aggregate): the attachment is part
+    // of sick/bereavement's contract; any other type must not carry one.
+    // Checked early so the error ordering matches the original service.
+    try {
+      LeaveRequest.assertAttachmentContract(input.leave_type, !!file);
+    } catch (err) {
+      rethrowLeaveDomainError(err);
     }
 
     // D8: end >= start, no past dates, start & end must be scheduled
     // workdays. Returns the schedule-aware working-day count, snapshotted
     // onto the request so balance reserve/use math stays stable.
-    const day_portion = input.day_portion ?? DAY_PORTIONS.full;
+    const day_portion = LeaveRequest.normalizePortion(input.day_portion);
     const { working_days, start_time, end_time } = await this.dayCount.assertSubmittableRange(
       input.employee_id,
       input.start_date,
@@ -135,12 +149,13 @@ export class LeaveRequestsService {
         })
       : null;
 
+    let created: LeaveRequestRecord;
     try {
       // Reserve-on-submit (plan C3): inside one transaction, lock this
       // (employee, type)'s allocation rows FOR UPDATE, then check
       // available = allowance − (used + reserved). The lock serializes
       // concurrent same-type submits, so two can't both pass the check.
-      return await this.dataSource.transaction(async (manager) => {
+      created = await this.dataSource.transaction(async (manager) => {
         const allowance = await this.allocations.sumForUpdate(
           manager,
           input.employee_id,
@@ -191,6 +206,14 @@ export class LeaveRequestsService {
       if (prepared) await this.attachments.cleanup(prepared);
       throw err;
     }
+
+    // Commit succeeded — publish the creation event OUTSIDE the cleanup
+    // window (with the insert-generated id). A throwing subscriber must NOT
+    // trigger the attachment cleanup above: the request row is committed.
+    this.publisher.publish([
+      new LeaveRequestSubmitted(created.id, created.employee_id, created.l1_approver_id),
+    ]);
+    return created;
   }
 
   /**
@@ -262,31 +285,26 @@ export class LeaveRequestsService {
    * is derived from status, so flipping to `cancelled` frees the days with no
    * ledger work.
    */
-  async cancel(id: number, caller: User): Promise<LeaveRequest> {
-    const row = await this.findById(id);
-    // Terminal requests (rejected / already cancelled) can never be cancelled.
-    if (!isActive(row.status)) {
-      throw conflict('status', `Cannot cancel a request in state ${row.status}.`);
+  async cancel(id: number, caller: User): Promise<LeaveRequestRecord> {
+    const aggregate = await this.repository.findAggregateById(id);
+    if (!aggregate) throw new NotFoundException(`LeaveRequest with id ${id} not found`);
+    try {
+      aggregate.cancel(toLeaveActor(caller), this.dayCount.today());
+    } catch (err) {
+      rethrowLeaveDomainError(err);
     }
-    // Active, but the leave window has already fully elapsed.
-    if (row.end_date < this.dayCount.today()) {
-      throw conflict('status', 'Cannot cancel a leave that has already ended.');
-    }
-    const isOwner = caller.id === row.employee_id;
-    const isHr = caller.system_admin === true || hasPermission(caller, 'LEAVE:Delete');
-    if (!isOwner && !isHr) {
-      throw new ForbiddenException('You are not allowed to cancel this leave request');
-    }
-    return this.repository.update(id, {
-      status: LEAVE_REQUEST_STATUSES.cancelled,
-      cancelled_at: new Date(),
-      cancelled_by: caller.id,
+    const saved = await this.repository.update(id, {
+      status: aggregate.status,
+      cancelled_at: aggregate.cancelled_at,
+      cancelled_by: aggregate.cancelled_by,
       updated_by: caller.id,
     });
+    this.publisher.publish(aggregate.pullEvents());
+    return saved;
   }
 
   /** HR pending-only edit (Q3). Route is gated by `LEAVE:Update`. */
-  async update(id: number, patch: UpdateLeaveInput, caller: User): Promise<LeaveRequest> {
+  async update(id: number, patch: UpdateLeaveInput, caller: User): Promise<LeaveRequestRecord> {
     const row = await this.findById(id);
     if (!isPending(row.status)) {
       throw conflict(
@@ -335,20 +353,22 @@ export class LeaveRequestsService {
    * is snapshotted) or → approved; pending_l2 → approved. Records the
    * decision and whether it went through the chain or an override.
    */
-  async approve(id: number, caller: User): Promise<LeaveRequest> {
-    const row = await this.findById(id);
-    if (!isPending(row.status)) {
-      throw conflict('status', `Cannot approve a request in state ${row.status}.`);
-    }
-    if (!this.canActOn(row, caller)) {
-      throw forbidden('approver', 'Not the assigned approver for this step.');
+  async approve(id: number, caller: User): Promise<LeaveRequestRecord> {
+    const aggregate = await this.repository.findAggregateById(id);
+    if (!aggregate) throw new NotFoundException(`LeaveRequest with id ${id} not found`);
+    const actor = toLeaveActor(caller);
+    try {
+      // Pure preconditions (state is pending + caller is the current approver).
+      aggregate.assertApprovable(actor);
+    } catch (err) {
+      rethrowLeaveDomainError(err);
     }
 
-    const override = isOverride(caller);
+    // I/O check the aggregate can't make: the snapshotted step approver must
+    // still be active on the chain path (overrides skip it).
+    const override = actor.is_system_admin || actor.can_approve_any;
     if (!override) {
-      // Normal path: the assigned step approver must still be active.
-      const stepApproverId =
-        row.status === LEAVE_REQUEST_STATUSES.pending_l1 ? row.l1_approver_id : row.l2_approver_id;
+      const stepApproverId = aggregate.currentStepApproverId();
       if (stepApproverId != null) {
         const approver = await this.users.findById(stepApproverId);
         if (!approver || !approver.is_active) {
@@ -360,83 +380,47 @@ export class LeaveRequestsService {
       }
     }
 
-    // Override (ApproveAny / system_admin) stamps the request approved
-    // immediately, regardless of step (plan §8 acceptance). The normal
-    // chain path advances one step at a time.
-    const nextStatus: LeaveRequestStatus = override
-      ? LEAVE_REQUEST_STATUSES.approved
-      : row.status === LEAVE_REQUEST_STATUSES.pending_l1 && row.l2_approver_id != null
-        ? LEAVE_REQUEST_STATUSES.pending_l2
-        : LEAVE_REQUEST_STATUSES.approved;
-
-    return this.repository.update(id, {
-      status: nextStatus,
-      decided_at: new Date(),
-      decided_by: caller.id,
-      decision_path: override ? DECISION_PATHS.override : DECISION_PATHS.chain,
+    aggregate.applyApproval(actor);
+    const saved = await this.repository.update(id, {
+      status: aggregate.status,
+      decided_at: aggregate.decided_at,
+      decided_by: aggregate.decided_by,
+      decision_path: aggregate.decision_path,
       updated_by: caller.id,
     });
+    this.publisher.publish(aggregate.pullEvents());
+    return saved;
   }
 
   /** Reject the request from either pending state. A note is required. */
-  async reject(id: number, caller: User, note: string): Promise<LeaveRequest> {
-    if (!note || note.trim().length === 0) {
-      throw unprocessable('decision_note', 'A rejection note is required.');
+  async reject(id: number, caller: User, note: string): Promise<LeaveRequestRecord> {
+    const aggregate = await this.repository.findAggregateById(id);
+    if (!aggregate) throw new NotFoundException(`LeaveRequest with id ${id} not found`);
+    try {
+      aggregate.reject(toLeaveActor(caller), note);
+    } catch (err) {
+      rethrowLeaveDomainError(err);
     }
-    const row = await this.findById(id);
-    if (!isPending(row.status)) {
-      throw conflict('status', `Cannot reject a request in state ${row.status}.`);
-    }
-    if (!this.canActOn(row, caller)) {
-      throw forbidden('approver', 'Not the assigned approver for this step.');
-    }
-    return this.repository.update(id, {
-      status: LEAVE_REQUEST_STATUSES.rejected,
-      decided_at: new Date(),
-      decided_by: caller.id,
-      decision_note: note,
-      decision_path: isOverride(caller) ? DECISION_PATHS.override : DECISION_PATHS.chain,
+    const saved = await this.repository.update(id, {
+      status: aggregate.status,
+      decided_at: aggregate.decided_at,
+      decided_by: aggregate.decided_by,
+      decision_note: aggregate.decision_note,
+      decision_path: aggregate.decision_path,
       updated_by: caller.id,
     });
+    this.publisher.publish(aggregate.pullEvents());
+    return saved;
   }
 
   /** Pending items a user can act on (chain placement) — the approver inbox. */
-  findInboxForApprover(approver_id: number): Promise<LeaveRequest[]> {
+  findInboxForApprover(approver_id: number): Promise<LeaveRequestRecord[]> {
     return this.repository.findPendingForApprover(approver_id);
   }
 
   /** Every pending request — for ApproveAny / system_admin inboxes. */
-  findAllPending(): Promise<LeaveRequest[]> {
+  findAllPending(): Promise<LeaveRequestRecord[]> {
     return this.repository.findAllPending();
-  }
-
-  /**
-   * Full approve/reject authorization (plan §2.1 + §3.3). The approve and
-   * reject routes are JWT-only at the guard because the
-   * `PermissionsGuard` can't express "LEAVE:Approve OR LEAVE:ApproveAny"
-   * (HR holds ApproveAny but NOT Approve — ADR 0001 keeps HR off chains).
-   * So both checks live here:
-   *   - role capability: `LEAVE:Approve` (chain path) or `LEAVE:ApproveAny`
-   *   - chain placement: caller is the current-step approver
-   * `system_admin` and `ApproveAny` bypass the chain entirely.
-   */
-  canActOn(request: LeaveRequest, caller: User): boolean {
-    if (caller.system_admin === true) return true;
-    if (hasPermission(caller, 'LEAVE:ApproveAny')) return true;
-    // Chain path additionally requires the Approve capability, so a user
-    // who happens to be snapshotted as an approver but lacks the role
-    // can't act (defense in depth — assignment alone is not authority).
-    if (!hasPermission(caller, 'LEAVE:Approve')) return false;
-    // Chain match: caller is the snapshotted approver for the current step.
-    // (`caller.id` is a number, so an equality check already excludes a null
-    // approver id — no separate null guard needed.)
-    if (request.status === LEAVE_REQUEST_STATUSES.pending_l1) {
-      return caller.id === request.l1_approver_id;
-    }
-    if (request.status === LEAVE_REQUEST_STATUSES.pending_l2) {
-      return caller.id === request.l2_approver_id;
-    }
-    return false;
   }
 }
 
@@ -459,11 +443,31 @@ function isPending(status: LeaveRequestStatus): boolean {
   );
 }
 
-/** Non-terminal states: still in the chain (pending) or decided-approved. */
-function isActive(status: LeaveRequestStatus): boolean {
-  return isPending(status) || status === LEAVE_REQUEST_STATUSES.approved;
+/**
+ * Distil a `User` into the leave-specific capabilities the aggregate needs,
+ * so the domain never imports `User` or the permission helper. `can_*` map to
+ * the permission codes; `is_system_admin` is the unconditional bypass axis.
+ */
+function toLeaveActor(caller: User): LeaveActor {
+  return {
+    user_id: caller.id,
+    is_system_admin: caller.system_admin === true,
+    can_approve: hasPermission(caller, 'LEAVE:Approve'),
+    can_approve_any: hasPermission(caller, 'LEAVE:ApproveAny'),
+    can_delete: hasPermission(caller, 'LEAVE:Delete'),
+  };
 }
 
-function isOverride(caller: User): boolean {
-  return caller.system_admin === true || hasPermission(caller, 'LEAVE:ApproveAny');
+/**
+ * Translate a pure domain error from the `LeaveRequest` aggregate into the
+ * exact HTTP exception the service threw before the DDD migration, so the
+ * wire contract is unchanged. Anything else is rethrown untouched.
+ */
+function rethrowLeaveDomainError(err: unknown): never {
+  if (err instanceof LeaveStatusError) throw conflict('status', err.message);
+  if (err instanceof NotCurrentApproverError) throw forbidden('approver', err.message);
+  if (err instanceof RejectionNoteRequiredError) throw unprocessable('decision_note', err.message);
+  if (err instanceof NotAllowedToCancelError) throw new ForbiddenException(err.message);
+  if (err instanceof AttachmentContractError) throw unprocessable('attachment', err.message);
+  throw err;
 }

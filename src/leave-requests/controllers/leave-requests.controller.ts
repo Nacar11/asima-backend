@@ -21,7 +21,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
-import { LeaveRequest } from '@/leave-requests/domain/leave-request';
+import { LeaveRequestAssembler } from '@/leave-requests/leave-request.assembler';
+import { LeaveRequestResponseDto } from '@/leave-requests/dto/response/leave-request-response.dto';
 import { RejectLeaveRequestDto } from '@/leave-requests/dto/reject-leave-request.dto';
 import { AttachmentVersionQueryDto } from '@/leave-requests/dto/attachment-version-query.dto';
 import { Permissions } from '@/permissions/permissions.decorator';
@@ -34,7 +35,7 @@ import { User } from '@/users/domain/user';
  * Approver-facing leave routes. These are neither admin nor self-service:
  * the caller is the *approver* acting on someone else's request (plan
  * §3.4 / Q5). `LEAVE:Approve` gates the route (role capability); the
- * service's `canActOn` enforces chain placement (or an override).
+ * aggregate's `isActionableBy` enforces chain placement (or an override).
  */
 @ApiTags('Leave Requests')
 @ApiBearerAuth()
@@ -50,11 +51,11 @@ export class LeaveRequestsController {
       'Route requires LEAVE:ViewOwn; the service additionally checks the caller is the ' +
       'requester, the snapshotted L1/L2 approver, or holds LEAVE:ViewAll / system_admin.',
   })
-  getOne(
+  async getOne(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() caller: User,
-  ): Promise<LeaveRequest> {
-    return this.service.findByIdForViewer(id, caller);
+  ): Promise<LeaveRequestResponseDto> {
+    return LeaveRequestAssembler.toResponse(await this.service.findByIdForViewer(id, caller));
   }
 
   @Get(':id/attachment')
@@ -86,28 +87,29 @@ export class LeaveRequestsController {
 
   // approve / reject are intentionally NOT @Permissions-gated: the guard
   // can't express "LEAVE:Approve OR LEAVE:ApproveAny" (HR holds ApproveAny
-  // but not Approve). The service's canActOn enforces both the role
-  // capability and chain placement, returning 403 for everyone else.
+  // but not Approve). The aggregate's isActionableBy (fed a LeaveActor)
+  // enforces both the role capability and chain placement, returning 403
+  // for everyone else.
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Approve the current step of a leave request' })
-  @ApiResponse({ status: 200, type: LeaveRequest })
-  approve(
+  @ApiResponse({ status: 200, type: LeaveRequestResponseDto })
+  async approve(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() caller: User,
-  ): Promise<LeaveRequest> {
-    return this.service.approve(id, caller);
+  ): Promise<LeaveRequestResponseDto> {
+    return LeaveRequestAssembler.toResponse(await this.service.approve(id, caller));
   }
 
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reject a leave request (note required)' })
-  @ApiResponse({ status: 200, type: LeaveRequest })
-  reject(
+  @ApiResponse({ status: 200, type: LeaveRequestResponseDto })
+  async reject(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: RejectLeaveRequestDto,
     @CurrentUser() caller: User,
-  ): Promise<LeaveRequest> {
-    return this.service.reject(id, caller, dto.note);
+  ): Promise<LeaveRequestResponseDto> {
+    return LeaveRequestAssembler.toResponse(await this.service.reject(id, caller, dto.note));
   }
 }

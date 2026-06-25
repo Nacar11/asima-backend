@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { DataSource } from 'typeorm';
 import appConfig from '@/config/app.config';
 import databaseConfig from '@/database/config/database.config';
@@ -33,6 +34,10 @@ import { RequestIdMiddleware } from '@/utils/middleware/request-id.middleware';
       load: [appConfig, databaseConfig, authConfig, storageConfig],
       envFilePath: ['.env'],
     }),
+    // Global in-process event bus — aggregates record domain events; the
+    // use-case publishes them post-commit via DomainEventPublisher. No
+    // behavior-changing subscribers yet (DDD migration, decision #4).
+    EventEmitterModule.forRoot(),
     TypeOrmModule.forRootAsync({
       useClass: TypeOrmConfigService,
       dataSourceFactory: async (options) => new DataSource(options!).initialize(),

@@ -12,10 +12,11 @@ import { Readable } from 'stream';
 import { NotFoundException } from '@nestjs/common';
 import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
 import { AttachmentService } from '@/storage/attachment.service';
-import { LeaveRequest } from './domain/leave-request';
+import { LeaveRequestRecord } from './domain/leave-request';
+import { LeaveRequest } from './domain/leave-request.aggregate';
 import { User } from '@/users/domain/user';
 
-function leave(partial: Partial<LeaveRequest>): LeaveRequest {
+function leave(partial: Partial<LeaveRequestRecord>): LeaveRequestRecord {
   return {
     id: 1,
     employee_id: 12,
@@ -94,6 +95,7 @@ describe('LeaveRequestsService', () => {
     repo = {
       findAll: jest.fn(),
       findById: jest.fn(),
+      findAggregateById: jest.fn(),
       findOverlapping: jest.fn().mockResolvedValue([]),
       findPendingForApprover: jest.fn(),
       findAllPending: jest.fn(),
@@ -101,6 +103,12 @@ describe('LeaveRequestsService', () => {
       create: jest.fn().mockImplementation((input) => Promise.resolve(leave(input))),
       update: jest.fn().mockImplementation((id, patch) => Promise.resolve(leave({ id, ...patch }))),
     } as unknown as jest.Mocked<BaseLeaveRequestRepository>;
+    // The write paths (approve/reject/cancel) load the aggregate; reconstitute
+    // it from whatever findById is stubbed to return for the test.
+    repo.findAggregateById.mockImplementation(async (id: number) => {
+      const row = await repo.findById(id);
+      return row ? LeaveRequest.reconstitute(row) : null;
+    });
     chains = {
       getActive: jest.fn().mockResolvedValue({ l1_approver_id: 5, l2_approver_id: 7 }),
     } as unknown as jest.Mocked<ApprovalChainsService>;
@@ -137,6 +145,7 @@ describe('LeaveRequestsService', () => {
       allocations,
       attachments as unknown as AttachmentService,
       dataSource as never,
+      { publish: jest.fn() } as never,
     );
   });
 
@@ -452,7 +461,12 @@ describe('LeaveRequestsService', () => {
 
     it('409 when cancelling an approved leave that has already elapsed', async () => {
       repo.findById.mockResolvedValue(
-        leave({ employee_id: 12, status: 'approved', end_date: '2026-05-20' }),
+        leave({
+          employee_id: 12,
+          status: 'approved',
+          start_date: '2026-05-15',
+          end_date: '2026-05-20',
+        }),
       );
       dayCount.today.mockReturnValue('2026-06-01'); // end_date < today → past
       await expect(service.cancel(1, user(12))).rejects.toBeInstanceOf(ConflictException);
@@ -460,7 +474,12 @@ describe('LeaveRequestsService', () => {
 
     it('409 when cancelling a pending leave whose dates have already elapsed', async () => {
       repo.findById.mockResolvedValue(
-        leave({ employee_id: 12, status: 'pending_l1', end_date: '2026-05-20' }),
+        leave({
+          employee_id: 12,
+          status: 'pending_l1',
+          start_date: '2026-05-15',
+          end_date: '2026-05-20',
+        }),
       );
       dayCount.today.mockReturnValue('2026-06-01');
       await expect(service.cancel(1, user(12))).rejects.toBeInstanceOf(ConflictException);

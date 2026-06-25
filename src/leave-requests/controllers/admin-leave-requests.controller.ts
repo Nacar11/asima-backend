@@ -12,8 +12,10 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
-import { LeaveRequest } from '@/leave-requests/domain/leave-request';
-import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
+import { LeaveRequestAssembler } from '@/leave-requests/leave-request.assembler';
+import { LeaveRequestResponseDto } from '@/leave-requests/dto/response/leave-request-response.dto';
+import { LeaveRequestListItemResponseDto } from '@/leave-requests/dto/response/leave-request-list-item-response.dto';
+import { PaginatedResponse } from '@/utils/types/paginated-response.type';
 import { QueryLeaveRequestDto } from '@/leave-requests/dto/admin/query-leave-request.dto';
 import { UpdateLeaveRequestDto } from '@/leave-requests/dto/admin/update-leave-request.dto';
 import { Permissions } from '@/permissions/permissions.decorator';
@@ -36,15 +38,17 @@ export class AdminLeaveRequestsController {
   @Permissions({ LEAVE: 'ViewAll' })
   @ApiOperation({ summary: 'List every leave request (paginated, filterable)' })
   @ApiResponse({ status: 200 })
-  list(@Query() query: QueryLeaveRequestDto): Promise<FindAllLeaveRequest> {
-    return this.service.findAll(query);
+  async list(
+    @Query() query: QueryLeaveRequestDto,
+  ): Promise<PaginatedResponse<LeaveRequestListItemResponseDto>> {
+    return LeaveRequestAssembler.toPaginatedResponse(await this.service.findAll(query));
   }
 
   @Get(':id')
   @Permissions({ LEAVE: 'ViewAll' })
   @ApiOperation({ summary: 'Get any leave request by id' })
-  getOne(@Param('id', ParseIntPipe) id: number): Promise<LeaveRequest> {
-    return this.service.findById(id);
+  async getOne(@Param('id', ParseIntPipe) id: number): Promise<LeaveRequestResponseDto> {
+    return LeaveRequestAssembler.toResponse(await this.service.findById(id));
   }
 
   @Patch(':id')
@@ -55,12 +59,12 @@ export class AdminLeaveRequestsController {
       'Only pending_l1 / pending_l2 rows are editable (Q3). Terminal rows are immutable — ' +
       'use cancel + resubmit. Does not change the approver snapshot.',
   })
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateLeaveRequestDto,
     @CurrentUser() actor: User,
-  ): Promise<LeaveRequest> {
-    return this.service.update(id, dto, actor);
+  ): Promise<LeaveRequestResponseDto> {
+    return LeaveRequestAssembler.toResponse(await this.service.update(id, dto, actor));
   }
 
   @Delete(':id')
@@ -70,8 +74,11 @@ export class AdminLeaveRequestsController {
     summary: 'Cancel any pending leave request (HR override)',
     description: 'Maps to a status transition to cancelled — not a physical delete.',
   })
-  @ApiResponse({ status: 200, type: LeaveRequest })
-  cancel(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: User): Promise<LeaveRequest> {
-    return this.service.cancel(id, actor);
+  @ApiResponse({ status: 200, type: LeaveRequestResponseDto })
+  async cancel(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() actor: User,
+  ): Promise<LeaveRequestResponseDto> {
+    return LeaveRequestAssembler.toResponse(await this.service.cancel(id, actor));
   }
 }
