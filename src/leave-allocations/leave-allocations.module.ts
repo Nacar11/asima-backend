@@ -4,6 +4,7 @@ import { LeaveAllocationPersistenceModule } from '@/leave-allocations/persistenc
 import { AdminLeaveAllocationsController } from '@/leave-allocations/controllers/admin-leave-allocations.controller';
 import { UserPersistenceModule } from '@/users/persistence/persistence.module';
 import { LeaveRequestsModule } from '@/leave-requests/leave-requests.module';
+import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
 
 @Module({
   imports: [
@@ -14,7 +15,8 @@ import { LeaveRequestsModule } from '@/leave-requests/leave-requests.module';
     LeaveRequestsModule,
   ],
   controllers: [AdminLeaveAllocationsController],
-  providers: [LeaveAllocationsService],
+  // DomainEventPublisher: drains the grant creation event (EventEmitter2 is global).
+  providers: [LeaveAllocationsService, DomainEventPublisher],
   exports: [LeaveAllocationsService],
 })
 export class LeaveAllocationsModule {}

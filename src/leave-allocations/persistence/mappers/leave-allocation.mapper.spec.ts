@@ -30,19 +30,22 @@ describe('LeaveAllocationMapper', () => {
     });
   });
 
-  it('toPersistence sets only the provided fields (append-only create)', () => {
-    const entity = LeaveAllocationMapper.toPersistence({
-      employee_id: 12,
-      leave_type: 'emergency',
-      amount: 3,
-      source: 'admin_grant',
-      granted_by: 5,
-    });
-    expect(entity.employee_id).toBe(12);
-    expect(entity.leave_type).toBe('emergency');
-    expect(entity.amount).toBe(3);
-    expect(entity.source).toBe('admin_grant');
-    expect(entity.granted_by).toBe(5);
-    expect(entity.id).toBeUndefined();
+  it('toDomain preserves the field order that drives JSON wire parity (S2)', () => {
+    const domain = LeaveAllocationMapper.toDomain(raw);
+    expect(Object.keys(domain)).toEqual([
+      'id',
+      'employee_id',
+      'leave_type',
+      'amount',
+      'source',
+      'reason',
+      'granted_by',
+      'created_by',
+      'updated_by',
+      'deleted_by',
+      'created_at',
+      'updated_at',
+      'deleted_at',
+    ]);
   });
 });

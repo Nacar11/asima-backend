@@ -1,7 +1,8 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { LeaveAllocationsService } from '@/leave-allocations/leave-allocations.service';
-import { LeaveAllocation } from '@/leave-allocations/domain/leave-allocation';
+import { LeaveAllocationResponseDto } from '@/leave-allocations/dto/response/leave-allocation-response.dto';
+import { LeaveAllocationAssembler } from '@/leave-allocations/leave-allocation.assembler';
 import { LeaveBalanceResponseDto } from '@/leave-requests/dto/response/leave-balance-response.dto';
 import { LeaveRequestAssembler } from '@/leave-requests/leave-request.assembler';
 import { GrantLeaveAllocationDto } from '@/leave-allocations/dto/admin/grant-leave-allocation.dto';
@@ -24,21 +25,21 @@ export class AdminLeaveAllocationsController {
   @Post('leave-allocations')
   @Permissions({ LEAVE_ALLOCATION: 'Create' })
   @ApiOperation({ summary: 'Grant leave days to an employee (append-only)' })
-  @ApiResponse({ status: 201, type: LeaveAllocation })
-  grant(
+  @ApiResponse({ status: 201, type: LeaveAllocationResponseDto })
+  async grant(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: GrantLeaveAllocationDto,
     @CurrentUser() actor: User,
-  ): Promise<LeaveAllocation> {
-    return this.service.grant(id, dto, actor);
+  ): Promise<LeaveAllocationResponseDto> {
+    return LeaveAllocationAssembler.toResponse(await this.service.grant(id, dto, actor));
   }
 
   @Get('leave-allocations')
   @Permissions({ LEAVE_ALLOCATION: 'View' })
   @ApiOperation({ summary: "An employee's grant history (newest first)" })
-  @ApiResponse({ status: 200, type: [LeaveAllocation] })
-  history(@Param('id', ParseIntPipe) id: number): Promise<LeaveAllocation[]> {
-    return this.service.history(id);
+  @ApiResponse({ status: 200, type: [LeaveAllocationResponseDto] })
+  async history(@Param('id', ParseIntPipe) id: number): Promise<LeaveAllocationResponseDto[]> {
+    return LeaveAllocationAssembler.toResponseList(await this.service.history(id));
   }
 
   @Get('leave-balances')

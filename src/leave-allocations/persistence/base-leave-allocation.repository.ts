@@ -1,14 +1,11 @@
 import { EntityManager } from 'typeorm';
-import { LeaveAllocation } from '@/leave-allocations/domain/leave-allocation';
+import { LeaveAllocationRecord } from '@/leave-allocations/domain/leave-allocation';
 import { CreateAllocationInput } from '@/leave-allocations/domain/leave-allocation-inputs';
 import { LeaveType } from '@/leave-requests/leave-requests.constants';
 
 export abstract class BaseLeaveAllocationRepository {
   /** Append a grant to the ledger. */
-  abstract create(input: CreateAllocationInput): Promise<LeaveAllocation>;
-
-  /** `SUM(amount)` of non-deleted grants for one (employee, type) — the allowance. */
-  abstract sumByEmployeeAndType(employee_id: number, leave_type: LeaveType): Promise<number>;
+  abstract create(input: CreateAllocationInput): Promise<LeaveAllocationRecord>;
 
   /**
    * All non-deleted grant sums for an employee, grouped by leave type, in one
@@ -30,5 +27,5 @@ export abstract class BaseLeaveAllocationRepository {
   ): Promise<number>;
 
   /** Grant history for one employee, newest first (non-deleted). */
-  abstract listForEmployee(employee_id: number): Promise<LeaveAllocation[]>;
+  abstract listForEmployee(employee_id: number): Promise<LeaveAllocationRecord[]>;
 }

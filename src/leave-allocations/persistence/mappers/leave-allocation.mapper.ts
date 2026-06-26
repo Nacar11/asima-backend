@@ -1,9 +1,18 @@
-import { LeaveAllocation } from '@/leave-allocations/domain/leave-allocation';
+import { LeaveAllocationRecord } from '@/leave-allocations/domain/leave-allocation';
 import { LeaveAllocationEntity } from '@/leave-allocations/persistence/entities/leave-allocation.entity';
 
 export class LeaveAllocationMapper {
-  static toDomain(raw: LeaveAllocationEntity): LeaveAllocation {
-    const a = new LeaveAllocation();
+  /**
+   * Read-path mapping: TypeORM entity → pure data record. The assembler copies
+   * record keys onto the response DTO, so this assignment order is what drives
+   * the JSON key order — keep it stable for wire parity (plan S2).
+   *
+   * No `toAggregate` / `toPersistence`: the ledger has no load-mutate-save
+   * path, and the repository builds the insert entity inline (plan decision #2,
+   * matching the leave-requests mapper shape).
+   */
+  static toDomain(raw: LeaveAllocationEntity): LeaveAllocationRecord {
+    const a = new LeaveAllocationRecord();
     a.id = raw.id;
     a.employee_id = raw.employee_id;
     a.leave_type = raw.leave_type;
@@ -18,20 +27,5 @@ export class LeaveAllocationMapper {
     a.updated_at = raw.updated_at;
     a.deleted_at = raw.deleted_at;
     return a;
-  }
-
-  static toPersistence(domain: Partial<LeaveAllocation>): LeaveAllocationEntity {
-    const entity = new LeaveAllocationEntity();
-    if (domain.id !== undefined) entity.id = domain.id;
-    if (domain.employee_id !== undefined) entity.employee_id = domain.employee_id;
-    if (domain.leave_type !== undefined) entity.leave_type = domain.leave_type;
-    if (domain.amount !== undefined) entity.amount = domain.amount;
-    if (domain.source !== undefined) entity.source = domain.source;
-    if (domain.reason !== undefined) entity.reason = domain.reason;
-    if (domain.granted_by !== undefined) entity.granted_by = domain.granted_by;
-    if (domain.created_by !== undefined) entity.created_by = domain.created_by;
-    if (domain.updated_by !== undefined) entity.updated_by = domain.updated_by;
-    if (domain.deleted_by !== undefined) entity.deleted_by = domain.deleted_by;
-    return entity;
   }
 }

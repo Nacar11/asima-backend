@@ -11,8 +11,11 @@ import {
 } from 'typeorm';
 import { EntityHelper } from '@/utils/entity-helper';
 import { UserEntity } from '@/users/persistence/entities/user.entity';
-import { LeaveType } from '@/leave-requests/leave-requests.constants';
-import { AllocationSource } from '@/leave-allocations/leave-allocations.constants';
+import { LEAVE_TYPES, LeaveType } from '@/leave-requests/leave-requests.constants';
+import {
+  ALLOCATION_SOURCES,
+  AllocationSource,
+} from '@/leave-allocations/leave-allocations.constants';
 
 @Entity({ name: 'leave_allocations' })
 @Index(['employee_id', 'leave_type'])
@@ -27,13 +30,13 @@ export class LeaveAllocationEntity extends EntityHelper {
   @JoinColumn({ name: 'employee_id' })
   employee!: UserEntity;
 
-  @Column({ type: 'enum', enum: ['vacation', 'sick', 'bereavement', 'birthday', 'emergency'] })
+  @Column({ type: 'enum', enum: Object.values(LEAVE_TYPES) })
   leave_type!: LeaveType;
 
   @Column({ type: 'int' })
   amount!: number;
 
-  @Column({ type: 'enum', enum: ['default', 'admin_grant'] })
+  @Column({ type: 'enum', enum: Object.values(ALLOCATION_SOURCES) })
   source!: AllocationSource;
 
   @Column({ type: 'varchar', length: 500, nullable: true })

@@ -4,7 +4,7 @@ import { EntityManager, Repository } from 'typeorm';
 import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
 import { LeaveAllocationEntity } from '@/leave-allocations/persistence/entities/leave-allocation.entity';
 import { LeaveAllocationMapper } from '@/leave-allocations/persistence/mappers/leave-allocation.mapper';
-import { LeaveAllocation } from '@/leave-allocations/domain/leave-allocation';
+import { LeaveAllocationRecord } from '@/leave-allocations/domain/leave-allocation';
 import { CreateAllocationInput } from '@/leave-allocations/domain/leave-allocation-inputs';
 import { LeaveType } from '@/leave-requests/leave-requests.constants';
 
@@ -17,7 +17,9 @@ export class LeaveAllocationRepository extends BaseLeaveAllocationRepository {
     super();
   }
 
-  async create(input: CreateAllocationInput): Promise<LeaveAllocation> {
+  async create(input: CreateAllocationInput): Promise<LeaveAllocationRecord> {
+    // The grant's actor stamps both audit columns identically on insert.
+    const actor_id = input.created_by ?? input.granted_by ?? null;
     const entity = this.repo.create({
       employee_id: input.employee_id,
       leave_type: input.leave_type,
@@ -25,22 +27,11 @@ export class LeaveAllocationRepository extends BaseLeaveAllocationRepository {
       source: input.source,
       reason: input.reason ?? null,
       granted_by: input.granted_by ?? null,
-      created_by: input.created_by ?? input.granted_by ?? null,
-      updated_by: input.created_by ?? input.granted_by ?? null,
+      created_by: actor_id,
+      updated_by: actor_id,
     });
     const saved = await this.repo.save(entity);
     return LeaveAllocationMapper.toDomain(saved);
-  }
-
-  async sumByEmployeeAndType(employee_id: number, leave_type: LeaveType): Promise<number> {
-    const raw = await this.repo
-      .createQueryBuilder('a')
-      .select('COALESCE(SUM(a.amount), 0)', 'sum')
-      .where('a.employee_id = :employee_id', { employee_id })
-      .andWhere('a.leave_type = :leave_type', { leave_type })
-      .andWhere('a.deleted_at IS NULL')
-      .getRawOne<{ sum: string }>();
-    return Number(raw?.sum ?? 0);
   }
 
   async sumsByEmployee(employee_id: number): Promise<Partial<Record<LeaveType, number>>> {
@@ -76,7 +67,7 @@ export class LeaveAllocationRepository extends BaseLeaveAllocationRepository {
     return rows.reduce((total, row) => total + row.amount, 0);
   }
 
-  async listForEmployee(employee_id: number): Promise<LeaveAllocation[]> {
+  async listForEmployee(employee_id: number): Promise<LeaveAllocationRecord[]> {
     const entities = await this.repo.find({
       where: { employee_id },
       order: { created_at: 'DESC', id: 'DESC' },
