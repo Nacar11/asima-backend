@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { unprocessable } from '@/utils/helpers/http-errors';
 import { toClock, toSeconds } from '@/utils/helpers/time-of-day';
 import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-work-schedule.repository';
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import { WorkScheduleRecord } from '@/work-schedules/domain/work-schedule';
 import {
   DAY_PORTIONS,
   DayPortion,
@@ -110,7 +110,7 @@ export class LeaveDayCountService {
         throw unprocessable('day_portion', `${leave_type} leave must be taken as a whole day.`);
       }
       // Non-null: the start-date workday check above guarantees a row.
-      const row = rows.find((r) => r.day_of_week === weekdayOf(start_date)) as WorkSchedule;
+      const row = rows.find((r) => r.day_of_week === weekdayOf(start_date)) as WorkScheduleRecord;
       const window = halfDayWindow(row, day_portion);
       return { working_days: 0.5, start_time: window.start_time, end_time: window.end_time };
     }
@@ -133,7 +133,7 @@ export class LeaveDayCountService {
  * second half 14:00–18:00.
  */
 function halfDayWindow(
-  schedule: WorkSchedule,
+  schedule: WorkScheduleRecord,
   portion: 'first_half' | 'second_half',
 ): { start_time: string; end_time: string } {
   const inSec = toSeconds(schedule.expected_in);

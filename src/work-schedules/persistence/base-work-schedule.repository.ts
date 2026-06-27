@@ -1,19 +1,26 @@
 import { EntityManager } from 'typeorm';
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import { WorkScheduleRecord } from '@/work-schedules/domain/work-schedule';
 import { WorkScheduleSearchCriteria } from '@/work-schedules/domain/work-schedule-search-criteria';
 import { FindAllWorkSchedule } from '@/work-schedules/domain/find-all-work-schedule';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
 
+/**
+ * Port for the `work_schedules` aggregate. Every mutate path already holds the
+ * persisted record (`update`/`endLogically` ← `findById`), so reconstitution is
+ * use-case-side and there is **no `findAggregateById`** (blueprint §3.2 rule 3a).
+ * Repos return records, never entities, never throw 404. The `manager?:
+ * EntityManager` params let the schedule-change cascade run in one transaction.
+ */
 export abstract class BaseWorkScheduleRepository {
   abstract findAll(criteria: WorkScheduleSearchCriteria): Promise<FindAllWorkSchedule>;
 
-  abstract findById(id: number): Promise<WorkSchedule | null>;
+  abstract findById(id: number): Promise<WorkScheduleRecord | null>;
 
   /**
    * Active schedules for one employee. Returns 0..7 rows (one per
    * weekday, at most). "Active" means `effective_to IS NULL`.
    */
-  abstract findActiveForEmployee(employee_id: number): Promise<WorkSchedule[]>;
+  abstract findActiveForEmployee(employee_id: number): Promise<WorkScheduleRecord[]>;
 
   /**
    * Active row for a specific (employee, weekday), if one exists.
@@ -23,7 +30,7 @@ export abstract class BaseWorkScheduleRepository {
     employee_id: number,
     day_of_week: DayOfWeek,
     manager?: EntityManager,
-  ): Promise<WorkSchedule | null>;
+  ): Promise<WorkScheduleRecord | null>;
 
   abstract create(
     input: {
@@ -38,7 +45,7 @@ export abstract class BaseWorkScheduleRepository {
       created_by?: number | null;
     },
     manager?: EntityManager,
-  ): Promise<WorkSchedule>;
+  ): Promise<WorkScheduleRecord>;
 
   abstract update(
     id: number,
@@ -52,7 +59,7 @@ export abstract class BaseWorkScheduleRepository {
       updated_by?: number | null;
     },
     manager?: EntityManager,
-  ): Promise<WorkSchedule>;
+  ): Promise<WorkScheduleRecord>;
 
   abstract softDelete(
     id: number,

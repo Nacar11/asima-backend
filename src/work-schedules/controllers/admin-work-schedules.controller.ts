@@ -13,8 +13,9 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { WorkSchedulesService } from '@/work-schedules/work-schedules.service';
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
-import { FindAllWorkSchedule } from '@/work-schedules/domain/find-all-work-schedule';
+import { WorkScheduleResponseDto } from '@/work-schedules/dto/response/work-schedule-response.dto';
+import { WorkScheduleAssembler } from '@/work-schedules/work-schedule.assembler';
+import { PaginatedResponse } from '@/utils/types/paginated-response.type';
 import { CreateWorkScheduleDto } from '@/work-schedules/dto/admin/create-work-schedule.dto';
 import { UpdateWorkScheduleDto } from '@/work-schedules/dto/admin/update-work-schedule.dto';
 import { QueryWorkScheduleDto } from '@/work-schedules/dto/admin/query-work-schedule.dto';
@@ -46,18 +47,22 @@ export class AdminWorkSchedulesController {
   @Permissions({ SCHEDULE: 'View' })
   @ApiOperation({ summary: 'List schedules (paginated, filterable by employee + day_of_week)' })
   @ApiResponse({ status: 200 })
-  findAll(@Query() query: QueryWorkScheduleDto): Promise<FindAllWorkSchedule> {
-    return this.service.findAll({
-      ...query,
-      day_of_week: query.day_of_week as DayOfWeek | undefined,
-    });
+  async findAll(
+    @Query() query: QueryWorkScheduleDto,
+  ): Promise<PaginatedResponse<WorkScheduleResponseDto>> {
+    return WorkScheduleAssembler.toPaginatedResponse(
+      await this.service.findAll({
+        ...query,
+        day_of_week: query.day_of_week as DayOfWeek | undefined,
+      }),
+    );
   }
 
   @Get(':id')
   @Permissions({ SCHEDULE: 'View' })
   @ApiOperation({ summary: 'Get a single schedule by id' })
-  findOne(@Param('id', ParseIntPipe) id: number): Promise<WorkSchedule> {
-    return this.service.findById(id);
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<WorkScheduleResponseDto> {
+    return WorkScheduleAssembler.toResponse(await this.service.findById(id));
   }
 
   @Post()
@@ -69,12 +74,17 @@ export class AdminWorkSchedulesController {
       'To change a schedule mid-period, end the existing row (PATCH or DELETE) and POST a new one.',
   })
   @ApiResponse({ status: 201 })
-  create(@Body() dto: CreateWorkScheduleDto, @CurrentUser() actor: User): Promise<WorkSchedule> {
-    return this.service.create({
-      ...dto,
-      day_of_week: dto.day_of_week as DayOfWeek,
-      created_by: actor.id,
-    });
+  async create(
+    @Body() dto: CreateWorkScheduleDto,
+    @CurrentUser() actor: User,
+  ): Promise<WorkScheduleResponseDto> {
+    return WorkScheduleAssembler.toResponse(
+      await this.service.create({
+        ...dto,
+        day_of_week: dto.day_of_week as DayOfWeek,
+        created_by: actor.id,
+      }),
+    );
   }
 
   @Patch(':id')
@@ -85,12 +95,14 @@ export class AdminWorkSchedulesController {
       'employee_id and day_of_week are NOT writable — to move a schedule, end this row and ' +
       'create a new one. Setting effective_to here logically ends the row.',
   })
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateWorkScheduleDto,
     @CurrentUser() actor: User,
-  ): Promise<WorkSchedule> {
-    return this.service.update(id, { ...dto, updated_by: actor.id });
+  ): Promise<WorkScheduleResponseDto> {
+    return WorkScheduleAssembler.toResponse(
+      await this.service.update(id, { ...dto, updated_by: actor.id }),
+    );
   }
 
   @Delete(':id')
@@ -103,9 +115,12 @@ export class AdminWorkSchedulesController {
       'past dates. Returns the updated row so the caller can confirm effective_to was set. ' +
       'If you need a hard removal (rare), use the soft-delete via a separate request.',
   })
-  @ApiResponse({ status: 200, type: WorkSchedule })
-  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() actor: User): Promise<WorkSchedule> {
+  @ApiResponse({ status: 200, type: WorkScheduleResponseDto })
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() actor: User,
+  ): Promise<WorkScheduleResponseDto> {
     const today = utcDateString();
-    return this.service.endLogically(id, today, actor.id);
+    return WorkScheduleAssembler.toResponse(await this.service.endLogically(id, today, actor.id));
   }
 }

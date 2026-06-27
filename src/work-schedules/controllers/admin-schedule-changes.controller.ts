@@ -3,11 +3,12 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { ScheduleChangeService } from '@/work-schedules/schedule-change.service';
 import { ScheduleChangeDto } from '@/work-schedules/dto/admin/schedule-change.dto';
 import { ApplyScheduleChangeDto } from '@/work-schedules/dto/admin/apply-schedule-change.dto';
+import { ScheduleChangeIntent } from '@/work-schedules/domain/schedule-change';
 import {
-  ScheduleChangeImpact,
-  ScheduleChangeIntent,
-  ScheduleChangeResult,
-} from '@/work-schedules/domain/schedule-change';
+  ScheduleChangeImpactResponseDto,
+  ScheduleChangeResultResponseDto,
+} from '@/work-schedules/dto/response/schedule-change-response.dto';
+import { ScheduleChangeAssembler } from '@/work-schedules/schedule-change.assembler';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
 import { Permissions } from '@/permissions/permissions.decorator';
@@ -51,12 +52,14 @@ export class AdminScheduleChangesController {
       '(with the governed trigger_dates) and the leave-days that would be freed. A mode=remove ' +
       'also requires SCHEDULE:Delete.',
   })
-  @ApiResponse({ status: 201, type: ScheduleChangeImpact })
-  preview(
+  @ApiResponse({ status: 201, type: ScheduleChangeImpactResponseDto })
+  async preview(
     @Body() dto: ScheduleChangeDto,
     @CurrentUser() actor: User,
-  ): Promise<ScheduleChangeImpact> {
-    return this.service.preview(toIntent(dto), actor);
+  ): Promise<ScheduleChangeImpactResponseDto> {
+    return ScheduleChangeAssembler.toImpactResponse(
+      await this.service.preview(toIntent(dto), actor),
+    );
   }
 
   @Post()
@@ -69,12 +72,14 @@ export class AdminScheduleChangesController {
       'previewed (kind, id, status) snapshot; if the affected set changed since preview the ' +
       'call returns 409 and you must re-preview. A mode=remove also requires SCHEDULE:Delete.',
   })
-  @ApiResponse({ status: 200, type: ScheduleChangeResult })
+  @ApiResponse({ status: 200, type: ScheduleChangeResultResponseDto })
   @ApiResponse({ status: 409, description: 'Affected set drifted since preview — re-preview.' })
-  apply(
+  async apply(
     @Body() dto: ApplyScheduleChangeDto,
     @CurrentUser() actor: User,
-  ): Promise<ScheduleChangeResult> {
-    return this.service.apply(toIntent(dto), actor, dto.previewed);
+  ): Promise<ScheduleChangeResultResponseDto> {
+    return ScheduleChangeAssembler.toResultResponse(
+      await this.service.apply(toIntent(dto), actor, dto.previewed),
+    );
   }
 }

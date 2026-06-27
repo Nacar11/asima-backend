@@ -8,7 +8,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-work-schedule.repository';
 import { BaseLeaveRequestRepository } from '@/leave-requests/persistence/base-leave-request.repository';
 import { BaseTimeCorrectionRequestRepository } from '@/time-correction-requests/persistence/base-time-correction-request.repository';
-import { assertBreakOk, assertWindowOk } from '@/work-schedules/work-schedules.service';
+import { rethrowWorkScheduleDomainError } from '@/work-schedules/work-schedules.service';
 import {
   AffectedRequest,
   ScheduleChangeImpact,
@@ -21,7 +21,8 @@ import {
   planVersioning,
 } from '@/work-schedules/domain/cascade-policy';
 import { DayOfWeek, scheduleChangeCancelNote } from '@/work-schedules/work-schedules.constants';
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import { WorkScheduleRecord } from '@/work-schedules/domain/work-schedule';
+import { WorkSchedule } from '@/work-schedules/domain/work-schedule.aggregate';
 import { businessDateString, dayBefore } from '@/utils/helpers/dates';
 import { unprocessable } from '@/utils/helpers/http-errors';
 import { hasPermission } from '@/users/domain/user-permissions';
@@ -109,10 +110,10 @@ export class ScheduleChangeService {
   private async applyVersioning(
     impact: ScheduleChangeImpact,
     intent: ScheduleChangeIntent,
-    live: WorkSchedule | null,
+    live: WorkScheduleRecord | null,
     caller: User,
     manager: EntityManager,
-  ): Promise<WorkSchedule | null> {
+  ): Promise<WorkScheduleRecord | null> {
     const newRow = () =>
       this.schedules.create(
         {
@@ -201,13 +202,16 @@ export class ScheduleChangeService {
           'expected_in, expected_out and break_minutes are required for a modify',
         );
       }
-      assertWindowOk(intent.expected_in, intent.expected_out);
-      assertBreakOk(
-        intent.break_minutes,
-        intent.break_start ?? null,
-        intent.expected_in,
-        intent.expected_out,
-      );
+      try {
+        WorkSchedule.assertSchedule(
+          intent.expected_in,
+          intent.expected_out,
+          intent.break_minutes,
+          intent.break_start ?? null,
+        );
+      } catch (err) {
+        rethrowWorkScheduleDomainError(err);
+      }
     }
     if (intent.mode === 'remove') {
       const allowed = caller.system_admin === true || hasPermission(caller, 'SCHEDULE:Delete');

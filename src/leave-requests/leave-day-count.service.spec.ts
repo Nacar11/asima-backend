@@ -1,15 +1,15 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import { LeaveDayCountService } from '@/leave-requests/leave-day-count.service';
 import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-work-schedule.repository';
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import { WorkScheduleRecord } from '@/work-schedules/domain/work-schedule';
 
 /** Build active-schedule rows for a set of weekdays (0=Sun..6=Sat). */
-function scheduleFor(...weekdays: number[]): WorkSchedule[] {
-  return weekdays.map((d) => ({ day_of_week: d }) as WorkSchedule);
+function scheduleFor(...weekdays: number[]): WorkScheduleRecord[] {
+  return weekdays.map((d) => ({ day_of_week: d }) as WorkScheduleRecord);
 }
 
 /** Rows carrying the full window (09:00–18:00, lunch 12:00 for 60m). */
-function richScheduleFor(...weekdays: number[]): WorkSchedule[] {
+function richScheduleFor(...weekdays: number[]): WorkScheduleRecord[] {
   return weekdays.map(
     (d) =>
       ({
@@ -18,7 +18,7 @@ function richScheduleFor(...weekdays: number[]): WorkSchedule[] {
         expected_out: '18:00:00',
         break_minutes: 60,
         break_start: '12:00:00',
-      }) as WorkSchedule,
+      }) as WorkScheduleRecord,
   );
 }
 

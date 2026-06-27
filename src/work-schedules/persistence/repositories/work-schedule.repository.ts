@@ -4,7 +4,7 @@ import { EntityManager, IsNull, Repository } from 'typeorm';
 import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-work-schedule.repository';
 import { WorkScheduleEntity } from '@/work-schedules/persistence/entities/work-schedule.entity';
 import { WorkScheduleMapper } from '@/work-schedules/persistence/mappers/work-schedule.mapper';
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import { WorkScheduleRecord } from '@/work-schedules/domain/work-schedule';
 import { WorkScheduleSearchCriteria } from '@/work-schedules/domain/work-schedule-search-criteria';
 import { FindAllWorkSchedule } from '@/work-schedules/domain/find-all-work-schedule';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
@@ -45,12 +45,12 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
     return paginate(entities.map(WorkScheduleMapper.toDomain), total, paging);
   }
 
-  async findById(id: number): Promise<WorkSchedule | null> {
+  async findById(id: number): Promise<WorkScheduleRecord | null> {
     const entity = await this.repo.findOne({ where: { id } });
     return entity ? WorkScheduleMapper.toDomain(entity) : null;
   }
 
-  async findActiveForEmployee(employee_id: number): Promise<WorkSchedule[]> {
+  async findActiveForEmployee(employee_id: number): Promise<WorkScheduleRecord[]> {
     const entities = await this.repo.find({
       where: { employee_id, effective_to: IsNull() },
       order: { day_of_week: 'ASC' },
@@ -62,7 +62,7 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
     employee_id: number,
     day_of_week: DayOfWeek,
     manager?: EntityManager,
-  ): Promise<WorkSchedule | null> {
+  ): Promise<WorkScheduleRecord | null> {
     const entity = await this.repoFor(manager).findOne({
       where: { employee_id, day_of_week, effective_to: IsNull() },
     });
@@ -82,7 +82,7 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
       created_by?: number | null;
     },
     manager?: EntityManager,
-  ): Promise<WorkSchedule> {
+  ): Promise<WorkScheduleRecord> {
     const repo = this.repoFor(manager);
     const entity = repo.create({
       employee_id: input.employee_id,
@@ -112,7 +112,7 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
       updated_by?: number | null;
     },
     manager?: EntityManager,
-  ): Promise<WorkSchedule> {
+  ): Promise<WorkScheduleRecord> {
     const repo = this.repoFor(manager);
     const existing = await repo.findOneOrFail({ where: { id } });
     if (patch.expected_in !== undefined) existing.expected_in = patch.expected_in;
@@ -134,7 +134,7 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
     await repo.softDelete(id);
   }
 
-  private async requireById(id: number, manager?: EntityManager): Promise<WorkSchedule> {
+  private async requireById(id: number, manager?: EntityManager): Promise<WorkScheduleRecord> {
     const entity = await this.repoFor(manager).findOneOrFail({ where: { id } });
     return WorkScheduleMapper.toDomain(entity);
   }

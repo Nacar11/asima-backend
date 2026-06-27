@@ -1,4 +1,4 @@
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import { WorkScheduleRecord } from '@/work-schedules/domain/work-schedule';
 import {
   AffectedRequest,
   CascadeDecision,
@@ -41,7 +41,7 @@ export interface CorrectionLike {
  * rather than ended at `X − 1`.
  */
 export function planVersioning(
-  live: Pick<WorkSchedule, 'effective_from'> | null,
+  live: Pick<WorkScheduleRecord, 'effective_from'> | null,
   intent: ScheduleChangeIntent,
 ): VersioningAction {
   const unstarted = live != null && live.effective_from >= intent.effective_from;
@@ -55,13 +55,13 @@ export function planVersioning(
 }
 
 /** Whether the punch window (`expected_in`/`expected_out`) changes — drives corrections + leave. */
-export function windowChanged(live: WorkSchedule, intent: ScheduleChangeIntent): boolean {
+export function windowChanged(live: WorkScheduleRecord, intent: ScheduleChangeIntent): boolean {
   if (intent.mode === 'remove') return true;
   return intent.expected_in !== live.expected_in || intent.expected_out !== live.expected_out;
 }
 
 /** Whether the break (length or start) changes — only matters for half-day leave. */
-export function breakChanged(live: WorkSchedule, intent: ScheduleChangeIntent): boolean {
+export function breakChanged(live: WorkScheduleRecord, intent: ScheduleChangeIntent): boolean {
   if (intent.mode === 'remove') return true;
   return (
     intent.break_minutes !== live.break_minutes ||
@@ -112,7 +112,7 @@ export function classify(temporal: TemporalClass, status: string): CascadeDecisi
  */
 export function evaluateLeave(
   leave: LeaveLike,
-  live: WorkSchedule | null,
+  live: WorkScheduleRecord | null,
   intent: ScheduleChangeIntent,
   today: string,
 ): AffectedRequest | null {
@@ -154,7 +154,7 @@ export function evaluateLeave(
  */
 export function evaluateCorrection(
   tc: CorrectionLike,
-  live: WorkSchedule | null,
+  live: WorkScheduleRecord | null,
   intent: ScheduleChangeIntent,
   today: string,
 ): AffectedRequest | null {

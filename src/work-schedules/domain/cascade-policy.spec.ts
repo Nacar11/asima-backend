@@ -1,4 +1,4 @@
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import { WorkScheduleRecord } from '@/work-schedules/domain/work-schedule';
 import { ScheduleChangeIntent } from '@/work-schedules/domain/schedule-change';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
 import { weekdayOf } from '@/utils/helpers/dates';
@@ -15,7 +15,7 @@ import {
   windowChanged,
 } from '@/work-schedules/domain/cascade-policy';
 
-function schedule(over: Partial<WorkSchedule> = {}): WorkSchedule {
+function schedule(over: Partial<WorkScheduleRecord> = {}): WorkScheduleRecord {
   return {
     id: 88,
     employee_id: 12,
@@ -33,7 +33,7 @@ function schedule(over: Partial<WorkSchedule> = {}): WorkSchedule {
     updated_at: new Date(),
     deleted_at: null,
     ...over,
-  } as WorkSchedule;
+  } as WorkScheduleRecord;
 }
 
 function modify(over: Partial<ScheduleChangeIntent> = {}): ScheduleChangeIntent {

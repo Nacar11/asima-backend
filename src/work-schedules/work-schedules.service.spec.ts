@@ -1,14 +1,17 @@
 import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { WorkSchedulesService } from './work-schedules.service';
 import { BaseWorkScheduleRepository } from './persistence/base-work-schedule.repository';
-import { WorkSchedule } from './domain/work-schedule';
+import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
+import { WorkScheduleRecord } from './domain/work-schedule';
+import { WorkScheduleCreated, WorkScheduleEnded } from './domain/events/work-schedule-events';
 import { DAY_OF_WEEK } from './work-schedules.constants';
 
 describe('WorkSchedulesService', () => {
   let service: WorkSchedulesService;
   let repo: jest.Mocked<BaseWorkScheduleRepository>;
+  let publisher: { publish: jest.Mock };
 
-  const fakeActive: WorkSchedule = {
+  const fakeActive: WorkScheduleRecord = {
     id: 50,
     employee_id: 12,
     day_of_week: DAY_OF_WEEK.MONDAY,
@@ -36,7 +39,8 @@ describe('WorkSchedulesService', () => {
       update: jest.fn(),
       softDelete: jest.fn(),
     };
-    service = new WorkSchedulesService(repo);
+    publisher = { publish: jest.fn() };
+    service = new WorkSchedulesService(repo, publisher as unknown as DomainEventPublisher);
   });
 
   describe('create', () => {
@@ -156,6 +160,7 @@ describe('WorkSchedulesService', () => {
       expect(repo.create).toHaveBeenCalledWith(
         expect.objectContaining({ break_start: '12:00:00' }),
       );
+      expect(publisher.publish).toHaveBeenCalledWith([expect.any(WorkScheduleCreated)]);
     });
   });
 
@@ -180,6 +185,17 @@ describe('WorkSchedulesService', () => {
       const result = await service.update(50, { break_minutes: 30, updated_by: 2 });
       expect(result.break_minutes).toBe(30);
       expect(repo.update).toHaveBeenCalledWith(50, { break_minutes: 30, updated_by: 2 });
+      // An admin edit is not a downstream timesheet fact (decision #5/#6).
+      expect(publisher.publish).not.toHaveBeenCalled();
+    });
+
+    it('clears break_start to null when the patch sets it to null (=== !== undefined merge)', async () => {
+      repo.findById.mockResolvedValue(fakeActive);
+      repo.update.mockResolvedValue({ ...fakeActive, break_minutes: 0, break_start: null });
+
+      await service.update(50, { break_minutes: 0, break_start: null });
+
+      expect(repo.update).toHaveBeenCalledWith(50, { break_minutes: 0, break_start: null });
     });
 
     it('rejects a patched break_start that overruns expected_out', async () => {
@@ -202,6 +218,9 @@ describe('WorkSchedulesService', () => {
         effective_to: '2026-05-30',
         updated_by: 1,
       });
+      const published = publisher.publish.mock.calls[0][0];
+      expect(published[0]).toBeInstanceOf(WorkScheduleEnded);
+      expect(published[0].work_schedule_id).toBe(50);
     });
 
     it('refuses to logically end an already-ended row', async () => {

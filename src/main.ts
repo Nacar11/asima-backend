@@ -89,10 +89,13 @@ async function bootstrap() {
       {
         name: 'Admin - Work Schedule',
         schemas: [
-          'WorkSchedule',
+          'WorkScheduleResponseDto',
           'CreateWorkScheduleDto',
           'UpdateWorkScheduleDto',
           'QueryWorkScheduleDto',
+          'ScheduleChangeImpactResponseDto',
+          'ScheduleChangeResultResponseDto',
+          'AffectedRequestResponseDto',
         ],
       },
       {

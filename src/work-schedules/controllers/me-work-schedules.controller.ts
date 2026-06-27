@@ -1,7 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { WorkSchedulesService } from '@/work-schedules/work-schedules.service';
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import { WorkScheduleResponseDto } from '@/work-schedules/dto/response/work-schedule-response.dto';
+import { WorkScheduleAssembler } from '@/work-schedules/work-schedule.assembler';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
 import { API_VERSION } from '@/utils/constants/api.constants';
 import { User } from '@/users/domain/user';
@@ -32,9 +33,10 @@ export class MeWorkSchedulesController {
   })
   @ApiResponse({
     status: 200,
-    schema: { type: 'array', items: { $ref: '#/components/schemas/WorkSchedule' } },
+    schema: { type: 'array', items: { $ref: '#/components/schemas/WorkScheduleResponseDto' } },
   })
-  mySchedule(@CurrentUser() actor: User): Promise<WorkSchedule[]> {
-    return this.service.findActiveForEmployee(actor.id);
+  async mySchedule(@CurrentUser() actor: User): Promise<WorkScheduleResponseDto[]> {
+    const rows = await this.service.findActiveForEmployee(actor.id);
+    return rows.map((r) => WorkScheduleAssembler.toResponse(r));
   }
 }

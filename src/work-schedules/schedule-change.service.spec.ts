@@ -8,7 +8,7 @@ import { ScheduleChangeService } from '@/work-schedules/schedule-change.service'
 import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-work-schedule.repository';
 import { BaseLeaveRequestRepository } from '@/leave-requests/persistence/base-leave-request.repository';
 import { BaseTimeCorrectionRequestRepository } from '@/time-correction-requests/persistence/base-time-correction-request.repository';
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import { WorkScheduleRecord } from '@/work-schedules/domain/work-schedule';
 import { ScheduleChangeIntent } from '@/work-schedules/domain/schedule-change';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
 import { weekdayOf } from '@/utils/helpers/dates';
@@ -23,7 +23,7 @@ class TestService extends ScheduleChangeService {
   }
 }
 
-function live(over: Partial<WorkSchedule> = {}): WorkSchedule {
+function live(over: Partial<WorkScheduleRecord> = {}): WorkScheduleRecord {
   return {
     id: 88,
     employee_id: 12,
@@ -41,7 +41,7 @@ function live(over: Partial<WorkSchedule> = {}): WorkSchedule {
     updated_at: new Date(),
     deleted_at: null,
     ...over,
-  } as WorkSchedule;
+  } as WorkScheduleRecord;
 }
 
 function intent(over: Partial<ScheduleChangeIntent> = {}): ScheduleChangeIntent {

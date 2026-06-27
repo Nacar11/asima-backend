@@ -1,9 +1,17 @@
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import { WorkScheduleRecord } from '@/work-schedules/domain/work-schedule';
 import { WorkScheduleEntity } from '@/work-schedules/persistence/entities/work-schedule.entity';
 
+/**
+ * Read-path only. Reconstitution of the rich `WorkSchedule` aggregate happens
+ * **use-case-side** from the record each mutate path already holds (no
+ * `toAggregate`/`findAggregateById` — blueprint §3.2 rule 3a).
+ *
+ * `toDomain`'s field-assignment order drives the JSON key order — keep it ==
+ * legacy so the wire stays byte-identical.
+ */
 export class WorkScheduleMapper {
-  static toDomain(raw: WorkScheduleEntity): WorkSchedule {
-    const ws = new WorkSchedule();
+  static toDomain(raw: WorkScheduleEntity): WorkScheduleRecord {
+    const ws = new WorkScheduleRecord();
     ws.id = raw.id;
     ws.employee_id = raw.employee_id;
     ws.day_of_week = raw.day_of_week;
@@ -22,7 +30,7 @@ export class WorkScheduleMapper {
     return ws;
   }
 
-  static toPersistence(domain: Partial<WorkSchedule>): WorkScheduleEntity {
+  static toPersistence(domain: Partial<WorkScheduleRecord>): WorkScheduleEntity {
     const entity = new WorkScheduleEntity();
     if (domain.id !== undefined) entity.id = domain.id;
     if (domain.employee_id !== undefined) entity.employee_id = domain.employee_id;

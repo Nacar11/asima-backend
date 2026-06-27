@@ -1,6 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
-import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
+import { WorkScheduleRecord } from '@/work-schedules/domain/work-schedule';
 
 /**
  * Schedule-change domain types for the admin cascade flow (plan
@@ -11,8 +10,9 @@ import { WorkSchedule } from '@/work-schedules/domain/work-schedule';
  * time-correction and leave requests that the change invalidates are
  * auto-cancelled per the matrix in `cascade-policy.ts`.
  *
- * Pure TS — no `@nestjs/*` runtime / `typeorm` imports (`@nestjs/swagger`
- * decorators are runtime-stripped, so allowed).
+ * Pure TS — no `@nestjs/*` / `typeorm`. These are the policy/service working
+ * types; their HTTP/Swagger shape lives in
+ * `dto/response/schedule-change-response.dto.ts`.
  */
 
 export type ScheduleChangeMode = 'modify' | 'remove';
@@ -51,72 +51,35 @@ export type CascadeDecision = 'cancel' | 'keep';
 
 /**
  * A request the change touches. Only `decision === 'cancel'` rows land in the
- * impact lists. `trigger_dates` (I2) are the governed date(s) that caused the
- * cancel — so the UI can explain why a multi-day leave is in the list.
+ * impact lists. `trigger_dates` are the governed date(s) that caused the cancel
+ * — so the UI can explain why a multi-day leave is in the list.
  */
 export class AffectedRequest {
-  @ApiProperty({ enum: ['leave', 'time_correction'] })
   kind!: AffectedKind;
-
-  @ApiProperty({ example: 42 })
   id!: number;
-
-  @ApiProperty({ example: 12 })
   employee_id!: number;
-
-  @ApiProperty({ example: 'approved' })
   status!: string;
-
-  @ApiProperty({ type: [String], example: ['2026-06-24', '2026-06-25'] })
   dates!: string[];
-
-  @ApiProperty({ type: [String], example: ['2026-06-24'] })
   trigger_dates!: string[];
-
-  @ApiProperty({ enum: ['past', 'present', 'future'] })
   temporal!: TemporalClass;
-
-  @ApiProperty({ enum: ['cancel', 'keep'] })
   decision!: CascadeDecision;
-
-  @ApiPropertyOptional({ example: 'vacation', nullable: true })
   leave_type!: string | null;
-
-  @ApiPropertyOptional({
-    example: 2,
-    nullable: true,
-    description: 'Working-days the request consumes (leave only) — drives freed_leave_days.',
-  })
+  /** Working-days the request consumes (leave only) — drives freed_leave_days. */
   working_days!: number | null;
 }
 
 /** The full dry-run report for a schedule change — returned by preview, echoed by apply. */
 export class ScheduleChangeImpact {
-  @ApiProperty({ enum: ['create', 'end_and_create', 'replace', 'end_only', 'delete_only', 'noop'] })
   versioning!: VersioningAction;
-
-  @ApiPropertyOptional({
-    example: 88,
-    nullable: true,
-    description: 'The live row that will be ended or replaced; null when creating fresh.',
-  })
+  /** The live row that will be ended or replaced; null when creating fresh. */
   live_row_id!: number | null;
-
-  @ApiProperty({ type: [AffectedRequest] })
   affected_leaves!: AffectedRequest[];
-
-  @ApiProperty({ type: [AffectedRequest] })
   affected_corrections!: AffectedRequest[];
-
-  @ApiProperty({
-    example: 2,
-    description: 'Sum of working-days freed by cancelled leaves (derived balance returns them).',
-  })
+  /** Sum of working-days freed by cancelled leaves (derived balance returns them). */
   freed_leave_days!: number;
 }
 
 /** Result of `apply` — what actually committed. Extends the impact with the new row. */
 export class ScheduleChangeResult extends ScheduleChangeImpact {
-  @ApiPropertyOptional({ type: WorkSchedule, nullable: true })
-  created_row!: WorkSchedule | null;
+  created_row!: WorkScheduleRecord | null;
 }
