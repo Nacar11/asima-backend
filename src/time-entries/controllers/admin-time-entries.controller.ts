@@ -13,14 +13,15 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TimeEntriesService } from '@/time-entries/time-entries.service';
-import { TimeEntry } from '@/time-entries/domain/time-entry';
-import { FindAllTimeEntry } from '@/time-entries/domain/find-all-time-entry';
+import { TimeEntryResponseDto } from '@/time-entries/dto/response/time-entry-response.dto';
+import { TimeEntryAssembler } from '@/time-entries/time-entry.assembler';
 import { CreateTimeEntryDto } from '@/time-entries/dto/admin/create-time-entry.dto';
 import { UpdateTimeEntryDto } from '@/time-entries/dto/admin/update-time-entry.dto';
 import { QueryTimeEntryDto } from '@/time-entries/dto/admin/query-time-entry.dto';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
 import { Permissions } from '@/permissions/permissions.decorator';
 import { API_VERSION } from '@/utils/constants/api.constants';
+import { PaginatedResponse } from '@/utils/types/paginated-response.type';
 import { User } from '@/users/domain/user';
 
 /**
@@ -43,15 +44,17 @@ export class AdminTimeEntriesController {
   @Permissions({ TIME: 'View' })
   @ApiOperation({ summary: 'List time entries (paginated, filterable by employee + date range)' })
   @ApiResponse({ status: 200, description: 'Paginated list of time entries' })
-  findAll(@Query() query: QueryTimeEntryDto): Promise<FindAllTimeEntry> {
-    return this.service.findAll(query);
+  async findAll(
+    @Query() query: QueryTimeEntryDto,
+  ): Promise<PaginatedResponse<TimeEntryResponseDto>> {
+    return TimeEntryAssembler.toPaginatedResponse(await this.service.findAll(query));
   }
 
   @Get(':id')
   @Permissions({ TIME: 'View' })
   @ApiOperation({ summary: 'Get a single time entry by id' })
-  findOne(@Param('id', ParseIntPipe) id: number): Promise<TimeEntry> {
-    return this.service.findById(id);
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<TimeEntryResponseDto> {
+    return TimeEntryAssembler.toResponse(await this.service.findById(id));
   }
 
   @Post()
@@ -63,8 +66,13 @@ export class AdminTimeEntriesController {
       'entry. The DB-level partial unique index rejects a second open entry for the same employee.',
   })
   @ApiResponse({ status: 201 })
-  create(@Body() dto: CreateTimeEntryDto, @CurrentUser() actor: User): Promise<TimeEntry> {
-    return this.service.create({ ...dto, created_by: actor.id });
+  async create(
+    @Body() dto: CreateTimeEntryDto,
+    @CurrentUser() actor: User,
+  ): Promise<TimeEntryResponseDto> {
+    return TimeEntryAssembler.toResponse(
+      await this.service.create({ ...dto, created_by: actor.id }),
+    );
   }
 
   @Patch(':id')
@@ -75,12 +83,14 @@ export class AdminTimeEntriesController {
       'Status is derived from time_out — null = open, set = confirmed. ' +
       'Status is intentionally not a writable field; set time_out to close an open entry.',
   })
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateTimeEntryDto,
     @CurrentUser() actor: User,
-  ): Promise<TimeEntry> {
-    return this.service.update(id, { ...dto, updated_by: actor.id });
+  ): Promise<TimeEntryResponseDto> {
+    return TimeEntryAssembler.toResponse(
+      await this.service.update(id, { ...dto, updated_by: actor.id }),
+    );
   }
 
   @Delete(':id')

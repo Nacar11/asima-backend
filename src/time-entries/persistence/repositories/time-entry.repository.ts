@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { BaseTimeEntryRepository } from '@/time-entries/persistence/base-time-entry.repository';
 import { TimeEntryEntity } from '@/time-entries/persistence/entities/time-entry.entity';
 import { TimeEntryMapper } from '@/time-entries/persistence/mappers/time-entry.mapper';
-import { TimeEntry } from '@/time-entries/domain/time-entry';
+import { TimeEntryRecord } from '@/time-entries/domain/time-entry';
 import { TimeEntrySearchCriteria } from '@/time-entries/domain/time-entry-search-criteria';
 import { FindAllTimeEntry } from '@/time-entries/domain/find-all-time-entry';
 import {
@@ -44,19 +44,19 @@ export class TimeEntryRepository extends BaseTimeEntryRepository {
     return paginate(entities.map(TimeEntryMapper.toDomain), total, paging);
   }
 
-  async findById(id: number): Promise<TimeEntry | null> {
+  async findById(id: number): Promise<TimeEntryRecord | null> {
     const entity = await this.repo.findOne({ where: { id } });
     return entity ? TimeEntryMapper.toDomain(entity) : null;
   }
 
-  async findOpenForEmployee(employee_id: number): Promise<TimeEntry | null> {
+  async findOpenForEmployee(employee_id: number): Promise<TimeEntryRecord | null> {
     const entity = await this.repo.findOne({
       where: { employee_id, status: TIME_ENTRY_STATUSES.open },
     });
     return entity ? TimeEntryMapper.toDomain(entity) : null;
   }
 
-  async findLatestForEmployee(employee_id: number): Promise<TimeEntry | null> {
+  async findLatestForEmployee(employee_id: number): Promise<TimeEntryRecord | null> {
     // Order by the latest event on each row — `time_out` if the segment is
     // closed, else `time_in` for an open one. QueryBuilder does not auto-apply
     // the soft-delete filter, so exclude deleted rows explicitly.
@@ -85,7 +85,7 @@ export class TimeEntryRepository extends BaseTimeEntryRepository {
     status: TimeEntryStatus;
     notes?: string | null;
     created_by?: number | null;
-  }): Promise<TimeEntry> {
+  }): Promise<TimeEntryRecord> {
     const entity = this.repo.create({
       employee_id: input.employee_id,
       work_date: input.work_date,
@@ -112,7 +112,7 @@ export class TimeEntryRepository extends BaseTimeEntryRepository {
       notes?: string | null;
       updated_by?: number | null;
     },
-  ): Promise<TimeEntry> {
+  ): Promise<TimeEntryRecord> {
     const existing = await this.repo.findOneOrFail({ where: { id } });
     if (patch.work_date !== undefined) existing.work_date = patch.work_date;
     if (patch.time_in !== undefined) existing.time_in = patch.time_in;
@@ -132,7 +132,7 @@ export class TimeEntryRepository extends BaseTimeEntryRepository {
     await this.repo.softDelete(id);
   }
 
-  private async requireById(id: number): Promise<TimeEntry> {
+  private async requireById(id: number): Promise<TimeEntryRecord> {
     const entity = await this.repo.findOneOrFail({ where: { id } });
     return TimeEntryMapper.toDomain(entity);
   }

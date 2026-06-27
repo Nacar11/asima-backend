@@ -6,14 +6,21 @@ import {
 } from '@nestjs/common';
 import { TimeEntriesService } from './time-entries.service';
 import { BaseTimeEntryRepository } from './persistence/base-time-entry.repository';
-import { TimeEntry } from './domain/time-entry';
+import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
+import { TimeEntryRecord } from './domain/time-entry';
+import {
+  TimeEntryClosed,
+  TimeEntryCorrected,
+  TimeEntryOpened,
+} from './domain/events/time-entry-events';
 import { TIME_ENTRY_SOURCES, TIME_ENTRY_STATUSES } from './time-entries.constants';
 
 describe('TimeEntriesService', () => {
   let service: TimeEntriesService;
   let repo: jest.Mocked<BaseTimeEntryRepository>;
+  let publisher: { publish: jest.Mock };
 
-  const fakeOpenEntry: TimeEntry = {
+  const fakeOpenEntry: TimeEntryRecord = {
     id: 10,
     employee_id: 12,
     work_date: '2026-05-07',
@@ -41,11 +48,15 @@ describe('TimeEntriesService', () => {
       update: jest.fn(),
       softDelete: jest.fn(),
     };
-    service = new TimeEntriesService(repo as unknown as BaseTimeEntryRepository);
+    publisher = { publish: jest.fn() };
+    service = new TimeEntriesService(
+      repo as unknown as BaseTimeEntryRepository,
+      publisher as unknown as DomainEventPublisher,
+    );
   });
 
   describe('punch (toggle)', () => {
-    it('creates a new open entry when no open entry exists', async () => {
+    it('creates a new open entry when no open entry exists and publishes TimeEntryOpened', async () => {
       repo.findOpenForEmployee.mockResolvedValue(null);
       repo.create.mockResolvedValue(fakeOpenEntry);
 
@@ -62,11 +73,12 @@ describe('TimeEntriesService', () => {
         }),
       );
       expect(repo.update).not.toHaveBeenCalled();
+      expect(publisher.publish).toHaveBeenCalledWith([expect.any(TimeEntryOpened)]);
     });
 
-    it('closes the existing open entry instead of creating a second one', async () => {
+    it('closes the existing open entry (narrow patch) and publishes TimeEntryClosed', async () => {
       repo.findOpenForEmployee.mockResolvedValue(fakeOpenEntry);
-      const closed: TimeEntry = {
+      const closed: TimeEntryRecord = {
         ...fakeOpenEntry,
         time_out: new Date(),
         status: TIME_ENTRY_STATUSES.confirmed,
@@ -76,15 +88,16 @@ describe('TimeEntriesService', () => {
       const result = await service.punch({ id: 12 });
 
       expect(result).toBe(closed);
-      expect(repo.update).toHaveBeenCalledWith(
-        fakeOpenEntry.id,
-        expect.objectContaining({
-          status: TIME_ENTRY_STATUSES.confirmed,
-          time_out: expect.any(Date),
-          updated_by: 12,
-        }),
-      );
+      // Narrow patch — only the three fields the close transition touches.
+      expect(repo.update).toHaveBeenCalledWith(fakeOpenEntry.id, {
+        status: TIME_ENTRY_STATUSES.confirmed,
+        time_out: expect.any(Date),
+        updated_by: 12,
+      });
       expect(repo.create).not.toHaveBeenCalled();
+      const published = publisher.publish.mock.calls[0][0];
+      expect(published[0]).toBeInstanceOf(TimeEntryClosed);
+      expect(published[0].time_entry_id).toBe(10);
     });
 
     it('maps a Postgres unique-violation on insert to 409 ConflictException', async () => {
@@ -172,9 +185,9 @@ describe('TimeEntriesService', () => {
       expect(repo.create).not.toHaveBeenCalled();
     });
 
-    it('creates a confirmed segment when both punches provided', async () => {
+    it('creates a confirmed segment when both punches provided and publishes TimeEntryOpened', async () => {
       repo.findOpenForEmployee.mockResolvedValue(null);
-      const created: TimeEntry = {
+      const created: TimeEntryRecord = {
         ...fakeOpenEntry,
         time_out: new Date('2026-05-07T18:00:00Z'),
         status: TIME_ENTRY_STATUSES.confirmed,
@@ -200,6 +213,7 @@ describe('TimeEntriesService', () => {
           source: TIME_ENTRY_SOURCES.admin,
         }),
       );
+      expect(publisher.publish).toHaveBeenCalledWith([expect.any(TimeEntryOpened)]);
     });
   });
 
@@ -235,7 +249,7 @@ describe('TimeEntriesService', () => {
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
     });
 
-    it('derives status=confirmed when time_out is provided', async () => {
+    it('derives status=confirmed when time_out is provided, and publishes NO event', async () => {
       repo.findById.mockResolvedValue(fakeOpenEntry);
       repo.update.mockResolvedValue({ ...fakeOpenEntry, status: TIME_ENTRY_STATUSES.confirmed });
 
@@ -244,6 +258,29 @@ describe('TimeEntriesService', () => {
       expect(repo.update).toHaveBeenCalledWith(
         10,
         expect.objectContaining({ status: TIME_ENTRY_STATUSES.confirmed }),
+      );
+      // An admin edit is not a downstream timesheet fact (decision #5/#6).
+      expect(publisher.publish).not.toHaveBeenCalled();
+    });
+
+    it('clears time_out to open when the patch sets it to null (=== !== undefined merge)', async () => {
+      const confirmed: TimeEntryRecord = {
+        ...fakeOpenEntry,
+        time_out: new Date('2026-05-07T18:00:00Z'),
+        status: TIME_ENTRY_STATUSES.confirmed,
+      };
+      repo.findById.mockResolvedValue(confirmed);
+      repo.update.mockResolvedValue({
+        ...confirmed,
+        time_out: null,
+        status: TIME_ENTRY_STATUSES.open,
+      });
+
+      await service.update(10, { time_out: null });
+
+      expect(repo.update).toHaveBeenCalledWith(
+        10,
+        expect.objectContaining({ time_out: null, status: TIME_ENTRY_STATUSES.open }),
       );
     });
   });
@@ -256,7 +293,7 @@ describe('TimeEntriesService', () => {
     });
   });
 
-  describe('applyCorrection — manual-add (null target) guard', () => {
+  describe('applyCorrection', () => {
     const manualAdd = {
       employee_id: 12,
       target_entry_id: null,
@@ -266,6 +303,18 @@ describe('TimeEntriesService', () => {
       decided_by: 5,
     };
 
+    it('rejects an invalid proposed window with 422 keyed on proposed_time_out', async () => {
+      await expect(
+        service.applyCorrection({
+          ...manualAdd,
+          proposed_time_in: new Date('2026-06-13T18:00:00Z'),
+          proposed_time_out: new Date('2026-06-13T09:00:00Z'),
+        }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(repo.create).not.toHaveBeenCalled();
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
     it('rejects with 409 when an entry already exists for the date (TOCTOU re-check)', async () => {
       repo.existsForEmployeeDate.mockResolvedValue(true);
 
@@ -273,7 +322,7 @@ describe('TimeEntriesService', () => {
       expect(repo.create).not.toHaveBeenCalled();
     });
 
-    it('creates the new entry when none exists for the date', async () => {
+    it('creates the new entry (source=correction) when none exists and publishes TimeEntryOpened', async () => {
       repo.existsForEmployeeDate.mockResolvedValue(false);
       repo.findOpenForEmployee.mockResolvedValue(null);
       repo.create.mockResolvedValue({ ...fakeOpenEntry, status: TIME_ENTRY_STATUSES.confirmed });
@@ -283,16 +332,30 @@ describe('TimeEntriesService', () => {
       expect(repo.create).toHaveBeenCalledWith(
         expect.objectContaining({ source: TIME_ENTRY_SOURCES.correction }),
       );
+      expect(publisher.publish).toHaveBeenCalledWith([expect.any(TimeEntryOpened)]);
     });
 
-    it('does NOT run the existing-entry guard when target_entry_id is set', async () => {
+    it('updates the target (work_date + correction source) and publishes TimeEntryCorrected', async () => {
       repo.findById.mockResolvedValue(fakeOpenEntry);
       repo.update.mockResolvedValue({ ...fakeOpenEntry, status: TIME_ENTRY_STATUSES.confirmed });
 
-      await service.applyCorrection({ ...manualAdd, target_entry_id: 10 });
+      await service.applyCorrection({ ...manualAdd, target_entry_id: 10, work_date: '2026-06-20' });
 
+      // The existing-entry TOCTOU guard does NOT run on the target path.
       expect(repo.existsForEmployeeDate).not.toHaveBeenCalled();
-      expect(repo.update).toHaveBeenCalled();
+      // work_date moves with the correction (frozen contract — decision #7).
+      expect(repo.update).toHaveBeenCalledWith(
+        10,
+        expect.objectContaining({
+          work_date: '2026-06-20',
+          source: TIME_ENTRY_SOURCES.correction,
+          status: TIME_ENTRY_STATUSES.confirmed,
+          updated_by: 5,
+        }),
+      );
+      const published = publisher.publish.mock.calls[0][0];
+      expect(published[0]).toBeInstanceOf(TimeEntryCorrected);
+      expect(published[0].time_entry_id).toBe(10);
     });
   });
 });

@@ -1,12 +1,13 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TimeEntriesService } from '@/time-entries/time-entries.service';
-import { TimeEntry } from '@/time-entries/domain/time-entry';
-import { FindAllTimeEntry } from '@/time-entries/domain/find-all-time-entry';
+import { TimeEntryResponseDto } from '@/time-entries/dto/response/time-entry-response.dto';
+import { TimeEntryAssembler } from '@/time-entries/time-entry.assembler';
 import { QueryMyTimeEntryDto } from '@/time-entries/dto/me/query-my-time-entry.dto';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
 import { utcDateString } from '@/utils/helpers/dates';
 import { API_VERSION } from '@/utils/constants/api.constants';
+import { PaginatedResponse } from '@/utils/types/paginated-response.type';
 import { User } from '@/users/domain/user';
 
 /**
@@ -37,8 +38,8 @@ export class MeTimeEntriesController {
   })
   @ApiResponse({ status: 201, description: 'Created (open) or closed (confirmed) entry' })
   @ApiResponse({ status: 429, description: 'Cooldown — punched again within 5 minutes' })
-  punch(@CurrentUser() actor: User): Promise<TimeEntry> {
-    return this.service.punch(actor);
+  async punch(@CurrentUser() actor: User): Promise<TimeEntryResponseDto> {
+    return TimeEntryAssembler.toResponse(await this.service.punch(actor));
   }
 
   @Get()
@@ -46,11 +47,13 @@ export class MeTimeEntriesController {
     summary: 'List my own time entries (paginated, filterable by date range)',
   })
   @ApiResponse({ status: 200 })
-  findMine(
+  async findMine(
     @Query() query: QueryMyTimeEntryDto,
     @CurrentUser() actor: User,
-  ): Promise<FindAllTimeEntry> {
-    return this.service.findAll({ ...query, employee_id: actor.id });
+  ): Promise<PaginatedResponse<TimeEntryResponseDto>> {
+    return TimeEntryAssembler.toPaginatedResponse(
+      await this.service.findAll({ ...query, employee_id: actor.id }),
+    );
   }
 
   @Get('today')
@@ -61,8 +64,10 @@ export class MeTimeEntriesController {
       'Uses the server clock so all employees agree on what "today" means.',
   })
   @ApiResponse({ status: 200 })
-  async today(@CurrentUser() actor: User): Promise<FindAllTimeEntry> {
+  async today(@CurrentUser() actor: User): Promise<PaginatedResponse<TimeEntryResponseDto>> {
     const today = utcDateString();
-    return this.service.findAll({ employee_id: actor.id, from: today, to: today });
+    return TimeEntryAssembler.toPaginatedResponse(
+      await this.service.findAll({ employee_id: actor.id, from: today, to: today }),
+    );
   }
 }

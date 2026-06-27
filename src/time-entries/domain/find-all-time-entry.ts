@@ -1,4 +1,4 @@
-import { TimeEntry } from './time-entry';
+import { TimeEntryRecord } from './time-entry';
 import { PaginatedResponse } from '@/utils/types/paginated-response.type';
 
-export type FindAllTimeEntry = PaginatedResponse<TimeEntry>;
+export type FindAllTimeEntry = PaginatedResponse<TimeEntryRecord>;

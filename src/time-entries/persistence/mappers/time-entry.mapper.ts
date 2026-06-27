@@ -1,9 +1,17 @@
-import { TimeEntry } from '@/time-entries/domain/time-entry';
+import { TimeEntryRecord } from '@/time-entries/domain/time-entry';
 import { TimeEntryEntity } from '@/time-entries/persistence/entities/time-entry.entity';
 
+/**
+ * Read-path only. Reconstitution of the rich `TimeEntry` aggregate happens
+ * **use-case-side** from the record each mutate path already holds (no
+ * `toAggregate`/`findAggregateById` — blueprint §3.2 rule 3a, decision #10).
+ *
+ * `toDomain`'s field-assignment order drives the JSON key order — keep it ==
+ * legacy so the wire stays byte-identical.
+ */
 export class TimeEntryMapper {
-  static toDomain(raw: TimeEntryEntity): TimeEntry {
-    const entry = new TimeEntry();
+  static toDomain(raw: TimeEntryEntity): TimeEntryRecord {
+    const entry = new TimeEntryRecord();
     entry.id = raw.id;
     entry.employee_id = raw.employee_id;
     entry.work_date = raw.work_date;
@@ -21,7 +29,7 @@ export class TimeEntryMapper {
     return entry;
   }
 
-  static toPersistence(domain: Partial<TimeEntry>): TimeEntryEntity {
+  static toPersistence(domain: Partial<TimeEntryRecord>): TimeEntryEntity {
     const entity = new TimeEntryEntity();
     if (domain.id !== undefined) entity.id = domain.id;
     if (domain.employee_id !== undefined) entity.employee_id = domain.employee_id;

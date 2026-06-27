@@ -78,7 +78,12 @@ async function bootstrap() {
       },
       {
         name: 'Admin - Time Entry',
-        schemas: ['TimeEntry', 'CreateTimeEntryDto', 'UpdateTimeEntryDto', 'QueryTimeEntryDto'],
+        schemas: [
+          'TimeEntryResponseDto',
+          'CreateTimeEntryDto',
+          'UpdateTimeEntryDto',
+          'QueryTimeEntryDto',
+        ],
       },
       { name: 'Time Entry', schemas: ['QueryMyTimeEntryDto'] },
       {
