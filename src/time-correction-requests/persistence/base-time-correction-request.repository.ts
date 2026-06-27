@@ -1,5 +1,6 @@
 import { EntityManager } from 'typeorm';
-import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequestRecord } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request.aggregate';
 import { TimeCorrectionRequestSearchCriteria } from '@/time-correction-requests/domain/time-correction-request-search-criteria';
 import { FindAllTimeCorrectionRequest } from '@/time-correction-requests/domain/find-all-time-correction-request';
 import {
@@ -12,7 +13,10 @@ export abstract class BaseTimeCorrectionRequestRepository {
     criteria: TimeCorrectionRequestSearchCriteria,
   ): Promise<FindAllTimeCorrectionRequest>;
 
-  abstract findById(id: number): Promise<TimeCorrectionRequest | null>;
+  abstract findById(id: number): Promise<TimeCorrectionRequestRecord | null>;
+
+  /** Write-path load — the reconstituted aggregate for load-mutate-save. */
+  abstract findAggregateById(id: number): Promise<TimeCorrectionRequest | null>;
 
   /**
    * Pending/approved correction requests for an employee on a given
@@ -22,18 +26,18 @@ export abstract class BaseTimeCorrectionRequestRepository {
   abstract findActiveForEmployeeDate(
     employee_id: number,
     work_date: string,
-  ): Promise<TimeCorrectionRequest[]>;
+  ): Promise<TimeCorrectionRequestRecord[]>;
 
   /**
    * Pending/approved correction requests that target a specific time entry.
    * Drives the "one open correction per entry" submit guard (per-entry model:
    * a regular shift and an OT entry on the same day are corrected separately).
    */
-  abstract findActiveForEntry(target_entry_id: number): Promise<TimeCorrectionRequest[]>;
+  abstract findActiveForEntry(target_entry_id: number): Promise<TimeCorrectionRequestRecord[]>;
 
-  abstract findPendingForApprover(approver_id: number): Promise<TimeCorrectionRequest[]>;
+  abstract findPendingForApprover(approver_id: number): Promise<TimeCorrectionRequestRecord[]>;
 
-  abstract findAllPending(): Promise<TimeCorrectionRequest[]>;
+  abstract findAllPending(): Promise<TimeCorrectionRequestRecord[]>;
 
   /**
    * Active (pending/approved) corrections for an employee with
@@ -45,7 +49,7 @@ export abstract class BaseTimeCorrectionRequestRepository {
     employee_id: number,
     from_date: string,
     manager?: EntityManager,
-  ): Promise<TimeCorrectionRequest[]>;
+  ): Promise<TimeCorrectionRequestRecord[]>;
 
   /**
    * System cancel of the given corrections as part of a schedule change —
@@ -71,7 +75,7 @@ export abstract class BaseTimeCorrectionRequestRepository {
     l1_approver_id: number;
     l2_approver_id: number | null;
     created_by?: number | null;
-  }): Promise<TimeCorrectionRequest>;
+  }): Promise<TimeCorrectionRequestRecord>;
 
   abstract update(
     id: number,
@@ -89,5 +93,5 @@ export abstract class BaseTimeCorrectionRequestRepository {
       cancelled_by?: number | null;
       updated_by?: number | null;
     },
-  ): Promise<TimeCorrectionRequest>;
+  ): Promise<TimeCorrectionRequestRecord>;
 }

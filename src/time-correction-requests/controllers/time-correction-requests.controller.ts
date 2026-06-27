@@ -10,17 +10,19 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TimeCorrectionRequestsService } from '@/time-correction-requests/time-correction-requests.service';
-import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequestAssembler } from '@/time-correction-requests/time-correction-request.assembler';
+import { TimeCorrectionRequestResponseDto } from '@/time-correction-requests/dto/response/time-correction-request-response.dto';
 import { RejectTimeCorrectionRequestDto } from '@/time-correction-requests/dto/reject-time-correction-request.dto';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
 import { API_VERSION } from '@/utils/constants/api.constants';
 import { User } from '@/users/domain/user';
 
 /**
- * Approver-facing correction routes. approve/reject are JWT-only at the
- * guard because the PermissionsGuard can't express "Approve OR
- * ApproveAny" (HR holds ApproveAny but not Approve). The service's
- * canActOn enforces role capability + chain placement.
+ * Approver-facing correction routes. approve/reject are JWT-only at the guard
+ * because the PermissionsGuard can't express "Approve OR ApproveAny" (HR holds
+ * ApproveAny but not Approve). The aggregate's `isActionableBy` (the lifted
+ * `canActOn`) enforces role capability + chain placement — do NOT add a route
+ * `@Permissions` here, it would 403 every HR `ApproveAny` holder.
  */
 @ApiTags('Time Correction Requests')
 @ApiBearerAuth()
@@ -34,11 +36,13 @@ export class TimeCorrectionRequestsController {
   // ViewOwn code before that check runs.
   @Get(':id')
   @ApiOperation({ summary: 'Get a correction request (requester, either approver, or ViewAll)' })
-  getOne(
+  @ApiResponse({ status: 200, type: TimeCorrectionRequestResponseDto })
+  async getOne(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() caller: User,
-  ): Promise<TimeCorrectionRequest> {
-    return this.service.findByIdForViewer(id, caller);
+  ): Promise<TimeCorrectionRequestResponseDto> {
+    const row = await this.service.findByIdForViewer(id, caller);
+    return TimeCorrectionRequestAssembler.toResponse(row);
   }
 
   @Post(':id/approve')
@@ -46,23 +50,25 @@ export class TimeCorrectionRequestsController {
   @ApiOperation({
     summary: 'Approve the current step (applies the correction to the timesheet on final approval)',
   })
-  @ApiResponse({ status: 200, type: TimeCorrectionRequest })
-  approve(
+  @ApiResponse({ status: 200, type: TimeCorrectionRequestResponseDto })
+  async approve(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() caller: User,
-  ): Promise<TimeCorrectionRequest> {
-    return this.service.approve(id, caller);
+  ): Promise<TimeCorrectionRequestResponseDto> {
+    const row = await this.service.approve(id, caller);
+    return TimeCorrectionRequestAssembler.toResponse(row);
   }
 
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reject a correction request (note required)' })
-  @ApiResponse({ status: 200, type: TimeCorrectionRequest })
-  reject(
+  @ApiResponse({ status: 200, type: TimeCorrectionRequestResponseDto })
+  async reject(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: RejectTimeCorrectionRequestDto,
     @CurrentUser() caller: User,
-  ): Promise<TimeCorrectionRequest> {
-    return this.service.reject(id, caller, dto.note);
+  ): Promise<TimeCorrectionRequestResponseDto> {
+    const row = await this.service.reject(id, caller, dto.note);
+    return TimeCorrectionRequestAssembler.toResponse(row);
   }
 }

@@ -8,10 +8,18 @@ import { BaseTimeCorrectionRequestRepository } from './persistence/base-time-cor
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { TimeEntriesService } from '@/time-entries/time-entries.service';
-import { TimeCorrectionRequest } from './domain/time-correction-request';
+import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
+import { TimeCorrectionRequestRecord } from './domain/time-correction-request';
+import { TimeCorrectionRequest } from './domain/time-correction-request.aggregate';
+import {
+  TimeCorrectionApproved,
+  TimeCorrectionCancelled,
+  TimeCorrectionRejected,
+  TimeCorrectionSubmitted,
+} from './domain/events/time-correction-request-events';
 import { User } from '@/users/domain/user';
 
-function tc(partial: Partial<TimeCorrectionRequest>): TimeCorrectionRequest {
+function tc(partial: Partial<TimeCorrectionRequestRecord>): TimeCorrectionRequestRecord {
   return {
     id: 1,
     employee_id: 12,
@@ -42,6 +50,11 @@ function tc(partial: Partial<TimeCorrectionRequest>): TimeCorrectionRequest {
   };
 }
 
+/** Reconstituted aggregate for the write paths (approve/reject/cancel). */
+function aggregate(partial: Partial<TimeCorrectionRequestRecord>): TimeCorrectionRequest {
+  return TimeCorrectionRequest.reconstitute(tc(partial));
+}
+
 function user(
   id: number,
   opts: { system_admin?: boolean; is_active?: boolean; codes?: string[] } = {},
@@ -60,11 +73,13 @@ describe('TimeCorrectionRequestsService', () => {
   let chains: jest.Mocked<ApprovalChainsService>;
   let users: jest.Mocked<BaseUserRepository>;
   let timeEntries: jest.Mocked<TimeEntriesService>;
+  let publisher: jest.Mocked<DomainEventPublisher>;
 
   beforeEach(() => {
     repo = {
       findAll: jest.fn(),
       findById: jest.fn(),
+      findAggregateById: jest.fn(),
       findActiveForEmployeeDate: jest.fn().mockResolvedValue([]),
       findActiveForEntry: jest.fn().mockResolvedValue([]),
       findPendingForApprover: jest.fn(),
@@ -86,7 +101,8 @@ describe('TimeCorrectionRequestsService', () => {
         .fn()
         .mockImplementation((id: number) => Promise.resolve({ id, employee_id: 12 })),
     } as unknown as jest.Mocked<TimeEntriesService>;
-    service = new TimeCorrectionRequestsService(repo, chains, users, timeEntries);
+    publisher = { publish: jest.fn() } as unknown as jest.Mocked<DomainEventPublisher>;
+    service = new TimeCorrectionRequestsService(repo, chains, users, timeEntries, publisher);
   });
 
   const input = {
@@ -145,6 +161,14 @@ describe('TimeCorrectionRequestsService', () => {
       );
     });
 
+    it('publishes TimeCorrectionSubmitted post-commit with the persisted id', async () => {
+      await service.submit(input, user(12, { codes: ['TIME_CORRECTION:Create'] }));
+      expect(publisher.publish).toHaveBeenCalledTimes(1);
+      const events = publisher.publish.mock.calls[0][0];
+      expect(events[0]).toBeInstanceOf(TimeCorrectionSubmitted);
+      expect((events[0] as TimeCorrectionSubmitted).time_correction_request_id).toBe(1);
+    });
+
     it('hard-blocks when no L1 chain is assigned (422)', async () => {
       chains.getActive.mockResolvedValue({ l1_approver_id: null, l2_approver_id: null });
       await expect(service.submit(input, user(12))).rejects.toBeInstanceOf(
@@ -163,6 +187,17 @@ describe('TimeCorrectionRequestsService', () => {
       await expect(
         service.submit({ ...input, proposed_time_out: new Date('2026-06-10T08:00:00Z') }, user(12)),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    // Guards C1 / decision #5: when multiple rules are violated, the 422 that
+    // fires first must be the chain check (an I/O guard that runs BEFORE the
+    // pure new-log contract), NOT proposed_time_out. Proves assertNewLogContract
+    // was not front-loaded ahead of the chain/dedup I/O.
+    it('a new-log with no time_out AND no L1 returns the chain 422 first (ordering parity)', async () => {
+      chains.getActive.mockResolvedValue({ l1_approver_id: null, l2_approver_id: null });
+      await expect(
+        service.submit({ ...input, target_entry_id: null, proposed_time_out: null }, user(12)),
+      ).rejects.toMatchObject({ response: { errors: { approval_chain: expect.any(String) } } });
     });
   });
 
@@ -224,8 +259,8 @@ describe('TimeCorrectionRequestsService', () => {
 
   describe('approve', () => {
     it('advances pending_l1 → pending_l2 WITHOUT touching the timesheet', async () => {
-      repo.findById.mockResolvedValue(
-        tc({ status: 'pending_l1', l1_approver_id: 5, l2_approver_id: 7 }),
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({ status: 'pending_l1', l1_approver_id: 5, l2_approver_id: 7 }),
       );
       await service.approve(1, user(5, { codes: ['TIME_CORRECTION:Approve'] }));
       expect(timeEntries.applyCorrection).not.toHaveBeenCalled();
@@ -236,8 +271,8 @@ describe('TimeCorrectionRequestsService', () => {
     });
 
     it('applies the correction to the timesheet on final approval', async () => {
-      repo.findById.mockResolvedValue(
-        tc({ status: 'pending_l2', l2_approver_id: 7, target_entry_id: 88 }),
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({ status: 'pending_l2', l2_approver_id: 7, target_entry_id: 88 }),
       );
       await service.approve(1, user(7, { codes: ['TIME_CORRECTION:Approve'] }));
       expect(timeEntries.applyCorrection).toHaveBeenCalledWith(
@@ -246,9 +281,45 @@ describe('TimeCorrectionRequestsService', () => {
       expect(repo.update).toHaveBeenCalledWith(1, expect.objectContaining({ status: 'approved' }));
     });
 
+    it('writes the timesheet BEFORE persisting the request (decision #7 ordering)', async () => {
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({ status: 'pending_l2', l2_approver_id: 7, target_entry_id: 88 }),
+      );
+      await service.approve(1, user(7, { codes: ['TIME_CORRECTION:Approve'] }));
+      const applyOrder = timeEntries.applyCorrection.mock.invocationCallOrder[0];
+      const updateOrder = repo.update.mock.invocationCallOrder[0];
+      expect(applyOrder).toBeLessThan(updateOrder);
+    });
+
+    it('publishes TimeCorrectionApproved on final approval', async () => {
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({ status: 'pending_l2', l2_approver_id: 7, target_entry_id: 88 }),
+      );
+      await service.approve(1, user(7, { codes: ['TIME_CORRECTION:Approve'] }));
+      const events = publisher.publish.mock.calls[0][0];
+      expect(events[0]).toBeInstanceOf(TimeCorrectionApproved);
+    });
+
+    it('if applyCorrection throws: no persist, no publish, request stays pending', async () => {
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({ status: 'pending_l2', l2_approver_id: 7, target_entry_id: 88 }),
+      );
+      timeEntries.applyCorrection.mockRejectedValue(new Error('timesheet write failed'));
+      await expect(
+        service.approve(1, user(7, { codes: ['TIME_CORRECTION:Approve'] })),
+      ).rejects.toThrow('timesheet write failed');
+      expect(repo.update).not.toHaveBeenCalled();
+      expect(publisher.publish).not.toHaveBeenCalled();
+    });
+
     it('override jumps straight to approved and applies the correction', async () => {
-      repo.findById.mockResolvedValue(
-        tc({ status: 'pending_l1', l1_approver_id: 5, l2_approver_id: 7 }),
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({
+          status: 'pending_l1',
+          l1_approver_id: 5,
+          l2_approver_id: 7,
+          target_entry_id: 88,
+        }),
       );
       await service.approve(1, user(42, { codes: ['TIME_CORRECTION:ApproveAny'] }));
       expect(timeEntries.applyCorrection).toHaveBeenCalled();
@@ -259,7 +330,9 @@ describe('TimeCorrectionRequestsService', () => {
     });
 
     it('forbids an off-chain approver (403)', async () => {
-      repo.findById.mockResolvedValue(tc({ status: 'pending_l1', l1_approver_id: 5 }));
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({ status: 'pending_l1', l1_approver_id: 5 }),
+      );
       await expect(
         service.approve(1, user(99, { codes: ['TIME_CORRECTION:Approve'] })),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -267,8 +340,8 @@ describe('TimeCorrectionRequestsService', () => {
     });
 
     it('409 when the assigned approver is deactivated', async () => {
-      repo.findById.mockResolvedValue(
-        tc({ status: 'pending_l1', l1_approver_id: 5, l2_approver_id: null }),
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({ status: 'pending_l1', l1_approver_id: 5, l2_approver_id: null }),
       );
       users.findById.mockResolvedValue(user(5, { is_active: false }));
       await expect(
@@ -276,26 +349,54 @@ describe('TimeCorrectionRequestsService', () => {
       ).rejects.toBeInstanceOf(ConflictException);
       expect(timeEntries.applyCorrection).not.toHaveBeenCalled();
     });
+
+    it('404 when the request does not exist', async () => {
+      repo.findAggregateById.mockResolvedValue(null);
+      await expect(
+        service.approve(1, user(5, { codes: ['TIME_CORRECTION:Approve'] })),
+      ).rejects.toThrow('not found');
+    });
   });
 
   describe('reject + cancel', () => {
-    it('rejects with a note', async () => {
-      repo.findById.mockResolvedValue(tc({ status: 'pending_l1', l1_approver_id: 5 }));
+    it('rejects with a note and publishes Rejected', async () => {
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({ status: 'pending_l1', l1_approver_id: 5 }),
+      );
       await service.reject(1, user(5, { codes: ['TIME_CORRECTION:Approve'] }), 'Wrong time');
       expect(repo.update).toHaveBeenCalledWith(1, expect.objectContaining({ status: 'rejected' }));
+      expect(publisher.publish.mock.calls[0][0][0]).toBeInstanceOf(TimeCorrectionRejected);
     });
 
     it('requires a rejection note (422)', async () => {
-      repo.findById.mockResolvedValue(tc({ status: 'pending_l1', l1_approver_id: 5 }));
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({ status: 'pending_l1', l1_approver_id: 5 }),
+      );
       await expect(
         service.reject(1, user(5, { codes: ['TIME_CORRECTION:Approve'] }), ' '),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
     });
 
-    it('requester cancels their own pending request', async () => {
-      repo.findById.mockResolvedValue(tc({ employee_id: 12, status: 'pending_l1' }));
+    it('requester cancels their own pending request and publishes Cancelled', async () => {
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({ employee_id: 12, status: 'pending_l1' }),
+      );
       await service.cancel(1, user(12));
       expect(repo.update).toHaveBeenCalledWith(1, expect.objectContaining({ status: 'cancelled' }));
+      expect(publisher.publish.mock.calls[0][0][0]).toBeInstanceOf(TimeCorrectionCancelled);
+    });
+
+    it('forbids a non-owner without HR rights from cancelling (403)', async () => {
+      repo.findAggregateById.mockResolvedValue(
+        aggregate({ employee_id: 12, status: 'pending_l1' }),
+      );
+      await expect(service.cancel(1, user(999))).rejects.toBeInstanceOf(ForbiddenException);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('409 when cancelling a non-pending request', async () => {
+      repo.findAggregateById.mockResolvedValue(aggregate({ employee_id: 12, status: 'approved' }));
+      await expect(service.cancel(1, user(12))).rejects.toBeInstanceOf(ConflictException);
     });
   });
 });

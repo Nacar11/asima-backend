@@ -12,13 +12,15 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TimeCorrectionRequestsService } from '@/time-correction-requests/time-correction-requests.service';
-import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
-import { FindAllTimeCorrectionRequest } from '@/time-correction-requests/domain/find-all-time-correction-request';
+import { TimeCorrectionRequestAssembler } from '@/time-correction-requests/time-correction-request.assembler';
+import { TimeCorrectionRequestResponseDto } from '@/time-correction-requests/dto/response/time-correction-request-response.dto';
+import { TimeCorrectionRequestListItemResponseDto } from '@/time-correction-requests/dto/response/time-correction-request-list-item-response.dto';
 import { QueryTimeCorrectionRequestDto } from '@/time-correction-requests/dto/admin/query-time-correction-request.dto';
 import { UpdateTimeCorrectionRequestDto } from '@/time-correction-requests/dto/admin/update-time-correction-request.dto';
 import { Permissions } from '@/permissions/permissions.decorator';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
 import { API_VERSION } from '@/utils/constants/api.constants';
+import { PaginatedResponse } from '@/utils/types/paginated-response.type';
 import { User } from '@/users/domain/user';
 
 /**
@@ -35,15 +37,20 @@ export class AdminTimeCorrectionRequestsController {
   @Permissions({ TIME_CORRECTION: 'ViewAll' })
   @ApiOperation({ summary: 'List every correction request (paginated, filterable)' })
   @ApiResponse({ status: 200 })
-  list(@Query() query: QueryTimeCorrectionRequestDto): Promise<FindAllTimeCorrectionRequest> {
-    return this.service.findAll(query);
+  async list(
+    @Query() query: QueryTimeCorrectionRequestDto,
+  ): Promise<PaginatedResponse<TimeCorrectionRequestListItemResponseDto>> {
+    const page = await this.service.findAll(query);
+    return TimeCorrectionRequestAssembler.toPaginatedResponse(page);
   }
 
   @Get(':id')
   @Permissions({ TIME_CORRECTION: 'ViewAll' })
   @ApiOperation({ summary: 'Get any correction request by id' })
-  getOne(@Param('id', ParseIntPipe) id: number): Promise<TimeCorrectionRequest> {
-    return this.service.findById(id);
+  @ApiResponse({ status: 200, type: TimeCorrectionRequestResponseDto })
+  async getOne(@Param('id', ParseIntPipe) id: number): Promise<TimeCorrectionRequestResponseDto> {
+    const row = await this.service.findById(id);
+    return TimeCorrectionRequestAssembler.toResponse(row);
   }
 
   @Patch(':id')
@@ -52,23 +59,26 @@ export class AdminTimeCorrectionRequestsController {
     summary: 'Edit a still-pending correction request (HR only)',
     description: 'Only pending rows are editable; terminal rows are immutable (cancel + resubmit).',
   })
-  update(
+  @ApiResponse({ status: 200, type: TimeCorrectionRequestResponseDto })
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateTimeCorrectionRequestDto,
     @CurrentUser() actor: User,
-  ): Promise<TimeCorrectionRequest> {
-    return this.service.update(id, dto, actor);
+  ): Promise<TimeCorrectionRequestResponseDto> {
+    const row = await this.service.update(id, dto, actor);
+    return TimeCorrectionRequestAssembler.toResponse(row);
   }
 
   @Delete(':id')
   @Permissions({ TIME_CORRECTION: 'Delete' })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel any pending correction request (HR override)' })
-  @ApiResponse({ status: 200, type: TimeCorrectionRequest })
-  cancel(
+  @ApiResponse({ status: 200, type: TimeCorrectionRequestResponseDto })
+  async cancel(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() actor: User,
-  ): Promise<TimeCorrectionRequest> {
-    return this.service.cancel(id, actor);
+  ): Promise<TimeCorrectionRequestResponseDto> {
+    const row = await this.service.cancel(id, actor);
+    return TimeCorrectionRequestAssembler.toResponse(row);
   }
 }

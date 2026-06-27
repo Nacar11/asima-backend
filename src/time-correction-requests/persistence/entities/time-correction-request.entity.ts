@@ -13,7 +13,9 @@ import { EntityHelper } from '@/utils/entity-helper';
 import { UserEntity } from '@/users/persistence/entities/user.entity';
 import { TimeEntryEntity } from '@/time-entries/persistence/entities/time-entry.entity';
 import {
+  TC_DECISION_PATHS,
   TcDecisionPath,
+  TIME_CORRECTION_STATUSES,
   TimeCorrectionStatus,
 } from '@/time-correction-requests/time-correction-requests.constants';
 
@@ -53,7 +55,7 @@ export class TimeCorrectionRequestEntity extends EntityHelper {
 
   @Column({
     type: 'enum',
-    enum: ['pending_l1', 'pending_l2', 'approved', 'rejected', 'cancelled'],
+    enum: Object.values(TIME_CORRECTION_STATUSES),
     enumName: 'time_correction_status',
     default: 'pending_l1',
   })
@@ -71,7 +73,12 @@ export class TimeCorrectionRequestEntity extends EntityHelper {
   @Column({ type: 'varchar', length: 500, nullable: true })
   decision_note!: string | null;
 
-  @Column({ type: 'enum', enum: ['chain', 'override'], enumName: 'decision_path', nullable: true })
+  @Column({
+    type: 'enum',
+    enum: Object.values(TC_DECISION_PATHS),
+    enumName: 'decision_path',
+    nullable: true,
+  })
   decision_path!: TcDecisionPath | null;
 
   @Column({ type: 'timestamptz', nullable: true })

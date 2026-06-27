@@ -1,10 +1,21 @@
-import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequestRecord } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request.aggregate';
 import { TimeCorrectionRequestListItem } from '@/time-correction-requests/domain/time-correction-request-list-item';
 import { TimeCorrectionRequestEntity } from '@/time-correction-requests/persistence/entities/time-correction-request.entity';
 
 export class TimeCorrectionRequestMapper {
-  static toDomain(raw: TimeCorrectionRequestEntity): TimeCorrectionRequest {
-    const tc = new TimeCorrectionRequest();
+  /** Write-path load — reconstitute the rich aggregate (validates its VOs). */
+  static toAggregate(raw: TimeCorrectionRequestEntity): TimeCorrectionRequest {
+    return TimeCorrectionRequest.reconstitute(TimeCorrectionRequestMapper.toDomain(raw));
+  }
+
+  /**
+   * Read-path — the plain data record the assembler serializes. Field-
+   * assignment order drives the JSON key order; keep it == legacy so the wire
+   * stays byte-identical.
+   */
+  static toDomain(raw: TimeCorrectionRequestEntity): TimeCorrectionRequestRecord {
+    const tc = new TimeCorrectionRequestRecord();
     tc.id = raw.id;
     tc.employee_id = raw.employee_id;
     tc.target_entry_id = raw.target_entry_id;
@@ -37,8 +48,8 @@ export class TimeCorrectionRequestMapper {
   }
 
   /**
-   * List read-model: domain fields plus the requester's display name from
-   * the joined `employee` relation. Null only if the join wasn't loaded.
+   * List read-model: domain fields plus the requester / approver display names
+   * from the joined relations. Null only if a join wasn't loaded.
    */
   static toListItem(raw: TimeCorrectionRequestEntity): TimeCorrectionRequestListItem {
     const item = TimeCorrectionRequestMapper.toDomain(raw) as TimeCorrectionRequestListItem;

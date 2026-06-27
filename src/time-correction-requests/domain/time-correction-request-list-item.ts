@@ -1,19 +1,18 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequestRecord } from '@/time-correction-requests/domain/time-correction-request';
 
 /**
- * List read-model: a time-correction request plus the requester's display
- * name, resolved by a join at query time. Kept separate from the
- * `TimeCorrectionRequest` audit entity (which stays a pure persisted
- * record) — same split as `LeaveRequestListItem` and `EmployeeChainView`.
+ * List read-model: a time-correction request record plus the display names
+ * resolved by a join at query time. Kept separate from the
+ * `TimeCorrectionRequestRecord` (which stays a pure persisted record) — same
+ * split as `LeaveRequestListItem`.
+ *
+ * Pure TS — no `@nestjs/*`. The Swagger shape for the extra `*_name` fields
+ * lives on `dto/response/time-correction-request-list-item-response.dto.ts`.
  */
-export class TimeCorrectionRequestListItem extends TimeCorrectionRequest {
-  @ApiPropertyOptional({ example: 'Ada Lovelace', nullable: true })
+export class TimeCorrectionRequestListItem extends TimeCorrectionRequestRecord {
   employee_name!: string | null;
 
-  @ApiPropertyOptional({ example: 'Jane Cruz', nullable: true })
   l1_approver_name!: string | null;
 
-  @ApiPropertyOptional({ example: 'Bob Lim', nullable: true })
   l2_approver_name!: string | null;
 }

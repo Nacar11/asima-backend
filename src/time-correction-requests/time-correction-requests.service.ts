@@ -6,7 +6,19 @@ import { BaseTimeCorrectionRequestRepository } from '@/time-correction-requests/
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { ApprovalChainsService } from '@/approval-chains/approval-chains.service';
 import { TimeEntriesService } from '@/time-entries/time-entries.service';
-import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequestRecord } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request.aggregate';
+import { CorrectionActor } from '@/time-correction-requests/domain/correction-actor';
+import {
+  CorrectionStatusError,
+  InvalidProposedWindowError,
+  NewLogContractError,
+  NotAllowedToCancelError,
+  NotCurrentApproverError,
+  RejectionNoteRequiredError,
+} from '@/time-correction-requests/domain/time-correction-request-errors';
+import { TimeCorrectionSubmitted } from '@/time-correction-requests/domain/events/time-correction-request-events';
+import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
 import { TimeCorrectionRequestSearchCriteria } from '@/time-correction-requests/domain/time-correction-request-search-criteria';
 import { FindAllTimeCorrectionRequest } from '@/time-correction-requests/domain/find-all-time-correction-request';
 import {
@@ -15,18 +27,20 @@ import {
 } from '@/time-correction-requests/domain/time-correction-request-inputs';
 import { User } from '@/users/domain/user';
 import {
-  TC_DECISION_PATHS,
   TIME_CORRECTION_STATUSES,
   TimeCorrectionStatus,
 } from '@/time-correction-requests/time-correction-requests.constants';
 
 /**
- * Time-correction request service — mirrors the leave lifecycle (plan §10)
- * with one extra responsibility: on final approval it applies the
- * correction to the timesheet via `TimeEntriesService.applyCorrection`
- * (Q6 — the time-entries module owns its table write; this module owns
- * the request lifecycle). Authorization is the same two-axis model as
- * leave (role capability + chain placement; ADR 0001).
+ * Time-correction request use-case service — orchestrates the request
+ * lifecycle: loads the `TimeCorrectionRequest` aggregate, calls its behavior
+ * (the 2-step approval state machine lives on the aggregate, plan §5),
+ * persists the result, and publishes the buffered events. On the final
+ * approval it also applies the correction to the timesheet via
+ * `TimeEntriesService.applyCorrection` (decision #7 — the time-entries module
+ * owns its table; this module owns the request lifecycle). Authorization is
+ * the same two-axis model as leave (role capability + chain placement; ADR
+ * 0001), fed to the aggregate as a `CorrectionActor`.
  */
 @Injectable()
 export class TimeCorrectionRequestsService {
@@ -35,19 +49,20 @@ export class TimeCorrectionRequestsService {
     private readonly chains: ApprovalChainsService,
     private readonly users: BaseUserRepository,
     private readonly timeEntries: TimeEntriesService,
+    private readonly publisher: DomainEventPublisher,
   ) {}
 
   findAll(criteria: TimeCorrectionRequestSearchCriteria): Promise<FindAllTimeCorrectionRequest> {
     return this.repository.findAll(criteria);
   }
 
-  async findById(id: number): Promise<TimeCorrectionRequest> {
+  async findById(id: number): Promise<TimeCorrectionRequestRecord> {
     const row = await this.repository.findById(id);
     if (!row) throw new NotFoundException(`TimeCorrectionRequest with id ${id} not found`);
     return row;
   }
 
-  async findByIdForViewer(id: number, caller: User): Promise<TimeCorrectionRequest> {
+  async findByIdForViewer(id: number, caller: User): Promise<TimeCorrectionRequestRecord> {
     const row = await this.findById(id);
     const allowed =
       caller.id === row.employee_id ||
@@ -62,34 +77,35 @@ export class TimeCorrectionRequestsService {
   }
 
   /**
-   * Submit a correction for `input.employee_id`. Snapshots the active
-   * chain; hard-blocks when no L1 is assigned and when a pending/approved
-   * correction already exists for the same (employee, work_date) (plan §10).
+   * Submit a correction for `input.employee_id`. The check order is preserved
+   * exactly from the pre-DDD service (decision #5 ⚠): the pure window guard
+   * first, then the chain snapshot, then ownership/dedup I/O, then the pure
+   * new-log contract, then the `hasEntryOnDate` I/O — so the 422 that fires for
+   * a multi-violation input is unchanged.
    */
-  async submit(input: SubmitCorrectionInput, actor: User): Promise<TimeCorrectionRequest> {
-    if (input.proposed_time_out && input.proposed_time_out <= input.proposed_time_in) {
-      throw unprocessable(
-        'proposed_time_out',
-        'proposed_time_out must be strictly after proposed_time_in.',
-      );
+  async submit(input: SubmitCorrectionInput, actor: User): Promise<TimeCorrectionRequestRecord> {
+    // (1) Pure window invariant — strictly-after, for both targeted + new logs.
+    try {
+      TimeCorrectionRequest.assertProposedWindow(input.proposed_time_in, input.proposed_time_out);
+    } catch (err) {
+      rethrowCorrectionDomainError(err);
     }
 
+    // (2) Snapshot the active chain; hard-block when no L1 is assigned.
     const chain = await this.chains.getActive(input.employee_id);
     if (chain.l1_approver_id == null) {
       throw unprocessable('approval_chain', 'No approver assigned. Contact HR.');
     }
 
+    // (3) Ownership + dedup I/O (the aggregate can't reach the repo / entries).
     if (input.target_entry_id != null) {
       // Ownership guard (C1): the target must be the submitter's own entry.
-      // `submit` previously trusted the client-supplied id — an IDOR that let an
-      // employee target (and read back the times of) another employee's entry.
       // `findById` throws NotFoundException when the entry doesn't exist.
       const target = await this.timeEntries.findById(input.target_entry_id);
       if (target.employee_id !== input.employee_id) {
         throw new ForbiddenException('You can only correct your own time entries.');
       }
-      // Per-entry uniqueness: one active correction per entry, so a regular
-      // shift and an OT entry on the same day are corrected independently.
+      // Per-entry uniqueness: one active correction per entry.
       const existing = await this.repository.findActiveForEntry(input.target_entry_id);
       if (existing.length > 0) {
         throw unprocessable(
@@ -112,26 +128,31 @@ export class TimeCorrectionRequestsService {
       }
     }
 
-    // Manual add ("Add Logs"): no existing row to correct. These rules apply
-    // ONLY to the null-target path — a correction that targets an existing
-    // entry keeps its looser contract (out optional, date from the entry).
-    if (input.target_entry_id == null) {
-      if (!input.proposed_time_out) {
-        throw unprocessable('proposed_time_out', 'Time out is required when adding a log.');
-      }
-      const today = utcDateString();
-      if (input.work_date > today) {
-        throw unprocessable('work_date', 'Cannot add a log for a future date.');
-      }
-      if (await this.timeEntries.hasEntryOnDate(input.employee_id, input.work_date)) {
-        throw unprocessable(
-          'work_date',
-          `A time entry already exists for ${input.work_date}. Use Request correction instead.`,
-        );
-      }
+    // (4) Pure new-log contract (no-op for a targeted correction): a new log
+    // requires a time_out and cannot be in the future.
+    try {
+      TimeCorrectionRequest.assertNewLogContract({
+        target_entry_id: input.target_entry_id ?? null,
+        proposed_time_out: input.proposed_time_out ?? null,
+        work_date: input.work_date,
+        today: utcDateString(),
+      });
+    } catch (err) {
+      rethrowCorrectionDomainError(err);
     }
 
-    return this.repository.create({
+    // (5) New-log only: a time entry must not already exist for the date.
+    if (
+      input.target_entry_id == null &&
+      (await this.timeEntries.hasEntryOnDate(input.employee_id, input.work_date))
+    ) {
+      throw unprocessable(
+        'work_date',
+        `A time entry already exists for ${input.work_date}. Use Request correction instead.`,
+      );
+    }
+
+    const created = await this.repository.create({
       employee_id: input.employee_id,
       target_entry_id: input.target_entry_id ?? null,
       work_date: input.work_date,
@@ -143,24 +164,30 @@ export class TimeCorrectionRequestsService {
       l2_approver_id: chain.l2_approver_id,
       created_by: actor.id,
     });
+
+    // Publish the creation event post-commit, with the insert-generated id.
+    this.publisher.publish([
+      new TimeCorrectionSubmitted(created.id, created.employee_id, created.l1_approver_id),
+    ]);
+    return created;
   }
 
-  async cancel(id: number, caller: User): Promise<TimeCorrectionRequest> {
-    const row = await this.findById(id);
-    if (!isPending(row.status)) {
-      throw conflict('status', `Cannot cancel a request in state ${row.status}.`);
+  async cancel(id: number, caller: User): Promise<TimeCorrectionRequestRecord> {
+    const aggregate = await this.repository.findAggregateById(id);
+    if (!aggregate) throw new NotFoundException(`TimeCorrectionRequest with id ${id} not found`);
+    try {
+      aggregate.cancel(toCorrectionActor(caller));
+    } catch (err) {
+      rethrowCorrectionDomainError(err);
     }
-    const isOwner = caller.id === row.employee_id;
-    const isHr = caller.system_admin === true || hasPermission(caller, 'TIME_CORRECTION:Delete');
-    if (!isOwner && !isHr) {
-      throw new ForbiddenException('You are not allowed to cancel this correction request');
-    }
-    return this.repository.update(id, {
-      status: TIME_CORRECTION_STATUSES.cancelled,
-      cancelled_at: new Date(),
-      cancelled_by: caller.id,
+    const saved = await this.repository.update(id, {
+      status: aggregate.status,
+      cancelled_at: aggregate.cancelled_at,
+      cancelled_by: aggregate.cancelled_by,
       updated_by: caller.id,
     });
+    this.publisher.publish(aggregate.pullEvents());
+    return saved;
   }
 
   /** HR pending-only edit (mirrors leave Q3). Route gated by TIME_CORRECTION:Update. */
@@ -168,7 +195,7 @@ export class TimeCorrectionRequestsService {
     id: number,
     patch: UpdateCorrectionInput,
     caller: User,
-  ): Promise<TimeCorrectionRequest> {
+  ): Promise<TimeCorrectionRequestRecord> {
     const row = await this.findById(id);
     if (!isPending(row.status)) {
       throw conflict(
@@ -179,36 +206,39 @@ export class TimeCorrectionRequestsService {
     const time_in = patch.proposed_time_in ?? row.proposed_time_in;
     const time_out =
       patch.proposed_time_out !== undefined ? patch.proposed_time_out : row.proposed_time_out;
-    if (time_out && time_out <= time_in) {
-      throw unprocessable(
-        'proposed_time_out',
-        'proposed_time_out must be strictly after proposed_time_in.',
-      );
+    // Revalidate the (possibly merged) window through the aggregate's static
+    // guard so the strictly-after rule + its 422 message stay identical to submit.
+    try {
+      TimeCorrectionRequest.assertProposedWindow(time_in, time_out);
+    } catch (err) {
+      rethrowCorrectionDomainError(err);
     }
     return this.repository.update(id, { ...patch, updated_by: caller.id });
   }
 
   /**
-   * Approve the current step. On the final approval the timesheet is
-   * mutated FIRST (applyCorrection), then the request flips to approved —
-   * so an approved request always has its time_entries row written. (A
-   * shared cross-module DB transaction is a follow-up; see plan Q6.)
+   * Approve the current step. On the final approval the timesheet is mutated
+   * FIRST (`applyCorrection`), then the request flips to approved — so an
+   * approved request always has its time_entries row (decision #7). If the
+   * timesheet write throws, we bail before persist/publish → the request stays
+   * pending, identical to the pre-DDD behavior.
    */
-  async approve(id: number, caller: User): Promise<TimeCorrectionRequest> {
-    const row = await this.findById(id);
-    if (!isPending(row.status)) {
-      throw conflict('status', `Cannot approve a request in state ${row.status}.`);
-    }
-    if (!this.canActOn(row, caller)) {
-      throw forbidden('approver', 'Not the assigned approver for this step.');
+  async approve(id: number, caller: User): Promise<TimeCorrectionRequestRecord> {
+    const aggregate = await this.repository.findAggregateById(id);
+    if (!aggregate) throw new NotFoundException(`TimeCorrectionRequest with id ${id} not found`);
+    const actor = toCorrectionActor(caller);
+    try {
+      // Pure preconditions (pending + caller is the current approver).
+      aggregate.assertApprovable(actor);
+    } catch (err) {
+      rethrowCorrectionDomainError(err);
     }
 
-    const override = isOverride(caller);
+    // I/O check the aggregate can't make: the snapshotted step approver must
+    // still be active on the chain path (overrides skip it).
+    const override = actor.is_system_admin || actor.can_approve_any;
     if (!override) {
-      const stepApproverId =
-        row.status === TIME_CORRECTION_STATUSES.pending_l1
-          ? row.l1_approver_id
-          : row.l2_approver_id;
+      const stepApproverId = aggregate.currentStepApproverId();
       if (stepApproverId != null) {
         const approver = await this.users.findById(stepApproverId);
         if (!approver || !approver.is_active) {
@@ -220,76 +250,56 @@ export class TimeCorrectionRequestsService {
       }
     }
 
-    const nextStatus: TimeCorrectionStatus = override
-      ? TIME_CORRECTION_STATUSES.approved
-      : row.status === TIME_CORRECTION_STATUSES.pending_l1 && row.l2_approver_id != null
-        ? TIME_CORRECTION_STATUSES.pending_l2
-        : TIME_CORRECTION_STATUSES.approved;
+    aggregate.applyApproval(actor);
 
-    if (nextStatus === TIME_CORRECTION_STATUSES.approved) {
+    if (aggregate.status === TIME_CORRECTION_STATUSES.approved) {
       await this.timeEntries.applyCorrection({
-        employee_id: row.employee_id,
-        target_entry_id: row.target_entry_id,
-        work_date: row.work_date,
-        proposed_time_in: row.proposed_time_in,
-        proposed_time_out: row.proposed_time_out,
+        employee_id: aggregate.employee_id,
+        target_entry_id: aggregate.target_entry_id,
+        work_date: aggregate.work_date,
+        proposed_time_in: aggregate.proposed_time_in,
+        proposed_time_out: aggregate.proposed_time_out,
         decided_by: caller.id,
       });
     }
 
-    return this.repository.update(id, {
-      status: nextStatus,
-      decided_at: new Date(),
-      decided_by: caller.id,
-      decision_path: override ? TC_DECISION_PATHS.override : TC_DECISION_PATHS.chain,
+    const saved = await this.repository.update(id, {
+      status: aggregate.status,
+      decided_at: aggregate.decided_at,
+      decided_by: aggregate.decided_by,
+      decision_path: aggregate.decision_path,
       updated_by: caller.id,
     });
+    this.publisher.publish(aggregate.pullEvents());
+    return saved;
   }
 
-  async reject(id: number, caller: User, note: string): Promise<TimeCorrectionRequest> {
-    if (!note || note.trim().length === 0) {
-      throw unprocessable('decision_note', 'A rejection note is required.');
+  async reject(id: number, caller: User, note: string): Promise<TimeCorrectionRequestRecord> {
+    const aggregate = await this.repository.findAggregateById(id);
+    if (!aggregate) throw new NotFoundException(`TimeCorrectionRequest with id ${id} not found`);
+    try {
+      aggregate.reject(toCorrectionActor(caller), note);
+    } catch (err) {
+      rethrowCorrectionDomainError(err);
     }
-    const row = await this.findById(id);
-    if (!isPending(row.status)) {
-      throw conflict('status', `Cannot reject a request in state ${row.status}.`);
-    }
-    if (!this.canActOn(row, caller)) {
-      throw forbidden('approver', 'Not the assigned approver for this step.');
-    }
-    return this.repository.update(id, {
-      status: TIME_CORRECTION_STATUSES.rejected,
-      decided_at: new Date(),
-      decided_by: caller.id,
-      decision_note: note,
-      decision_path: isOverride(caller) ? TC_DECISION_PATHS.override : TC_DECISION_PATHS.chain,
+    const saved = await this.repository.update(id, {
+      status: aggregate.status,
+      decided_at: aggregate.decided_at,
+      decided_by: aggregate.decided_by,
+      decision_note: aggregate.decision_note,
+      decision_path: aggregate.decision_path,
       updated_by: caller.id,
     });
+    this.publisher.publish(aggregate.pullEvents());
+    return saved;
   }
 
-  findInboxForApprover(approver_id: number): Promise<TimeCorrectionRequest[]> {
+  findInboxForApprover(approver_id: number): Promise<TimeCorrectionRequestRecord[]> {
     return this.repository.findPendingForApprover(approver_id);
   }
 
-  findAllPending(): Promise<TimeCorrectionRequest[]> {
+  findAllPending(): Promise<TimeCorrectionRequestRecord[]> {
     return this.repository.findAllPending();
-  }
-
-  /** Full approve/reject authorization (same model as leave; see ADR 0001). */
-  canActOn(request: TimeCorrectionRequest, caller: User): boolean {
-    if (caller.system_admin === true) return true;
-    if (hasPermission(caller, 'TIME_CORRECTION:ApproveAny')) return true;
-    if (!hasPermission(caller, 'TIME_CORRECTION:Approve')) return false;
-    // Chain match: caller is the snapshotted approver for the current step.
-    // (`caller.id` is a number, so an equality check already excludes a null
-    // approver id — no separate null guard needed.)
-    if (request.status === TIME_CORRECTION_STATUSES.pending_l1) {
-      return caller.id === request.l1_approver_id;
-    }
-    if (request.status === TIME_CORRECTION_STATUSES.pending_l2) {
-      return caller.id === request.l2_approver_id;
-    }
-    return false;
   }
 }
 
@@ -299,6 +309,34 @@ function isPending(status: TimeCorrectionStatus): boolean {
   );
 }
 
-function isOverride(caller: User): boolean {
-  return caller.system_admin === true || hasPermission(caller, 'TIME_CORRECTION:ApproveAny');
+/**
+ * Distil a `User` into the correction-specific capabilities the aggregate
+ * needs, so the domain never imports `User` or the permission helper. `can_*`
+ * map to the permission codes; `is_system_admin` is the unconditional bypass.
+ */
+function toCorrectionActor(caller: User): CorrectionActor {
+  return {
+    user_id: caller.id,
+    is_system_admin: caller.system_admin === true,
+    can_approve: hasPermission(caller, 'TIME_CORRECTION:Approve'),
+    can_approve_any: hasPermission(caller, 'TIME_CORRECTION:ApproveAny'),
+    can_delete: hasPermission(caller, 'TIME_CORRECTION:Delete'),
+  };
+}
+
+/**
+ * Translate a pure domain error from the `TimeCorrectionRequest` aggregate /
+ * value objects into the exact HTTP exception the service threw before the DDD
+ * migration (decision #8), so the wire contract is unchanged. Anything else is
+ * rethrown untouched.
+ */
+function rethrowCorrectionDomainError(err: unknown): never {
+  if (err instanceof CorrectionStatusError) throw conflict('status', err.message);
+  if (err instanceof NotCurrentApproverError) throw forbidden('approver', err.message);
+  if (err instanceof RejectionNoteRequiredError) throw unprocessable('decision_note', err.message);
+  if (err instanceof NotAllowedToCancelError) throw new ForbiddenException(err.message);
+  if (err instanceof InvalidProposedWindowError)
+    throw unprocessable('proposed_time_out', err.message);
+  if (err instanceof NewLogContractError) throw unprocessable(err.field, err.message);
+  throw err;
 }

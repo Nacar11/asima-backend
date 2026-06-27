@@ -7,6 +7,7 @@ import { TimeCorrectionRequestsController } from '@/time-correction-requests/con
 import { ApprovalChainsModule } from '@/approval-chains/approval-chains.module';
 import { UserPersistenceModule } from '@/users/persistence/persistence.module';
 import { TimeEntriesModule } from '@/time-entries/time-entries.module';
+import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
 
 /**
  * Time-correction module. Imports `TimeEntriesModule` for the
@@ -25,7 +26,7 @@ import { TimeEntriesModule } from '@/time-entries/time-entries.module';
     MeTimeCorrectionRequestsController,
     TimeCorrectionRequestsController,
   ],
-  providers: [TimeCorrectionRequestsService],
+  providers: [TimeCorrectionRequestsService, DomainEventPublisher],
   exports: [TimeCorrectionRequestsService, TimeCorrectionRequestPersistenceModule],
 })
 export class TimeCorrectionRequestsModule {}

@@ -7,7 +7,7 @@ import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
 import { LeaveRequestRecord } from '@/leave-requests/domain/leave-request';
 import { LEAVE_REQUEST_STATUSES } from '@/leave-requests/leave-requests.constants';
 import { TimeCorrectionRequestsService } from '@/time-correction-requests/time-correction-requests.service';
-import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequestRecord } from '@/time-correction-requests/domain/time-correction-request';
 import { TIME_CORRECTION_STATUSES } from '@/time-correction-requests/time-correction-requests.constants';
 import { FindPendingApprovals } from './domain/find-pending-approvals';
 import { PendingApproval } from './domain/pending-approval';
@@ -83,8 +83,8 @@ export class ApprovalsService {
     });
   }
 
-  private async mapCorrections(tcs: TimeCorrectionRequest[]): Promise<PendingApproval[]> {
-    const approverIdOf = (t: TimeCorrectionRequest) =>
+  private async mapCorrections(tcs: TimeCorrectionRequestRecord[]): Promise<PendingApproval[]> {
+    const approverIdOf = (t: TimeCorrectionRequestRecord) =>
       (t.status === TIME_CORRECTION_STATUSES.pending_l1 ? t.l1_approver_id : t.l2_approver_id) ??
       t.l1_approver_id;
     // Resolve employee + current-approver names in one findByIds (no N+1).

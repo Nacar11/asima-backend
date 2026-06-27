@@ -4,7 +4,8 @@ import { EntityManager, Repository } from 'typeorm';
 import { BaseTimeCorrectionRequestRepository } from '@/time-correction-requests/persistence/base-time-correction-request.repository';
 import { TimeCorrectionRequestEntity } from '@/time-correction-requests/persistence/entities/time-correction-request.entity';
 import { TimeCorrectionRequestMapper } from '@/time-correction-requests/persistence/mappers/time-correction-request.mapper';
-import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequestRecord } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request.aggregate';
 import { TimeCorrectionRequestSearchCriteria } from '@/time-correction-requests/domain/time-correction-request-search-criteria';
 import { FindAllTimeCorrectionRequest } from '@/time-correction-requests/domain/find-all-time-correction-request';
 import {
@@ -53,7 +54,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
     return paginate(entities.map(TimeCorrectionRequestMapper.toListItem), total, paging);
   }
 
-  async findById(id: number): Promise<TimeCorrectionRequest | null> {
+  async findById(id: number): Promise<TimeCorrectionRequestRecord | null> {
     // Load the target entry so the detail view can render the original→proposed
     // diff (NULL relation for a new-log correction — handled by the mapper).
     const entity = await this.repo.findOne({
@@ -63,10 +64,17 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
     return entity ? TimeCorrectionRequestMapper.toDomain(entity) : null;
   }
 
+  async findAggregateById(id: number): Promise<TimeCorrectionRequest | null> {
+    // Write-path load: the aggregate's behavior doesn't read the joined target
+    // entry (original_* are read-model only), so no relation join is needed.
+    const entity = await this.repo.findOne({ where: { id } });
+    return entity ? TimeCorrectionRequestMapper.toAggregate(entity) : null;
+  }
+
   async findActiveForEmployeeDate(
     employee_id: number,
     work_date: string,
-  ): Promise<TimeCorrectionRequest[]> {
+  ): Promise<TimeCorrectionRequestRecord[]> {
     const entities = await this.repo
       .createQueryBuilder('tc')
       .where('tc.employee_id = :eid', { eid: employee_id })
@@ -79,7 +87,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
     return entities.map(TimeCorrectionRequestMapper.toDomain);
   }
 
-  async findActiveForEntry(target_entry_id: number): Promise<TimeCorrectionRequest[]> {
+  async findActiveForEntry(target_entry_id: number): Promise<TimeCorrectionRequestRecord[]> {
     const entities = await this.repo
       .createQueryBuilder('tc')
       .where('tc.target_entry_id = :teid', { teid: target_entry_id })
@@ -91,7 +99,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
     return entities.map(TimeCorrectionRequestMapper.toDomain);
   }
 
-  async findPendingForApprover(approver_id: number): Promise<TimeCorrectionRequest[]> {
+  async findPendingForApprover(approver_id: number): Promise<TimeCorrectionRequestRecord[]> {
     const entities = await this.repo
       .createQueryBuilder('tc')
       // Join the target entry → original times for the inbox in/out diff.
@@ -106,7 +114,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
     return entities.map(TimeCorrectionRequestMapper.toDomain);
   }
 
-  async findAllPending(): Promise<TimeCorrectionRequest[]> {
+  async findAllPending(): Promise<TimeCorrectionRequestRecord[]> {
     const entities = await this.repo
       .createQueryBuilder('tc')
       .leftJoinAndSelect('tc.target_entry', 'target_entry')
@@ -121,7 +129,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
     employee_id: number,
     from_date: string,
     manager?: EntityManager,
-  ): Promise<TimeCorrectionRequest[]> {
+  ): Promise<TimeCorrectionRequestRecord[]> {
     const repo = manager ? manager.getRepository(TimeCorrectionRequestEntity) : this.repo;
     const entities = await repo
       .createQueryBuilder('tc')
@@ -173,7 +181,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
     l1_approver_id: number;
     l2_approver_id: number | null;
     created_by?: number | null;
-  }): Promise<TimeCorrectionRequest> {
+  }): Promise<TimeCorrectionRequestRecord> {
     const entity = this.repo.create({
       employee_id: input.employee_id,
       target_entry_id: input.target_entry_id ?? null,
@@ -207,14 +215,14 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
       cancelled_by?: number | null;
       updated_by?: number | null;
     },
-  ): Promise<TimeCorrectionRequest> {
+  ): Promise<TimeCorrectionRequestRecord> {
     const existing = await this.repo.findOneOrFail({ where: { id } });
     Object.assign(existing, patch);
     await this.repo.save(existing);
     return this.requireById(id);
   }
 
-  private async requireById(id: number): Promise<TimeCorrectionRequest> {
+  private async requireById(id: number): Promise<TimeCorrectionRequestRecord> {
     const entity = await this.repo.findOneOrFail({ where: { id } });
     return TimeCorrectionRequestMapper.toDomain(entity);
   }

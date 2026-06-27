@@ -6,7 +6,7 @@ import { LeaveRequestsService } from '@/leave-requests/leave-requests.service';
 import { TimeCorrectionRequestsService } from '@/time-correction-requests/time-correction-requests.service';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { LeaveRequestRecord } from '@/leave-requests/domain/leave-request';
-import { TimeCorrectionRequest } from '@/time-correction-requests/domain/time-correction-request';
+import { TimeCorrectionRequestRecord } from '@/time-correction-requests/domain/time-correction-request';
 
 function buildPermission(code: string): Permission {
   return {
@@ -256,7 +256,7 @@ describe('ApprovalsService', () => {
           submitted_at: new Date('2026-06-09'),
           l1_approver_id: 5,
           l2_approver_id: null,
-        } as TimeCorrectionRequest,
+        } as TimeCorrectionRequestRecord,
       ]);
       users.findByIds.mockResolvedValue([
         { id: 12, first_name: 'Emma', last_name: 'Thompson' } as User,
@@ -287,7 +287,7 @@ describe('ApprovalsService', () => {
           original_time_out: new Date('2026-06-10T21:36:00.000Z'),
           proposed_time_in: new Date('2026-06-10T01:30:00.000Z'),
           proposed_time_out: new Date('2026-06-10T21:36:00.000Z'),
-        } as TimeCorrectionRequest,
+        } as TimeCorrectionRequestRecord,
       ]);
       users.findByIds.mockResolvedValue([
         { id: 12, first_name: 'Emma', last_name: 'Thompson' } as User,
