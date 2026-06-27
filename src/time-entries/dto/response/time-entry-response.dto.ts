@@ -1,5 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TimeEntrySource, TimeEntryStatus } from '@/time-entries/time-entries.constants';
+import {
+  TIME_ENTRY_SOURCES,
+  TimeEntrySource,
+  TimeEntryStatus,
+} from '@/time-entries/time-entries.constants';
 
 /**
  * HTTP response shape for a time entry. This is the wire contract — it carries
@@ -8,9 +12,9 @@ import { TimeEntrySource, TimeEntryStatus } from '@/time-entries/time-entries.co
  * persisted record exactly (snake_case end-to-end), so the JSON is identical to
  * the pre-DDD response. The e2e suite guards byte-for-byte parity.
  *
- * NOTE: the `source` enum lists only `['manual','biometric','admin']` and omits
- * `'correction'` — this is a **pre-existing** Swagger quirk carried over
- * verbatim (decision #9). Fix it as a separate change, not here.
+ * The `source` enum is derived from `TIME_ENTRY_SOURCES` (single source of
+ * truth) so it can't drift from the entity/DB type — the old hand-written
+ * literal omitted `'correction'`, mistyping a value the API actually returns.
  */
 export class TimeEntryResponseDto {
   @ApiProperty({ example: 1 })
@@ -37,7 +41,7 @@ export class TimeEntryResponseDto {
   time_out!: Date | null;
 
   @ApiProperty({
-    enum: ['manual', 'biometric', 'admin'],
+    enum: Object.values(TIME_ENTRY_SOURCES),
     example: 'manual',
     description: 'How this row was created — see TIME_ENTRY_SOURCES',
   })
