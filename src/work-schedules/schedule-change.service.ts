@@ -8,7 +8,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-work-schedule.repository';
 import { BaseLeaveRequestRepository } from '@/leave-requests/persistence/base-leave-request.repository';
 import { BaseTimeCorrectionRequestRepository } from '@/time-correction-requests/persistence/base-time-correction-request.repository';
-import { rethrowWorkScheduleDomainError } from '@/work-schedules/work-schedules.service';
+import { rethrowFieldValidationError } from '@/utils/helpers/rethrow-domain-error';
 import {
   AffectedRequest,
   ScheduleChangeImpact,
@@ -210,7 +210,7 @@ export class ScheduleChangeService {
           intent.break_start ?? null,
         );
       } catch (err) {
-        rethrowWorkScheduleDomainError(err);
+        rethrowFieldValidationError(err);
       }
     }
     if (intent.mode === 'remove') {

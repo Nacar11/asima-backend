@@ -3,16 +3,13 @@ import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-wo
 import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
 import { WorkSchedule } from '@/work-schedules/domain/work-schedule.aggregate';
 import { WorkScheduleRecord } from '@/work-schedules/domain/work-schedule';
-import {
-  InvalidBreakError,
-  InvalidWorkWindowError,
-} from '@/work-schedules/domain/work-schedule-errors';
 import { WorkScheduleCreated } from '@/work-schedules/domain/events/work-schedule-events';
 import { WorkScheduleSearchCriteria } from '@/work-schedules/domain/work-schedule-search-criteria';
 import { FindAllWorkSchedule } from '@/work-schedules/domain/find-all-work-schedule';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
-import { orNotFound, unprocessable } from '@/utils/helpers/http-errors';
+import { orNotFound } from '@/utils/helpers/http-errors';
 import { isUniqueViolation } from '@/utils/helpers/pg-errors';
+import { rethrowFieldValidationError } from '@/utils/helpers/rethrow-domain-error';
 
 /**
  * Thin use-case for the `work_schedules` aggregate: validate via the aggregate
@@ -174,19 +171,7 @@ export class WorkSchedulesService {
     try {
       WorkSchedule.assertSchedule(expected_in, expected_out, break_minutes, break_start);
     } catch (err) {
-      rethrowWorkScheduleDomainError(err);
+      rethrowFieldValidationError(err);
     }
   }
-}
-
-/**
- * Translate a pure domain error from the `WorkSchedule` aggregate / value
- * objects into the exact HTTP exception the service threw before the DDD
- * migration (decision #8). Shared by `WorkSchedulesService` and the
- * schedule-change cascade's `validate`. Anything else is rethrown untouched.
- */
-export function rethrowWorkScheduleDomainError(err: unknown): never {
-  if (err instanceof InvalidWorkWindowError) throw unprocessable(err.field, err.message);
-  if (err instanceof InvalidBreakError) throw unprocessable(err.field, err.message);
-  throw err;
 }

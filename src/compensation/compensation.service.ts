@@ -10,10 +10,7 @@ import {
   CorrectionPatch,
 } from '@/compensation/domain/compensation.aggregate';
 import { PayRate } from '@/compensation/domain/value-objects/pay-rate';
-import {
-  FutureEffectiveDateError,
-  InvalidPayRateError,
-} from '@/compensation/domain/compensation-errors';
+import { rethrowFieldValidationError } from '@/utils/helpers/rethrow-domain-error';
 import { CompensationSearchCriteria } from '@/compensation/domain/compensation-search-criteria';
 import { FindAllCompensation } from '@/compensation/domain/find-all-compensation';
 import { COMPENSATION_AUDIT_ACTION } from '@/compensation/compensation.constants';
@@ -62,7 +59,7 @@ export class CompensationService {
           `An active compensation row already exists for employee ${input.employee_id}.`,
         );
       }
-      rethrowCompensationDomainError(err);
+      rethrowFieldValidationError(err);
     }
   }
 
@@ -100,7 +97,7 @@ export class CompensationService {
           'A concurrent active compensation row already exists for one of the employees.',
         );
       }
-      rethrowCompensationDomainError(err);
+      rethrowFieldValidationError(err);
     }
   }
 
@@ -217,7 +214,7 @@ export class CompensationService {
     try {
       next = Compensation.reconstitute(existing).correct(patch, today, updated_by);
     } catch (err) {
-      rethrowCompensationDomainError(err);
+      rethrowFieldValidationError(err);
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -307,20 +304,7 @@ export class CompensationService {
     try {
       Compensation.assertNotFuture(effective_from, today);
     } catch (err) {
-      rethrowCompensationDomainError(err);
+      rethrowFieldValidationError(err);
     }
   }
-}
-
-/**
- * Translate a pure domain error from the `Compensation` aggregate / `PayRate`
- * value object into the exact HTTP exception the service threw before the DDD
- * migration (decision #8). Anything else is rethrown untouched. The I/O-bound
- * throws (one-active 409, `effective_from > prior` 422, bulk-dup 422,
- * historical-delete 409, `23505` 409, 404) stay direct use-case throws.
- */
-export function rethrowCompensationDomainError(err: unknown): never {
-  if (err instanceof FutureEffectiveDateError) throw unprocessable(err.field, err.message);
-  if (err instanceof InvalidPayRateError) throw unprocessable(err.field, err.message);
-  throw err;
 }

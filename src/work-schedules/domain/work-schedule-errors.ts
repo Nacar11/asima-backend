@@ -1,16 +1,18 @@
+import { FieldValidationError } from '@/utils/domain/field-validation-error';
+
 /**
  * Pure domain errors raised by the `WorkSchedule` aggregate and its `WorkWindow`
- * / `Break` value objects. The aggregate stays framework-free (no `@nestjs/*`);
- * the use-case (and the schedule-change cascade's `validate`) maps each of these
- * to the exact HTTP exception the service threw before the DDD migration
- * (decision #8), so the wire contract is unchanged:
+ * / `Break` value objects. They extend the shared `FieldValidationError`, so the
+ * use-case (and the schedule-change cascade's `validate`) maps them to 422 via
+ * the shared `rethrowFieldValidationError` — the exact HTTP exception the service
+ * threw before the DDD migration (decision #8), so the wire contract is unchanged:
  *
  *   InvalidWorkWindowError (field 'expected_out') → unprocessable('expected_out', …) 422
  *   InvalidBreakError (carries field)             → unprocessable(err.field, …)       422
  */
 
 /** `expected_out` is not strictly after `expected_in`. */
-export class InvalidWorkWindowError extends Error {
+export class InvalidWorkWindowError extends FieldValidationError {
   readonly field = 'expected_out';
 
   constructor() {
@@ -29,7 +31,7 @@ export class InvalidWorkWindowError extends Error {
  *   ('break_start',   'break_start must be on or after expected_in')      // aggregate cross-VO
  *   ('break_start',   'the break must end on or before expected_out')     // aggregate cross-VO
  */
-export class InvalidBreakError extends Error {
+export class InvalidBreakError extends FieldValidationError {
   constructor(
     readonly field: 'break_minutes' | 'break_start',
     message: string,

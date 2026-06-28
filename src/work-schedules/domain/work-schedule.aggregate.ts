@@ -50,7 +50,7 @@ export class WorkSchedule extends AggregateRoot {
    * Validate a creation/patch schedule and **return** the validated VOs (so the
    * use-case persists without rebuilding). Throws domain errors that the
    * use-case — and the schedule-change cascade's `validate` — map to 422 via
-   * `rethrowWorkScheduleDomainError`.
+   * the shared `rethrowFieldValidationError`.
    */
   static assertSchedule(
     expected_in: string,
