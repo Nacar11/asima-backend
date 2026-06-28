@@ -28,20 +28,4 @@ export class TimeEntryMapper {
     entry.deleted_at = raw.deleted_at;
     return entry;
   }
-
-  static toPersistence(domain: Partial<TimeEntryRecord>): TimeEntryEntity {
-    const entity = new TimeEntryEntity();
-    if (domain.id !== undefined) entity.id = domain.id;
-    if (domain.employee_id !== undefined) entity.employee_id = domain.employee_id;
-    if (domain.work_date !== undefined) entity.work_date = domain.work_date;
-    if (domain.time_in !== undefined) entity.time_in = domain.time_in;
-    if (domain.time_out !== undefined) entity.time_out = domain.time_out;
-    if (domain.source !== undefined) entity.source = domain.source;
-    if (domain.status !== undefined) entity.status = domain.status;
-    if (domain.notes !== undefined) entity.notes = domain.notes;
-    if (domain.created_by !== undefined) entity.created_by = domain.created_by;
-    if (domain.updated_by !== undefined) entity.updated_by = domain.updated_by;
-    if (domain.deleted_by !== undefined) entity.deleted_by = domain.deleted_by;
-    return entity;
-  }
 }

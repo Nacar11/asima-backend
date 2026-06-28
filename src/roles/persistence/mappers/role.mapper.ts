@@ -17,15 +17,4 @@ export class RoleMapper {
     role.deleted_at = raw.deleted_at;
     return role;
   }
-
-  static toPersistence(domain: Partial<Role>): RoleEntity {
-    const entity = new RoleEntity();
-    if (domain.id !== undefined) entity.id = domain.id;
-    if (domain.name !== undefined) entity.name = domain.name;
-    if (domain.description !== undefined) entity.description = domain.description;
-    if (domain.created_by !== undefined) entity.created_by = domain.created_by;
-    if (domain.updated_by !== undefined) entity.updated_by = domain.updated_by;
-    if (domain.deleted_by !== undefined) entity.deleted_by = domain.deleted_by;
-    return entity;
-  }
 }

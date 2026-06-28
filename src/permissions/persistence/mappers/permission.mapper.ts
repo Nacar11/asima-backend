@@ -13,14 +13,4 @@ export class PermissionMapper {
     domain.updated_at = raw.updated_at;
     return domain;
   }
-
-  static toPersistence(domain: Partial<Permission>): PermissionEntity {
-    const entity = new PermissionEntity();
-    if (domain.id !== undefined) entity.id = domain.id;
-    if (domain.code !== undefined) entity.code = domain.code;
-    if (domain.resource !== undefined) entity.resource = domain.resource;
-    if (domain.action !== undefined) entity.action = domain.action;
-    if (domain.description !== undefined) entity.description = domain.description;
-    return entity;
-  }
 }

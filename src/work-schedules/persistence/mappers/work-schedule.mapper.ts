@@ -29,21 +29,4 @@ export class WorkScheduleMapper {
     ws.deleted_at = raw.deleted_at;
     return ws;
   }
-
-  static toPersistence(domain: Partial<WorkScheduleRecord>): WorkScheduleEntity {
-    const entity = new WorkScheduleEntity();
-    if (domain.id !== undefined) entity.id = domain.id;
-    if (domain.employee_id !== undefined) entity.employee_id = domain.employee_id;
-    if (domain.day_of_week !== undefined) entity.day_of_week = domain.day_of_week;
-    if (domain.expected_in !== undefined) entity.expected_in = domain.expected_in;
-    if (domain.expected_out !== undefined) entity.expected_out = domain.expected_out;
-    if (domain.break_minutes !== undefined) entity.break_minutes = domain.break_minutes;
-    if (domain.break_start !== undefined) entity.break_start = domain.break_start;
-    if (domain.effective_from !== undefined) entity.effective_from = domain.effective_from;
-    if (domain.effective_to !== undefined) entity.effective_to = domain.effective_to;
-    if (domain.created_by !== undefined) entity.created_by = domain.created_by;
-    if (domain.updated_by !== undefined) entity.updated_by = domain.updated_by;
-    if (domain.deleted_by !== undefined) entity.deleted_by = domain.deleted_by;
-    return entity;
-  }
 }
