@@ -2,7 +2,7 @@ import { ConflictException, NotFoundException, UnprocessableEntityException } fr
 import { CompensationService } from './compensation.service';
 import { BaseCompensationRepository } from './persistence/base-compensation.repository';
 import { BaseCompensationAuditRepository } from './persistence/base-compensation-audit.repository';
-import { Compensation } from './domain/compensation';
+import { CompensationRecord } from './domain/compensation';
 import {
   deriveHourlyRate,
   COMPENSATION_MONTHLY_HOURS_DIVISOR,
@@ -11,7 +11,7 @@ import {
 
 const PG_UNIQUE_VIOLATION = '23505';
 
-function fakeRow(over: Partial<Compensation> = {}): Compensation {
+function fakeRow(over: Partial<CompensationRecord> = {}): CompensationRecord {
   return {
     id: 1,
     employee_id: 12,

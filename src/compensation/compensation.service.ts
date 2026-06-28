@@ -2,11 +2,21 @@ import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { BaseCompensationRepository } from '@/compensation/persistence/base-compensation.repository';
 import { BaseCompensationAuditRepository } from '@/compensation/persistence/base-compensation-audit.repository';
-import { Compensation } from '@/compensation/domain/compensation';
-import { CompensationAudit } from '@/compensation/domain/compensation-audit';
+import { CompensationRecord } from '@/compensation/domain/compensation';
+import { CompensationAuditRecord } from '@/compensation/domain/compensation-audit';
+import {
+  Compensation,
+  CorrectionInput,
+  CorrectionPatch,
+} from '@/compensation/domain/compensation.aggregate';
+import { PayRate } from '@/compensation/domain/value-objects/pay-rate';
+import {
+  FutureEffectiveDateError,
+  InvalidPayRateError,
+} from '@/compensation/domain/compensation-errors';
 import { CompensationSearchCriteria } from '@/compensation/domain/compensation-search-criteria';
 import { FindAllCompensation } from '@/compensation/domain/find-all-compensation';
-import { COMPENSATION_AUDIT_ACTION, deriveHourlyRate } from '@/compensation/compensation.constants';
+import { COMPENSATION_AUDIT_ACTION } from '@/compensation/compensation.constants';
 import { conflict, orNotFound, unprocessable } from '@/utils/helpers/http-errors';
 import { isUniqueViolation } from '@/utils/helpers/pg-errors';
 import { businessDateString, dayBefore } from '@/utils/helpers/dates';
@@ -37,10 +47,12 @@ export class CompensationService {
    * a clean 409.
    *
    * `hourly_rate` is derived from `monthly_salary` unless the caller
-   * supplies one (an override, flagged on the row).
+   * supplies one (an override, flagged on the row) — the `PayRate` VO rule.
+   * The not-future guard fires up-front, before any DB work (I-1).
    */
-  async create(input: SetPayInput): Promise<Compensation> {
-    assertNotFutureDated(input.effective_from);
+  async create(input: SetPayInput): Promise<CompensationRecord> {
+    const today = businessDateString();
+    this.assertNotFuture(input.effective_from, today);
     try {
       return await this.dataSource.transaction((manager) => this.insertWithin(input, manager));
     } catch (err) {
@@ -50,7 +62,7 @@ export class CompensationService {
           `An active compensation row already exists for employee ${input.employee_id}.`,
         );
       }
-      throw err;
+      rethrowCompensationDomainError(err);
     }
   }
 
@@ -58,9 +70,10 @@ export class CompensationService {
    * Set pay for several employees in ONE all-or-nothing transaction — any
    * item failing rolls back the whole batch. Used for onboarding/import.
    * Duplicate `employee_id`s in the payload are rejected up front (one set-pay
-   * per employee per call); future dates are rejected per item.
+   * per employee per call); future dates are rejected per item, BEFORE the
+   * transaction opens (I-1 — a pre-write reject, not a partial-write rollback).
    */
-  async createBulk(items: SetPayInput[], actorId: number | null): Promise<Compensation[]> {
+  async createBulk(items: SetPayInput[], actorId: number | null): Promise<CompensationRecord[]> {
     const ids = items.map((i) => i.employee_id);
     const duplicate = ids.find((id, i) => ids.indexOf(id) !== i);
     if (duplicate !== undefined) {
@@ -69,11 +82,12 @@ export class CompensationService {
         `employee_id ${duplicate} appears more than once in the bulk payload`,
       );
     }
-    items.forEach((item) => assertNotFutureDated(item.effective_from));
+    const today = businessDateString();
+    items.forEach((item) => this.assertNotFuture(item.effective_from, today));
 
     try {
       return await this.dataSource.transaction(async (manager) => {
-        const created: Compensation[] = [];
+        const created: CompensationRecord[] = [];
         for (const item of items) {
           created.push(await this.insertWithin({ ...item, created_by: actorId }, manager));
         }
@@ -86,18 +100,22 @@ export class CompensationService {
           'A concurrent active compensation row already exists for one of the employees.',
         );
       }
-      throw err;
+      rethrowCompensationDomainError(err);
     }
   }
 
   /**
    * The shared set-pay body: end-date the prior active row (if any) and insert
    * the new one, recording a `created` audit row — all on the given manager so
-   * a caller can compose it into a larger transaction (single or bulk).
+   * a caller can compose it into a larger transaction (single or bulk). The
+   * derivation+override rule lives on `PayRate.fromInput`, exactly where the
+   * legacy service derived (in the transaction, I-1).
    */
-  private async insertWithin(input: SetPayInput, manager: EntityManager): Promise<Compensation> {
-    const overridden = input.hourly_rate != null;
-    const hourly_rate = overridden ? input.hourly_rate! : deriveHourlyRate(input.monthly_salary);
+  private async insertWithin(
+    input: SetPayInput,
+    manager: EntityManager,
+  ): Promise<CompensationRecord> {
+    const rate = PayRate.fromInput(input.monthly_salary, input.hourly_rate);
 
     const prior = await this.repository.findActiveForEmployee(input.employee_id, manager);
     if (prior) {
@@ -117,9 +135,9 @@ export class CompensationService {
     const created = await this.repository.create(
       {
         employee_id: input.employee_id,
-        monthly_salary: input.monthly_salary,
-        hourly_rate,
-        hourly_rate_is_overridden: overridden,
+        monthly_salary: rate.monthly_salary,
+        hourly_rate: rate.hourly_rate,
+        hourly_rate_is_overridden: rate.hourly_rate_is_overridden,
         effective_from: input.effective_from,
         created_by: input.created_by ?? null,
       },
@@ -146,16 +164,16 @@ export class CompensationService {
     return this.repository.findAll(criteria);
   }
 
-  async findById(id: number): Promise<Compensation> {
+  async findById(id: number): Promise<CompensationRecord> {
     return orNotFound(await this.repository.findById(id), 'Compensation', id);
   }
 
-  findHistoryForEmployee(employee_id: number): Promise<Compensation[]> {
+  findHistoryForEmployee(employee_id: number): Promise<CompensationRecord[]> {
     return this.repository.findHistoryForEmployee(employee_id);
   }
 
   /** The rate in effect on `date` (YYYY-MM-DD) — the OT-facing seam. Null when none. */
-  findRateOnDate(employee_id: number, date: string): Promise<Compensation | null> {
+  findRateOnDate(employee_id: number, date: string): Promise<CompensationRecord | null> {
     return this.repository.findRateOnDate(employee_id, date);
   }
 
@@ -164,7 +182,10 @@ export class CompensationService {
    * keyed by `employee_id`. Employees with no rate on that date are absent
    * from the map. One query, no N+1.
    */
-  async findRatesOnDate(employee_ids: number[], date: string): Promise<Map<number, Compensation>> {
+  async findRatesOnDate(
+    employee_ids: number[],
+    date: string,
+  ): Promise<Map<number, CompensationRecord>> {
     const rows = await this.repository.findRatesOnDate(employee_ids, date);
     return new Map(rows.map((row) => [row.employee_id, row]));
   }
@@ -173,46 +194,32 @@ export class CompensationService {
    * The employee's current compensation (the active row). Backs `/me`.
    * Null for a new hire with no rate yet — the caller returns 200 + null.
    */
-  findCurrentForEmployee(employee_id: number): Promise<Compensation | null> {
+  findCurrentForEmployee(employee_id: number): Promise<CompensationRecord | null> {
     return this.repository.findActiveForEmployee(employee_id);
   }
 
   /**
-   * Correct an erroneous row IN PLACE (no new history row). A monthly_salary
-   * change always re-derives the hourly rate and clears the override flag
-   * (open-question #3, resolved 2026-06-21); an explicit hourly_rate in the
-   * same patch wins and (re)sets the override.
+   * Correct an erroneous row IN PLACE (no new history row) via the aggregate's
+   * `correct` transition. A monthly_salary change always re-derives the hourly
+   * rate and clears the override flag; an explicit hourly_rate in the same patch
+   * wins and (re)sets it; patching neither leaves the rate untouched (S-1). The
+   * correction and its audit row land atomically — the trail can't drift.
    */
   async update(
     id: number,
-    patch: { monthly_salary?: number; hourly_rate?: number; effective_from?: string },
+    patch: CorrectionInput,
     updated_by: number | null,
-  ): Promise<Compensation> {
+  ): Promise<CompensationRecord> {
     const existing = await this.findById(id); // 404 if the row doesn't exist
-    if (patch.effective_from !== undefined) assertNotFutureDated(patch.effective_from);
+    const today = businessDateString();
 
-    const next: {
-      monthly_salary?: number;
-      hourly_rate?: number;
-      hourly_rate_is_overridden?: boolean;
-      effective_from?: string;
-      updated_by: number | null;
-    } = { updated_by };
-
-    if (patch.monthly_salary !== undefined) next.monthly_salary = patch.monthly_salary;
-    if (patch.effective_from !== undefined) next.effective_from = patch.effective_from;
-
-    if (patch.hourly_rate !== undefined) {
-      next.hourly_rate = patch.hourly_rate;
-      next.hourly_rate_is_overridden = true;
-    } else if (patch.monthly_salary !== undefined) {
-      // A salary correction always re-derives hourly and discards any prior
-      // manual override — the new salary is the fresh basis.
-      next.hourly_rate = deriveHourlyRate(patch.monthly_salary);
-      next.hourly_rate_is_overridden = false;
+    let next: CorrectionPatch;
+    try {
+      next = Compensation.reconstitute(existing).correct(patch, today, updated_by);
+    } catch (err) {
+      rethrowCompensationDomainError(err);
     }
 
-    // The correction and its audit row land atomically — the trail can't drift.
     return this.dataSource.transaction(async (manager) => {
       const updated = await this.repository.update(id, next, manager);
       await this.auditRepo.record(
@@ -240,7 +247,8 @@ export class CompensationService {
    * a gap. A historical row is rejected — deleting it would punch a hole in
    * findRateOnDate. Runs in a transaction: the active row is soft-deleted
    * (leaving the partial unique index free) before the prior row is
-   * reactivated.
+   * reactivated. The reactivation spans two rows + the index, so it stays
+   * use-case orchestration; the audit row is appended in the same transaction.
    */
   async softDelete(id: number, deleted_by: number | null): Promise<void> {
     const existing = await this.findById(id);
@@ -285,16 +293,34 @@ export class CompensationService {
    * The audit trail for one compensation row (newest first). 404s if the row
    * doesn't exist so the route can't be used to probe for ids.
    */
-  async findAuditTrail(compensation_id: number): Promise<CompensationAudit[]> {
+  async findAuditTrail(compensation_id: number): Promise<CompensationAuditRecord[]> {
     await this.findById(compensation_id); // 404 if the row doesn't exist
     return this.auditRepo.findByCompensationId(compensation_id);
   }
+
+  /**
+   * Run the aggregate's pure not-future guard and map the domain error to the
+   * same 422 the pre-DDD service emitted. Called up-front, before any DB work —
+   * single create + bulk `forEach` (I-1).
+   */
+  private assertNotFuture(effective_from: string, today: string): void {
+    try {
+      Compensation.assertNotFuture(effective_from, today);
+    } catch (err) {
+      rethrowCompensationDomainError(err);
+    }
+  }
 }
 
-/** Reject a future-dated rate — this foundation keeps "active row = current rate". */
-function assertNotFutureDated(effective_from: string): void {
-  // Lexicographic comparison works for zero-padded YYYY-MM-DD strings.
-  if (effective_from > businessDateString()) {
-    throw unprocessable('effective_from', 'effective_from cannot be in the future');
-  }
+/**
+ * Translate a pure domain error from the `Compensation` aggregate / `PayRate`
+ * value object into the exact HTTP exception the service threw before the DDD
+ * migration (decision #8). Anything else is rethrown untouched. The I/O-bound
+ * throws (one-active 409, `effective_from > prior` 422, bulk-dup 422,
+ * historical-delete 409, `23505` 409, 404) stay direct use-case throws.
+ */
+export function rethrowCompensationDomainError(err: unknown): never {
+  if (err instanceof FutureEffectiveDateError) throw unprocessable(err.field, err.message);
+  if (err instanceof InvalidPayRateError) throw unprocessable(err.field, err.message);
+  throw err;
 }

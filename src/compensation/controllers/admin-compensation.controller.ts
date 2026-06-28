@@ -13,9 +13,10 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CompensationService } from '@/compensation/compensation.service';
-import { Compensation } from '@/compensation/domain/compensation';
-import { CompensationAudit } from '@/compensation/domain/compensation-audit';
-import { FindAllCompensation } from '@/compensation/domain/find-all-compensation';
+import { CompensationAssembler } from '@/compensation/compensation.assembler';
+import { CompensationAuditAssembler } from '@/compensation/compensation-audit.assembler';
+import { CompensationResponseDto } from '@/compensation/dto/response/compensation-response.dto';
+import { CompensationAuditResponseDto } from '@/compensation/dto/response/compensation-audit-response.dto';
 import { CreateCompensationDto } from '@/compensation/dto/admin/create-compensation.dto';
 import { BulkCreateCompensationDto } from '@/compensation/dto/admin/bulk-create-compensation.dto';
 import { UpdateCompensationDto } from '@/compensation/dto/admin/update-compensation.dto';
@@ -23,6 +24,7 @@ import { QueryCompensationDto } from '@/compensation/dto/admin/query-compensatio
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
 import { Permissions } from '@/permissions/permissions.decorator';
 import { API_VERSION } from '@/utils/constants/api.constants';
+import { PaginatedResponse } from '@/utils/types/paginated-response.type';
 import { User } from '@/users/domain/user';
 
 /**
@@ -45,8 +47,10 @@ export class AdminCompensationController {
     summary: 'List compensation (paginated; activeOnly by default, filterable by employee)',
   })
   @ApiResponse({ status: 200 })
-  findAll(@Query() query: QueryCompensationDto): Promise<FindAllCompensation> {
-    return this.service.findAll(query);
+  async findAll(
+    @Query() query: QueryCompensationDto,
+  ): Promise<PaginatedResponse<CompensationResponseDto>> {
+    return CompensationAssembler.toPaginatedResponse(await this.service.findAll(query));
   }
 
   @Get('employees/:employeeId')
@@ -57,18 +61,21 @@ export class AdminCompensationController {
   })
   @ApiResponse({
     status: 200,
-    schema: { type: 'array', items: { $ref: '#/components/schemas/Compensation' } },
+    schema: { type: 'array', items: { $ref: '#/components/schemas/CompensationResponseDto' } },
   })
-  history(@Param('employeeId', ParseIntPipe) employeeId: number): Promise<Compensation[]> {
-    return this.service.findHistoryForEmployee(employeeId);
+  async history(
+    @Param('employeeId', ParseIntPipe) employeeId: number,
+  ): Promise<CompensationResponseDto[]> {
+    const rows = await this.service.findHistoryForEmployee(employeeId);
+    return rows.map((r) => CompensationAssembler.toResponse(r));
   }
 
   @Get(':id')
   @Permissions({ COMPENSATION: 'ViewAll' })
   @ApiOperation({ summary: 'Get a single compensation row by id' })
-  @ApiResponse({ status: 200, type: Compensation })
-  findOne(@Param('id', ParseIntPipe) id: number): Promise<Compensation> {
-    return this.service.findById(id);
+  @ApiResponse({ status: 200, type: CompensationResponseDto })
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<CompensationResponseDto> {
+    return CompensationAssembler.toResponse(await this.service.findById(id));
   }
 
   @Get(':id/audit')
@@ -78,10 +85,11 @@ export class AdminCompensationController {
   })
   @ApiResponse({
     status: 200,
-    schema: { type: 'array', items: { $ref: '#/components/schemas/CompensationAudit' } },
+    schema: { type: 'array', items: { $ref: '#/components/schemas/CompensationAuditResponseDto' } },
   })
-  auditTrail(@Param('id', ParseIntPipe) id: number): Promise<CompensationAudit[]> {
-    return this.service.findAuditTrail(id);
+  async auditTrail(@Param('id', ParseIntPipe) id: number): Promise<CompensationAuditResponseDto[]> {
+    const rows = await this.service.findAuditTrail(id);
+    return rows.map((r) => CompensationAuditAssembler.toResponse(r));
   }
 
   @Post()
@@ -93,9 +101,14 @@ export class AdminCompensationController {
       'inserted in one transaction. effective_from cannot be in the future and must be after ' +
       "the current rate's effective_from. Omit hourly_rate to derive it from monthly_salary.",
   })
-  @ApiResponse({ status: 201, type: Compensation })
-  create(@Body() dto: CreateCompensationDto, @CurrentUser() actor: User): Promise<Compensation> {
-    return this.service.create({ ...dto, created_by: actor.id });
+  @ApiResponse({ status: 201, type: CompensationResponseDto })
+  async create(
+    @Body() dto: CreateCompensationDto,
+    @CurrentUser() actor: User,
+  ): Promise<CompensationResponseDto> {
+    return CompensationAssembler.toResponse(
+      await this.service.create({ ...dto, created_by: actor.id }),
+    );
   }
 
   @Post('bulk')
@@ -109,13 +122,14 @@ export class AdminCompensationController {
   })
   @ApiResponse({
     status: 201,
-    schema: { type: 'array', items: { $ref: '#/components/schemas/Compensation' } },
+    schema: { type: 'array', items: { $ref: '#/components/schemas/CompensationResponseDto' } },
   })
-  createBulk(
+  async createBulk(
     @Body() dto: BulkCreateCompensationDto,
     @CurrentUser() actor: User,
-  ): Promise<Compensation[]> {
-    return this.service.createBulk(dto.items, actor.id);
+  ): Promise<CompensationResponseDto[]> {
+    const rows = await this.service.createBulk(dto.items, actor.id);
+    return rows.map((r) => CompensationAssembler.toResponse(r));
   }
 
   @Patch(':id')
@@ -127,13 +141,13 @@ export class AdminCompensationController {
       'always re-derives the hourly rate and clears any override; an explicit hourly_rate ' +
       'marks the row overridden.',
   })
-  @ApiResponse({ status: 200, type: Compensation })
-  update(
+  @ApiResponse({ status: 200, type: CompensationResponseDto })
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateCompensationDto,
     @CurrentUser() actor: User,
-  ): Promise<Compensation> {
-    return this.service.update(id, dto, actor.id);
+  ): Promise<CompensationResponseDto> {
+    return CompensationAssembler.toResponse(await this.service.update(id, dto, actor.id));
   }
 
   @Delete(':id')

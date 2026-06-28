@@ -4,7 +4,7 @@ import { EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
 import { BaseCompensationRepository } from '@/compensation/persistence/base-compensation.repository';
 import { CompensationEntity } from '@/compensation/persistence/entities/compensation.entity';
 import { CompensationMapper } from '@/compensation/persistence/mappers/compensation.mapper';
-import { Compensation } from '@/compensation/domain/compensation';
+import { CompensationRecord } from '@/compensation/domain/compensation';
 import { CompensationSearchCriteria } from '@/compensation/domain/compensation-search-criteria';
 import { FindAllCompensation } from '@/compensation/domain/find-all-compensation';
 import { paginate, resolvePaging } from '@/utils/helpers/pagination';
@@ -51,7 +51,7 @@ export class CompensationRepository extends BaseCompensationRepository {
     return paginate(entities.map(CompensationMapper.toDomain), total, paging);
   }
 
-  async findById(id: number): Promise<Compensation | null> {
+  async findById(id: number): Promise<CompensationRecord | null> {
     const entity = await this.baseQb()
       .where('c.id = :id', { id })
       .andWhere('c.deleted_at IS NULL')
@@ -59,7 +59,7 @@ export class CompensationRepository extends BaseCompensationRepository {
     return entity ? CompensationMapper.toDomain(entity) : null;
   }
 
-  async findHistoryForEmployee(employee_id: number): Promise<Compensation[]> {
+  async findHistoryForEmployee(employee_id: number): Promise<CompensationRecord[]> {
     const entities = await this.baseQb()
       .where('c.employee_id = :eid', { eid: employee_id })
       .andWhere('c.deleted_at IS NULL')
@@ -68,7 +68,7 @@ export class CompensationRepository extends BaseCompensationRepository {
     return entities.map(CompensationMapper.toDomain);
   }
 
-  async findRateOnDate(employee_id: number, date: string): Promise<Compensation | null> {
+  async findRateOnDate(employee_id: number, date: string): Promise<CompensationRecord | null> {
     const entity = await this.baseQb()
       .where('c.employee_id = :eid', { eid: employee_id })
       .andWhere('c.deleted_at IS NULL')
@@ -79,7 +79,7 @@ export class CompensationRepository extends BaseCompensationRepository {
     return entity ? CompensationMapper.toDomain(entity) : null;
   }
 
-  async findRatesOnDate(employee_ids: number[], date: string): Promise<Compensation[]> {
+  async findRatesOnDate(employee_ids: number[], date: string): Promise<CompensationRecord[]> {
     if (employee_ids.length === 0) return [];
     // Effective-dating is non-overlapping by construction, so at most one row
     // per employee matches — a single IN-query, riding (employee_id, effective_to).
@@ -95,7 +95,7 @@ export class CompensationRepository extends BaseCompensationRepository {
   async findActiveForEmployee(
     employee_id: number,
     manager?: EntityManager,
-  ): Promise<Compensation | null> {
+  ): Promise<CompensationRecord | null> {
     const entity = await this.baseQb(manager)
       .where('c.employee_id = :eid', { eid: employee_id })
       .andWhere('c.deleted_at IS NULL')
@@ -108,7 +108,7 @@ export class CompensationRepository extends BaseCompensationRepository {
     employee_id: number,
     before_effective_from: string,
     manager?: EntityManager,
-  ): Promise<Compensation | null> {
+  ): Promise<CompensationRecord | null> {
     const entity = await this.baseQb(manager)
       .where('c.employee_id = :eid', { eid: employee_id })
       .andWhere('c.deleted_at IS NULL')
@@ -129,7 +129,7 @@ export class CompensationRepository extends BaseCompensationRepository {
       created_by?: number | null;
     },
     manager?: EntityManager,
-  ): Promise<Compensation> {
+  ): Promise<CompensationRecord> {
     const repo = this.repoFor(manager);
     const entity = repo.create({
       employee_id: input.employee_id,
@@ -156,7 +156,7 @@ export class CompensationRepository extends BaseCompensationRepository {
       updated_by?: number | null;
     },
     manager?: EntityManager,
-  ): Promise<Compensation> {
+  ): Promise<CompensationRecord> {
     const repo = this.repoFor(manager);
     const existing = await repo.findOneOrFail({ where: { id } });
     if (patch.monthly_salary !== undefined) existing.monthly_salary = patch.monthly_salary;
@@ -178,7 +178,7 @@ export class CompensationRepository extends BaseCompensationRepository {
     await repo.softDelete(id);
   }
 
-  private async requireById(id: number, manager?: EntityManager): Promise<Compensation> {
+  private async requireById(id: number, manager?: EntityManager): Promise<CompensationRecord> {
     const entity = await this.baseQb(manager).where('c.id = :id', { id }).getOneOrFail();
     return CompensationMapper.toDomain(entity);
   }

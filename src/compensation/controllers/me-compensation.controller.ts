@@ -1,7 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CompensationService } from '@/compensation/compensation.service';
-import { Compensation } from '@/compensation/domain/compensation';
+import { CompensationAssembler } from '@/compensation/compensation.assembler';
+import { CompensationResponseDto } from '@/compensation/dto/response/compensation-response.dto';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
 import { Permissions } from '@/permissions/permissions.decorator';
 import { API_VERSION } from '@/utils/constants/api.constants';
@@ -26,8 +27,9 @@ export class MeCompensationController {
     summary: 'Get my current compensation',
     description: 'Returns my active rate, or null when none is set yet (new hire).',
   })
-  @ApiResponse({ status: 200, type: Compensation })
-  myCompensation(@CurrentUser() actor: User): Promise<Compensation | null> {
-    return this.service.findCurrentForEmployee(actor.id);
+  @ApiResponse({ status: 200, type: CompensationResponseDto })
+  async myCompensation(@CurrentUser() actor: User): Promise<CompensationResponseDto | null> {
+    const row = await this.service.findCurrentForEmployee(actor.id);
+    return row ? CompensationAssembler.toResponse(row) : null;
   }
 }

@@ -223,6 +223,26 @@ describe('Compensation (e2e)', () => {
         .get(url(`/admin/compensation/${firstRowId}`))
         .set(auth(adminToken));
       expect(detail.body.currency).toBe('PHP');
+
+      // Byte-parity guard: the wire shape must stay exactly the pre-DDD response
+      // — same keys, same order (mapper.toDomain's assignment order drives it).
+      // Adding/removing/reordering a response-DTO field breaks this.
+      expect(Object.keys(detail.body)).toEqual([
+        'id',
+        'employee_id',
+        'monthly_salary',
+        'hourly_rate',
+        'hourly_rate_is_overridden',
+        'currency',
+        'effective_from',
+        'effective_to',
+        'created_by',
+        'updated_by',
+        'deleted_by',
+        'created_at',
+        'updated_at',
+        'deleted_at',
+      ]);
     });
 
     it('bulk-sets pay for several employees in one transaction', async () => {

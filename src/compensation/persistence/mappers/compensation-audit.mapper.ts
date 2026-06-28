@@ -1,9 +1,9 @@
-import { CompensationAudit } from '@/compensation/domain/compensation-audit';
+import { CompensationAuditRecord } from '@/compensation/domain/compensation-audit';
 import { CompensationAuditEntity } from '@/compensation/persistence/entities/compensation-audit.entity';
 
 export class CompensationAuditMapper {
-  static toDomain(raw: CompensationAuditEntity): CompensationAudit {
-    const a = new CompensationAudit();
+  static toDomain(raw: CompensationAuditEntity): CompensationAuditRecord {
+    const a = new CompensationAuditRecord();
     a.id = raw.id;
     a.compensation_id = raw.compensation_id;
     a.employee_id = raw.employee_id;

@@ -1,5 +1,5 @@
 import { EntityManager } from 'typeorm';
-import { CompensationAudit } from '@/compensation/domain/compensation-audit';
+import { CompensationAuditRecord } from '@/compensation/domain/compensation-audit';
 import { CompensationAuditAction } from '@/compensation/compensation.constants';
 
 /** What the service hands the audit repo for one write. */
@@ -26,8 +26,8 @@ export abstract class BaseCompensationAuditRepository {
   abstract record(
     input: RecordCompensationAuditInput,
     manager?: EntityManager,
-  ): Promise<CompensationAudit>;
+  ): Promise<CompensationAuditRecord>;
 
   /** Full trail for one compensation row, newest first. */
-  abstract findByCompensationId(compensation_id: number): Promise<CompensationAudit[]>;
+  abstract findByCompensationId(compensation_id: number): Promise<CompensationAuditRecord[]>;
 }

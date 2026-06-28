@@ -1,10 +1,10 @@
 import { COMPENSATION_CURRENCY } from '@/compensation/compensation.constants';
-import { Compensation } from '@/compensation/domain/compensation';
+import { CompensationRecord } from '@/compensation/domain/compensation';
 import { CompensationEntity } from '@/compensation/persistence/entities/compensation.entity';
 
 export class CompensationMapper {
-  static toDomain(raw: CompensationEntity): Compensation {
-    const c = new Compensation();
+  static toDomain(raw: CompensationEntity): CompensationRecord {
+    const c = new CompensationRecord();
     c.id = raw.id;
     c.employee_id = raw.employee_id;
     c.monthly_salary = raw.monthly_salary;

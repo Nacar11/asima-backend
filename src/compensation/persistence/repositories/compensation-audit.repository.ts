@@ -7,7 +7,7 @@ import {
 } from '@/compensation/persistence/base-compensation-audit.repository';
 import { CompensationAuditEntity } from '@/compensation/persistence/entities/compensation-audit.entity';
 import { CompensationAuditMapper } from '@/compensation/persistence/mappers/compensation-audit.mapper';
-import { CompensationAudit } from '@/compensation/domain/compensation-audit';
+import { CompensationAuditRecord } from '@/compensation/domain/compensation-audit';
 
 @Injectable()
 export class CompensationAuditRepository extends BaseCompensationAuditRepository {
@@ -25,7 +25,7 @@ export class CompensationAuditRepository extends BaseCompensationAuditRepository
   async record(
     input: RecordCompensationAuditInput,
     manager?: EntityManager,
-  ): Promise<CompensationAudit> {
+  ): Promise<CompensationAuditRecord> {
     const repo = this.repoFor(manager);
     const entity = repo.create({
       compensation_id: input.compensation_id,
@@ -43,7 +43,7 @@ export class CompensationAuditRepository extends BaseCompensationAuditRepository
     return CompensationAuditMapper.toDomain(saved);
   }
 
-  async findByCompensationId(compensation_id: number): Promise<CompensationAudit[]> {
+  async findByCompensationId(compensation_id: number): Promise<CompensationAuditRecord[]> {
     const entities = await this.repo
       .createQueryBuilder('a')
       // Opt the select:false money columns back in — this is an audit read.

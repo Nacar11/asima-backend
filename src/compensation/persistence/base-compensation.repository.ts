@@ -1,5 +1,5 @@
 import { EntityManager } from 'typeorm';
-import { Compensation } from '@/compensation/domain/compensation';
+import { CompensationRecord } from '@/compensation/domain/compensation';
 import { CompensationSearchCriteria } from '@/compensation/domain/compensation-search-criteria';
 import { FindAllCompensation } from '@/compensation/domain/find-all-compensation';
 
@@ -13,17 +13,17 @@ export abstract class BaseCompensationRepository {
   /** Paginated list. `activeOnly` keeps one current row per employee. */
   abstract findAll(criteria: CompensationSearchCriteria): Promise<FindAllCompensation>;
 
-  abstract findById(id: number): Promise<Compensation | null>;
+  abstract findById(id: number): Promise<CompensationRecord | null>;
 
   /** Full history for an employee, newest `effective_from` first. */
-  abstract findHistoryForEmployee(employee_id: number): Promise<Compensation[]>;
+  abstract findHistoryForEmployee(employee_id: number): Promise<CompensationRecord[]>;
 
   /**
    * The rate in effect on `date` (YYYY-MM-DD): the row where
    * `effective_from <= date AND (effective_to IS NULL OR effective_to >= date)`.
    * The OT-facing seam — null when the employee had no rate on that date.
    */
-  abstract findRateOnDate(employee_id: number, date: string): Promise<Compensation | null>;
+  abstract findRateOnDate(employee_id: number, date: string): Promise<CompensationRecord | null>;
 
   /**
    * Batched form of `findRateOnDate` — the rate in effect on `date` for each
@@ -32,7 +32,7 @@ export abstract class BaseCompensationRepository {
    * on that date are simply absent from the result. A full date-range matrix
    * is deferred to the OT slice that defines its query shape.
    */
-  abstract findRatesOnDate(employee_ids: number[], date: string): Promise<Compensation[]>;
+  abstract findRatesOnDate(employee_ids: number[], date: string): Promise<CompensationRecord[]>;
 
   /**
    * The single active row for an employee (`effective_to IS NULL`), or
@@ -41,7 +41,7 @@ export abstract class BaseCompensationRepository {
   abstract findActiveForEmployee(
     employee_id: number,
     manager?: EntityManager,
-  ): Promise<Compensation | null>;
+  ): Promise<CompensationRecord | null>;
 
   /**
    * The non-deleted row immediately preceding `before_effective_from`
@@ -52,7 +52,7 @@ export abstract class BaseCompensationRepository {
     employee_id: number,
     before_effective_from: string,
     manager?: EntityManager,
-  ): Promise<Compensation | null>;
+  ): Promise<CompensationRecord | null>;
 
   abstract create(
     input: {
@@ -65,7 +65,7 @@ export abstract class BaseCompensationRepository {
       created_by?: number | null;
     },
     manager?: EntityManager,
-  ): Promise<Compensation>;
+  ): Promise<CompensationRecord>;
 
   abstract update(
     id: number,
@@ -78,7 +78,7 @@ export abstract class BaseCompensationRepository {
       updated_by?: number | null;
     },
     manager?: EntityManager,
-  ): Promise<Compensation>;
+  ): Promise<CompensationRecord>;
 
   abstract softDelete(
     id: number,
