@@ -1,6 +1,7 @@
 import {
   ConflictException,
   ForbiddenException,
+  NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 
@@ -25,4 +26,13 @@ export function conflict(field: string, message: string): ConflictException {
 /** 403 with `{ status: 403, errors: { [field]: message } }`. */
 export function forbidden(field: string, message: string): ForbiddenException {
   return new ForbiddenException({ status: 403, errors: { [field]: message } });
+}
+
+/**
+ * 404 with the standard `<Entity> with id <id> not found` message — the one
+ * not-found shape every service repeats. A plain message (no field envelope),
+ * matching the prior `new NotFoundException(...)` calls verbatim.
+ */
+export function notFound(entity: string, id: number | string): NotFoundException {
+  return new NotFoundException(`${entity} with id ${id} not found`);
 }

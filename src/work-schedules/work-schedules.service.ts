@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { BaseWorkScheduleRepository } from '@/work-schedules/persistence/base-work-schedule.repository';
 import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
 import { WorkSchedule } from '@/work-schedules/domain/work-schedule.aggregate';
@@ -11,7 +11,7 @@ import { WorkScheduleCreated } from '@/work-schedules/domain/events/work-schedul
 import { WorkScheduleSearchCriteria } from '@/work-schedules/domain/work-schedule-search-criteria';
 import { FindAllWorkSchedule } from '@/work-schedules/domain/find-all-work-schedule';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
-import { unprocessable } from '@/utils/helpers/http-errors';
+import { notFound, unprocessable } from '@/utils/helpers/http-errors';
 import { isUniqueViolation } from '@/utils/helpers/pg-errors';
 
 /**
@@ -35,7 +35,7 @@ export class WorkSchedulesService {
 
   async findById(id: number): Promise<WorkScheduleRecord> {
     const row = await this.repository.findById(id);
-    if (!row) throw new NotFoundException(`WorkSchedule with id ${id} not found`);
+    if (!row) throw notFound('WorkSchedule', id);
     return row;
   }
 

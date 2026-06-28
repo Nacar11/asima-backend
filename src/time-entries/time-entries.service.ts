@@ -15,7 +15,7 @@ import { TimeEntryOpened } from '@/time-entries/domain/events/time-entry-events'
 import { TimeEntrySearchCriteria } from '@/time-entries/domain/time-entry-search-criteria';
 import { FindAllTimeEntry } from '@/time-entries/domain/find-all-time-entry';
 import { utcDateString } from '@/utils/helpers/dates';
-import { conflict, unprocessable } from '@/utils/helpers/http-errors';
+import { conflict, notFound, unprocessable } from '@/utils/helpers/http-errors';
 import { isUniqueViolation } from '@/utils/helpers/pg-errors';
 import {
   PUNCH_COOLDOWN_MINUTES,
@@ -46,7 +46,7 @@ export class TimeEntriesService {
 
   async findById(id: number): Promise<TimeEntryRecord> {
     const entry = await this.repository.findById(id);
-    if (!entry) throw new NotFoundException(`TimeEntry with id ${id} not found`);
+    if (!entry) throw notFound('TimeEntry', id);
     return entry;
   }
 

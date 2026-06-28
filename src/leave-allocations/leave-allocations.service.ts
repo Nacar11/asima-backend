@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { BaseLeaveAllocationRepository } from '@/leave-allocations/persistence/base-leave-allocation.repository';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { LeaveBalanceService } from '@/leave-requests/leave-balance.service';
@@ -10,7 +10,7 @@ import { LeaveBalance } from '@/leave-requests/domain/leave-balance';
 import { ALLOCATION_SOURCES } from '@/leave-allocations/leave-allocations.constants';
 import { LeaveType } from '@/leave-requests/leave-requests.constants';
 import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
-import { unprocessable } from '@/utils/helpers/http-errors';
+import { notFound, unprocessable } from '@/utils/helpers/http-errors';
 import { User } from '@/users/domain/user';
 
 /**
@@ -37,7 +37,7 @@ export class LeaveAllocationsService {
     actor: User,
   ): Promise<LeaveAllocationRecord> {
     const employee = await this.users.findById(employee_id);
-    if (!employee) throw new NotFoundException(`User with id ${employee_id} not found`);
+    if (!employee) throw notFound('User', employee_id);
 
     const source = ALLOCATION_SOURCES.admin_grant;
 

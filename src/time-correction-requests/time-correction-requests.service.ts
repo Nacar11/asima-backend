@@ -1,6 +1,6 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { utcDateString } from '@/utils/helpers/dates';
-import { conflict, forbidden, unprocessable } from '@/utils/helpers/http-errors';
+import { conflict, forbidden, notFound, unprocessable } from '@/utils/helpers/http-errors';
 import { hasPermission } from '@/users/domain/user-permissions';
 import { BaseTimeCorrectionRequestRepository } from '@/time-correction-requests/persistence/base-time-correction-request.repository';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
@@ -58,7 +58,7 @@ export class TimeCorrectionRequestsService {
 
   async findById(id: number): Promise<TimeCorrectionRequestRecord> {
     const row = await this.repository.findById(id);
-    if (!row) throw new NotFoundException(`TimeCorrectionRequest with id ${id} not found`);
+    if (!row) throw notFound('TimeCorrectionRequest', id);
     return row;
   }
 
@@ -174,7 +174,7 @@ export class TimeCorrectionRequestsService {
 
   async cancel(id: number, caller: User): Promise<TimeCorrectionRequestRecord> {
     const aggregate = await this.repository.findAggregateById(id);
-    if (!aggregate) throw new NotFoundException(`TimeCorrectionRequest with id ${id} not found`);
+    if (!aggregate) throw notFound('TimeCorrectionRequest', id);
     try {
       aggregate.cancel(toCorrectionActor(caller));
     } catch (err) {
@@ -225,7 +225,7 @@ export class TimeCorrectionRequestsService {
    */
   async approve(id: number, caller: User): Promise<TimeCorrectionRequestRecord> {
     const aggregate = await this.repository.findAggregateById(id);
-    if (!aggregate) throw new NotFoundException(`TimeCorrectionRequest with id ${id} not found`);
+    if (!aggregate) throw notFound('TimeCorrectionRequest', id);
     const actor = toCorrectionActor(caller);
     try {
       // Pure preconditions (pending + caller is the current approver).
@@ -276,7 +276,7 @@ export class TimeCorrectionRequestsService {
 
   async reject(id: number, caller: User, note: string): Promise<TimeCorrectionRequestRecord> {
     const aggregate = await this.repository.findAggregateById(id);
-    if (!aggregate) throw new NotFoundException(`TimeCorrectionRequest with id ${id} not found`);
+    if (!aggregate) throw notFound('TimeCorrectionRequest', id);
     try {
       aggregate.reject(toCorrectionActor(caller), note);
     } catch (err) {
