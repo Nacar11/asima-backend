@@ -8,6 +8,7 @@ import {
 import { AttachmentEntity } from '@/storage/persistence/entities/attachment.entity';
 import { AttachmentMapper } from '@/storage/persistence/mappers/attachment.mapper';
 import { Attachment } from '@/storage/domain/attachment';
+import { scopedRepo } from '@/utils/helpers/scoped-repo';
 
 @Injectable()
 export class AttachmentRepository extends BaseAttachmentRepository {
@@ -19,7 +20,7 @@ export class AttachmentRepository extends BaseAttachmentRepository {
   }
 
   async create(input: CreateAttachmentInput, manager?: EntityManager): Promise<Attachment> {
-    const repo = manager ? manager.getRepository(AttachmentEntity) : this.repo;
+    const repo = scopedRepo(this.repo, manager);
     const entity = repo.create({
       bucket: input.bucket,
       object_key_prefix: input.object_key_prefix,

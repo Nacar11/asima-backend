@@ -15,6 +15,7 @@ import {
   TimeCorrectionStatus,
 } from '@/time-correction-requests/time-correction-requests.constants';
 import { paginate, resolvePaging } from '@/utils/helpers/pagination';
+import { scopedRepo } from '@/utils/helpers/scoped-repo';
 
 @Injectable()
 export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRepository {
@@ -130,7 +131,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
     from_date: string,
     manager?: EntityManager,
   ): Promise<TimeCorrectionRequestRecord[]> {
-    const repo = manager ? manager.getRepository(TimeCorrectionRequestEntity) : this.repo;
+    const repo = scopedRepo(this.repo, manager);
     const entities = await repo
       .createQueryBuilder('tc')
       .where('tc.employee_id = :eid', { eid: employee_id })
@@ -150,7 +151,7 @@ export class TimeCorrectionRequestRepository extends BaseTimeCorrectionRequestRe
     manager?: EntityManager,
   ): Promise<number> {
     if (ids.length === 0) return 0;
-    const repo = manager ? manager.getRepository(TimeCorrectionRequestEntity) : this.repo;
+    const repo = scopedRepo(this.repo, manager);
     const result = await repo
       .createQueryBuilder()
       .update(TimeCorrectionRequestEntity)

@@ -8,6 +8,7 @@ import { CompensationRecord } from '@/compensation/domain/compensation';
 import { CompensationSearchCriteria } from '@/compensation/domain/compensation-search-criteria';
 import { FindAllCompensation } from '@/compensation/domain/find-all-compensation';
 import { paginate, resolvePaging } from '@/utils/helpers/pagination';
+import { scopedRepo } from '@/utils/helpers/scoped-repo';
 
 @Injectable()
 export class CompensationRepository extends BaseCompensationRepository {
@@ -20,7 +21,7 @@ export class CompensationRepository extends BaseCompensationRepository {
 
   /** The bound repository, joined to `manager`'s transaction when one is given. */
   private repoFor(manager?: EntityManager): Repository<CompensationEntity> {
-    return manager ? manager.getRepository(CompensationEntity) : this.repo;
+    return scopedRepo(this.repo, manager);
   }
 
   /**

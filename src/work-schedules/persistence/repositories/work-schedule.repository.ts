@@ -9,6 +9,7 @@ import { WorkScheduleSearchCriteria } from '@/work-schedules/domain/work-schedul
 import { FindAllWorkSchedule } from '@/work-schedules/domain/find-all-work-schedule';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
 import { paginate, resolvePaging } from '@/utils/helpers/pagination';
+import { scopedRepo } from '@/utils/helpers/scoped-repo';
 
 @Injectable()
 export class WorkScheduleRepository extends BaseWorkScheduleRepository {
@@ -21,7 +22,7 @@ export class WorkScheduleRepository extends BaseWorkScheduleRepository {
 
   /** The bound repository, joined to `manager`'s transaction when one is given. */
   private repoFor(manager?: EntityManager): Repository<WorkScheduleEntity> {
-    return manager ? manager.getRepository(WorkScheduleEntity) : this.repo;
+    return scopedRepo(this.repo, manager);
   }
 
   async findAll(criteria: WorkScheduleSearchCriteria): Promise<FindAllWorkSchedule> {

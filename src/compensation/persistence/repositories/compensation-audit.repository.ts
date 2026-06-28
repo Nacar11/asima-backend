@@ -8,6 +8,7 @@ import {
 import { CompensationAuditEntity } from '@/compensation/persistence/entities/compensation-audit.entity';
 import { CompensationAuditMapper } from '@/compensation/persistence/mappers/compensation-audit.mapper';
 import { CompensationAuditRecord } from '@/compensation/domain/compensation-audit';
+import { scopedRepo } from '@/utils/helpers/scoped-repo';
 
 @Injectable()
 export class CompensationAuditRepository extends BaseCompensationAuditRepository {
@@ -19,7 +20,7 @@ export class CompensationAuditRepository extends BaseCompensationAuditRepository
   }
 
   private repoFor(manager?: EntityManager): Repository<CompensationAuditEntity> {
-    return manager ? manager.getRepository(CompensationAuditEntity) : this.repo;
+    return scopedRepo(this.repo, manager);
   }
 
   async record(

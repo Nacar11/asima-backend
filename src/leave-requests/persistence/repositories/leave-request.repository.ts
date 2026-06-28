@@ -11,6 +11,7 @@ import { LeaveRequestRecord } from '@/leave-requests/domain/leave-request';
 import { LeaveRequest } from '@/leave-requests/domain/leave-request.aggregate';
 import { LeaveRequestSearchCriteria } from '@/leave-requests/domain/leave-request-search-criteria';
 import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-request';
+import { scopedRepo } from '@/utils/helpers/scoped-repo';
 import {
   DayPortion,
   DecisionPath,
@@ -119,7 +120,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
     from_date: string,
     manager?: EntityManager,
   ): Promise<LeaveRequestRecord[]> {
-    const repo = manager ? manager.getRepository(LeaveRequestEntity) : this.repo;
+    const repo = scopedRepo(this.repo, manager);
     const entities = await repo
       .createQueryBuilder('lr')
       .where('lr.employee_id = :eid', { eid: employee_id })
@@ -139,7 +140,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
     manager?: EntityManager,
   ): Promise<number> {
     if (ids.length === 0) return 0;
-    const repo = manager ? manager.getRepository(LeaveRequestEntity) : this.repo;
+    const repo = scopedRepo(this.repo, manager);
     const result = await repo
       .createQueryBuilder()
       .update(LeaveRequestEntity)
@@ -181,7 +182,7 @@ export class LeaveRequestRepository extends BaseLeaveRequestRepository {
   ): Promise<LeaveRequestRecord> {
     // When a manager is passed, the insert (and its reload) join that
     // transaction — required for reserve-on-submit (plan C3).
-    const repo = manager ? manager.getRepository(LeaveRequestEntity) : this.repo;
+    const repo = scopedRepo(this.repo, manager);
     const entity = repo.create({
       employee_id: input.employee_id,
       leave_type: input.leave_type,
