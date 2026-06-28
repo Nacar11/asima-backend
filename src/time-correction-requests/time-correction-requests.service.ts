@@ -1,6 +1,12 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { utcDateString } from '@/utils/helpers/dates';
-import { conflict, forbidden, notFound, unprocessable } from '@/utils/helpers/http-errors';
+import {
+  conflict,
+  forbidden,
+  notFound,
+  orNotFound,
+  unprocessable,
+} from '@/utils/helpers/http-errors';
 import { hasPermission } from '@/users/domain/user-permissions';
 import { BaseTimeCorrectionRequestRepository } from '@/time-correction-requests/persistence/base-time-correction-request.repository';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
@@ -57,9 +63,7 @@ export class TimeCorrectionRequestsService {
   }
 
   async findById(id: number): Promise<TimeCorrectionRequestRecord> {
-    const row = await this.repository.findById(id);
-    if (!row) throw notFound('TimeCorrectionRequest', id);
-    return row;
+    return orNotFound(await this.repository.findById(id), 'TimeCorrectionRequest', id);
   }
 
   async findByIdForViewer(id: number, caller: User): Promise<TimeCorrectionRequestRecord> {

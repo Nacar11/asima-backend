@@ -10,7 +10,7 @@ import { LeaveBalance } from '@/leave-requests/domain/leave-balance';
 import { ALLOCATION_SOURCES } from '@/leave-allocations/leave-allocations.constants';
 import { LeaveType } from '@/leave-requests/leave-requests.constants';
 import { DomainEventPublisher } from '@/utils/domain/domain-event-publisher';
-import { notFound, unprocessable } from '@/utils/helpers/http-errors';
+import { orNotFound, unprocessable } from '@/utils/helpers/http-errors';
 import { User } from '@/users/domain/user';
 
 /**
@@ -36,8 +36,7 @@ export class LeaveAllocationsService {
     input: { leave_type: LeaveType; amount: number; reason?: string | null },
     actor: User,
   ): Promise<LeaveAllocationRecord> {
-    const employee = await this.users.findById(employee_id);
-    if (!employee) throw notFound('User', employee_id);
+    orNotFound(await this.users.findById(employee_id), 'User', employee_id);
 
     const source = ALLOCATION_SOURCES.admin_grant;
 

@@ -1,5 +1,5 @@
 import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
-import { notFound, unprocessable } from '@/utils/helpers/http-errors';
+import { orNotFound, unprocessable } from '@/utils/helpers/http-errors';
 import { BaseRoleRepository } from '@/roles/persistence/base-role.repository';
 import { BasePermissionRepository } from '@/permissions/persistence/base-permission.repository';
 import { Role } from '@/roles/domain/role';
@@ -19,9 +19,7 @@ export class RolesService {
   }
 
   async findById(id: number): Promise<Role> {
-    const role = await this.repository.findById(id);
-    if (!role) throw notFound('Role', id);
-    return role;
+    return orNotFound(await this.repository.findById(id), 'Role', id);
   }
 
   findByName(name: string): Promise<Role | null> {

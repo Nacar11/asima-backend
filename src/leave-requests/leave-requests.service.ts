@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { conflict, forbidden, notFound, unprocessable } from '@/utils/helpers/http-errors';
+import { conflict, forbidden, orNotFound, unprocessable } from '@/utils/helpers/http-errors';
 import { hasPermission } from '@/users/domain/user-permissions';
 import { BaseLeaveRequestRepository } from '@/leave-requests/persistence/base-leave-request.repository';
 import { LeaveDayCountService, SubmittableRange } from '@/leave-requests/leave-day-count.service';
@@ -60,9 +60,7 @@ export class LeaveRequestsService {
   }
 
   async findById(id: number): Promise<LeaveRequestRecord> {
-    const row = await this.repository.findById(id);
-    if (!row) throw notFound('LeaveRequest', id);
-    return row;
+    return orNotFound(await this.repository.findById(id), 'LeaveRequest', id);
   }
 
   /**
@@ -286,8 +284,7 @@ export class LeaveRequestsService {
    * ledger work.
    */
   async cancel(id: number, caller: User): Promise<LeaveRequestRecord> {
-    const aggregate = await this.repository.findAggregateById(id);
-    if (!aggregate) throw notFound('LeaveRequest', id);
+    const aggregate = orNotFound(await this.repository.findAggregateById(id), 'LeaveRequest', id);
     try {
       aggregate.cancel(toLeaveActor(caller), this.dayCount.today());
     } catch (err) {
@@ -354,8 +351,7 @@ export class LeaveRequestsService {
    * decision and whether it went through the chain or an override.
    */
   async approve(id: number, caller: User): Promise<LeaveRequestRecord> {
-    const aggregate = await this.repository.findAggregateById(id);
-    if (!aggregate) throw notFound('LeaveRequest', id);
+    const aggregate = orNotFound(await this.repository.findAggregateById(id), 'LeaveRequest', id);
     const actor = toLeaveActor(caller);
     try {
       // Pure preconditions (state is pending + caller is the current approver).
@@ -394,8 +390,7 @@ export class LeaveRequestsService {
 
   /** Reject the request from either pending state. A note is required. */
   async reject(id: number, caller: User, note: string): Promise<LeaveRequestRecord> {
-    const aggregate = await this.repository.findAggregateById(id);
-    if (!aggregate) throw notFound('LeaveRequest', id);
+    const aggregate = orNotFound(await this.repository.findAggregateById(id), 'LeaveRequest', id);
     try {
       aggregate.reject(toLeaveActor(caller), note);
     } catch (err) {

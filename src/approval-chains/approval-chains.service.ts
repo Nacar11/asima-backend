@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { notFound, unprocessable } from '@/utils/helpers/http-errors';
+import { orNotFound, unprocessable } from '@/utils/helpers/http-errors';
 import { BaseApprovalChainRepository } from '@/approval-chains/persistence/base-approval-chain.repository';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { ApprovalChain } from '@/approval-chains/domain/approval-chain';
@@ -274,10 +274,7 @@ export class ApprovalChainsService {
   // ── validation helpers ────────────────────────────────────────────
 
   private async assertEmployeeExists(employee_id: number): Promise<void> {
-    const employee = await this.users.findById(employee_id);
-    if (!employee) {
-      throw notFound('User', employee_id);
-    }
+    orNotFound(await this.users.findById(employee_id), 'User', employee_id);
   }
 
   private async assertValidApprover(approver_id: number, employee_id: number): Promise<void> {

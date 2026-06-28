@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { notFound, unprocessable } from '@/utils/helpers/http-errors';
+import { orNotFound, unprocessable } from '@/utils/helpers/http-errors';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
 import { BaseRoleRepository } from '@/roles/persistence/base-role.repository';
 import { User } from '@/users/domain/user';
@@ -27,9 +27,7 @@ export class UsersService {
   }
 
   async findById(id: number): Promise<User> {
-    const user = await this.repository.findById(id);
-    if (!user) throw notFound('User', id);
-    return user;
+    return orNotFound(await this.repository.findById(id), 'User', id);
   }
 
   findByEmail(email: string): Promise<User | null> {
@@ -127,8 +125,7 @@ export class UsersService {
     current_password: string,
     new_password: string,
   ): Promise<void> {
-    const credentials = await this.repository.findByIdWithCredentials(id);
-    if (!credentials) throw notFound('User', id);
+    const credentials = orNotFound(await this.repository.findByIdWithCredentials(id), 'User', id);
 
     const ok = await bcrypt.compare(current_password, credentials.password_hash);
     if (!ok) throw new UnauthorizedException('Current password is incorrect');

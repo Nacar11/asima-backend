@@ -7,7 +7,7 @@ import { CompensationAudit } from '@/compensation/domain/compensation-audit';
 import { CompensationSearchCriteria } from '@/compensation/domain/compensation-search-criteria';
 import { FindAllCompensation } from '@/compensation/domain/find-all-compensation';
 import { COMPENSATION_AUDIT_ACTION, deriveHourlyRate } from '@/compensation/compensation.constants';
-import { conflict, notFound, unprocessable } from '@/utils/helpers/http-errors';
+import { conflict, orNotFound, unprocessable } from '@/utils/helpers/http-errors';
 import { isUniqueViolation } from '@/utils/helpers/pg-errors';
 import { businessDateString, dayBefore } from '@/utils/helpers/dates';
 
@@ -147,9 +147,7 @@ export class CompensationService {
   }
 
   async findById(id: number): Promise<Compensation> {
-    const row = await this.repository.findById(id);
-    if (!row) throw notFound('Compensation', id);
-    return row;
+    return orNotFound(await this.repository.findById(id), 'Compensation', id);
   }
 
   findHistoryForEmployee(employee_id: number): Promise<Compensation[]> {

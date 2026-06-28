@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { notFound } from '@/utils/helpers/http-errors';
+import { orNotFound } from '@/utils/helpers/http-errors';
 import { BasePermissionRepository } from '@/permissions/persistence/base-permission.repository';
 import { Permission } from '@/permissions/domain/permission';
 import { PermissionSearchCriteria } from '@/permissions/domain/permission-search-criteria';
@@ -14,11 +14,7 @@ export class PermissionsService {
   }
 
   async findById(id: number): Promise<Permission> {
-    const permission = await this.repository.findById(id);
-    if (!permission) {
-      throw notFound('Permission', id);
-    }
-    return permission;
+    return orNotFound(await this.repository.findById(id), 'Permission', id);
   }
 
   findByCodes(codes: string[]): Promise<Permission[]> {

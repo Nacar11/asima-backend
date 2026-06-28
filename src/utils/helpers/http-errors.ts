@@ -36,3 +36,14 @@ export function forbidden(field: string, message: string): ForbiddenException {
 export function notFound(entity: string, id: number | string): NotFoundException {
   return new NotFoundException(`${entity} with id ${id} not found`);
 }
+
+/**
+ * Return `value`, or throw the standard 404 when it is null/undefined — the
+ * "load by id or fail" guard every service repeats after a `findById`. Lets a
+ * lookup + guard collapse to one expression: `orNotFound(await
+ * repo.findById(id), 'Entity', id)`.
+ */
+export function orNotFound<T>(value: T | null | undefined, entity: string, id: number | string): T {
+  if (value == null) throw notFound(entity, id);
+  return value;
+}

@@ -11,7 +11,7 @@ import { WorkScheduleCreated } from '@/work-schedules/domain/events/work-schedul
 import { WorkScheduleSearchCriteria } from '@/work-schedules/domain/work-schedule-search-criteria';
 import { FindAllWorkSchedule } from '@/work-schedules/domain/find-all-work-schedule';
 import { DayOfWeek } from '@/work-schedules/work-schedules.constants';
-import { notFound, unprocessable } from '@/utils/helpers/http-errors';
+import { orNotFound, unprocessable } from '@/utils/helpers/http-errors';
 import { isUniqueViolation } from '@/utils/helpers/pg-errors';
 
 /**
@@ -34,9 +34,7 @@ export class WorkSchedulesService {
   }
 
   async findById(id: number): Promise<WorkScheduleRecord> {
-    const row = await this.repository.findById(id);
-    if (!row) throw notFound('WorkSchedule', id);
-    return row;
+    return orNotFound(await this.repository.findById(id), 'WorkSchedule', id);
   }
 
   /**
