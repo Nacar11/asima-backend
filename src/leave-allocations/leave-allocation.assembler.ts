@@ -1,6 +1,6 @@
 import { LeaveAllocationRecord } from '@/leave-allocations/domain/leave-allocation';
 import { LeaveAllocationResponseDto } from '@/leave-allocations/dto/response/leave-allocation-response.dto';
-import { toDto, toDtoList } from '@/utils/helpers/assemble';
+import { toDto } from '@/utils/helpers/assemble';
 
 /**
  * The wire seam for leave allocations: the domain stays framework-free, and any
@@ -13,6 +13,6 @@ export class LeaveAllocationAssembler {
   }
 
   static toResponseList(list: LeaveAllocationRecord[]): LeaveAllocationResponseDto[] {
-    return toDtoList(LeaveAllocationResponseDto, list);
+    return list.map((item) => toDto(LeaveAllocationResponseDto, item));
   }
 }

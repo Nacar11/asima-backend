@@ -5,7 +5,7 @@ import { FindAllLeaveRequest } from '@/leave-requests/domain/find-all-leave-requ
 import { LeaveRequestResponseDto } from '@/leave-requests/dto/response/leave-request-response.dto';
 import { LeaveRequestListItemResponseDto } from '@/leave-requests/dto/response/leave-request-list-item-response.dto';
 import { LeaveBalanceResponseDto } from '@/leave-requests/dto/response/leave-balance-response.dto';
-import { toDto, toDtoList, toPaginatedDto } from '@/utils/helpers/assemble';
+import { toDto, toPaginatedDto } from '@/utils/helpers/assemble';
 import { PaginatedResponse } from '@/utils/types/paginated-response.type';
 
 /**
@@ -35,6 +35,6 @@ export class LeaveRequestAssembler {
   }
 
   static toBalanceResponseList(list: LeaveBalance[]): LeaveBalanceResponseDto[] {
-    return toDtoList(LeaveBalanceResponseDto, list);
+    return list.map((balance) => toDto(LeaveBalanceResponseDto, balance));
   }
 }

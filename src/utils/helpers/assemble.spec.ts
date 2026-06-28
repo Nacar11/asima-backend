@@ -1,4 +1,4 @@
-import { toDto, toPaginatedDto, toDtoList } from '@/utils/helpers/assemble';
+import { toDto, toPaginatedDto } from '@/utils/helpers/assemble';
 import { PaginatedResponse } from '@/utils/types/paginated-response.type';
 
 class FooDto {
@@ -25,23 +25,6 @@ describe('assemble helpers', () => {
     it('returns a new instance, not the source', () => {
       const src = { a: 1, b: 'x' };
       expect(toDto(FooDto, src)).not.toBe(src);
-    });
-  });
-
-  describe('toDtoList', () => {
-    it('maps every item onto a DTO', () => {
-      const list = [
-        { a: 1, b: 'x' },
-        { a: 2, b: 'y' },
-      ];
-      const dtos = toDtoList(FooDto, list);
-      expect(dtos).toHaveLength(2);
-      expect(dtos[0]).toBeInstanceOf(FooDto);
-      expect(dtos[1].a).toBe(2);
-    });
-
-    it('returns an empty array for an empty list', () => {
-      expect(toDtoList(FooDto, [])).toEqual([]);
     });
   });
 

@@ -18,11 +18,6 @@ export function toDto<T extends object>(Dto: new () => T, src: object): T {
   return Object.assign(new Dto(), src);
 }
 
-/** Map a plain array of records onto response DTOs. */
-export function toDtoList<T extends object>(Dto: new () => T, list: object[]): T[] {
-  return list.map((item) => toDto(Dto, item));
-}
-
 /** Map a PaginatedResponse's `data` onto response DTOs, preserving the envelope. */
 export function toPaginatedDto<T extends object>(
   Dto: new () => T,
