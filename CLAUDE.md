@@ -126,10 +126,13 @@ Configured in `tsconfig.json`, `nest-cli.json`, and Jest's
   refresh token alongside the new access token.
 - **Refresh tokens are revocable via a server-side `refresh_tokens` store
   (ADR 0002).** Each refresh token carries a `jti`; a row is issued per token.
-  Rotation atomically revokes the presented `jti` (reuse → 401) and issues a
-  new one; `POST /auth/logout` revokes ALL of the user's active refresh tokens.
-  The **access** token is still stateless and lives out its ≤15-min expiry —
-  there is no access-token denylist. Read ADR 0002 before touching this area.
+  Rotation atomically revokes the presented `jti` and issues a new one.
+  **Reuse of a revoked `jti` = assumed theft → the user's ENTIRE token family
+  is revoked** before the 401 (expired/unknown rows get a plain 401, no
+  revocation). `POST /auth/logout` revokes ALL of the user's active refresh
+  tokens. Expired rows are pruned opportunistically on login. The **access**
+  token is still stateless and lives out its ≤15-min expiry — there is no
+  access-token denylist. Read ADR 0002 before touching this area.
 - `bcryptjs` (not native `bcrypt`) — avoids Alpine native build pain.
 - `password_hash` column has `select: false`. Only
   `findByEmailWithCredentials` and `findByIdWithCredentials` opt in via

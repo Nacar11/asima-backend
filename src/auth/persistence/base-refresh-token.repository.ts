@@ -1,3 +1,10 @@
+/** Ledger row status as the strategy needs it — primitives, no entity leakage. */
+export type RefreshTokenRecord = {
+  user_id: number;
+  expires_at: Date;
+  revoked_at: Date | null;
+};
+
 /**
  * Port for the refresh-token revocation ledger (ADR 0002). `AuthService`
  * depends on this abstract class; the concrete `RefreshTokenRepository` binds
@@ -7,8 +14,12 @@ export abstract class BaseRefreshTokenRepository {
   /** Insert a new active refresh-token row (on login and on rotation). */
   abstract issue(input: { user_id: number; jti: string; expires_at: Date }): Promise<void>;
 
-  /** True iff a row for `jti` exists, is not revoked, and has not expired. */
-  abstract isActive(jti: string): Promise<boolean>;
+  /**
+   * The ledger row for `jti`, or null if unknown (pre-ledger token or pruned).
+   * The strategy uses the row to tell REUSE (revoked_at set — likely theft,
+   * triggers family revocation) apart from benign rejection (expired/missing).
+   */
+  abstract findByJti(jti: string): Promise<RefreshTokenRecord | null>;
 
   /**
    * Atomically revoke the row for `jti` **iff it is currently active**. Returns

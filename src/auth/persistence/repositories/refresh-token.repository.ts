@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
-import { BaseRefreshTokenRepository } from '@/auth/persistence/base-refresh-token.repository';
+import { LessThanOrEqual, Repository } from 'typeorm';
+import {
+  BaseRefreshTokenRepository,
+  RefreshTokenRecord,
+} from '@/auth/persistence/base-refresh-token.repository';
 import { RefreshTokenEntity } from '@/auth/persistence/entities/refresh-token.entity';
 
 @Injectable()
@@ -23,11 +26,13 @@ export class RefreshTokenRepository extends BaseRefreshTokenRepository {
     await this.repo.save(entity);
   }
 
-  async isActive(jti: string): Promise<boolean> {
-    const count = await this.repo.count({
-      where: { jti, revoked_at: IsNull(), expires_at: MoreThan(new Date()) },
+  async findByJti(jti: string): Promise<RefreshTokenRecord | null> {
+    const row = await this.repo.findOne({
+      where: { jti },
+      select: ['user_id', 'expires_at', 'revoked_at'],
     });
-    return count > 0;
+    if (!row) return null;
+    return { user_id: row.user_id, expires_at: row.expires_at, revoked_at: row.revoked_at };
   }
 
   async revokeIfActive(jti: string): Promise<boolean> {

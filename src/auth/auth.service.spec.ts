@@ -40,7 +40,7 @@ describe('AuthService', () => {
     };
     refreshTokens = {
       issue: jest.fn().mockResolvedValue(undefined),
-      isActive: jest.fn().mockResolvedValue(true),
+      findByJti: jest.fn().mockResolvedValue(null),
       revokeIfActive: jest.fn().mockResolvedValue(true),
       revokeAllForUser: jest.fn().mockResolvedValue(undefined),
       deleteExpired: jest.fn().mockResolvedValue(0),
@@ -92,6 +92,8 @@ describe('AuthService', () => {
         jti: expect.any(String),
         expires_at: expect.any(Date),
       });
+      // Opportunistic prune: expired ledger rows are swept on login.
+      expect(refreshTokens.deleteExpired).toHaveBeenCalledWith(expect.any(Date));
     });
 
     it('lower-cases and trims the email before lookup', async () => {
@@ -162,12 +164,14 @@ describe('AuthService', () => {
       );
     });
 
-    it('throws 401 and issues nothing when the jti was already used/revoked', async () => {
+    it('treats a lost rotation race as reuse: revokes the family, issues nothing, 401', async () => {
       refreshTokens.revokeIfActive.mockResolvedValue(false);
 
       await expect(service.refresh(fakeUser, 'reused-jti')).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
+      // ADR 0002 (amended): reuse means possible theft — kill every session.
+      expect(refreshTokens.revokeAllForUser).toHaveBeenCalledWith(fakeUser.id);
       expect(refreshTokens.issue).not.toHaveBeenCalled();
       expect(jwtService.signAsync).not.toHaveBeenCalled();
     });

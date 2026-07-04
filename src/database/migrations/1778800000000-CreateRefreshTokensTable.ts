@@ -39,6 +39,12 @@ export class CreateRefreshTokensTable1778800000000 implements MigrationInterface
       `CREATE INDEX "IDX_refresh_tokens_user_revoked" ON "refresh_tokens" ("user_id", "revoked_at")`,
     );
 
+    // The opportunistic prune on login deletes by expires_at (ADR 0002);
+    // without this index every login's sweep would seq-scan the ledger.
+    await queryRunner.query(
+      `CREATE INDEX "IDX_refresh_tokens_expires" ON "refresh_tokens" ("expires_at")`,
+    );
+
     await queryRunner.query(`
       ALTER TABLE "refresh_tokens"
       ADD CONSTRAINT "FK_refresh_tokens_user_id"
@@ -51,6 +57,7 @@ export class CreateRefreshTokensTable1778800000000 implements MigrationInterface
     await queryRunner.query(
       `ALTER TABLE "refresh_tokens" DROP CONSTRAINT "FK_refresh_tokens_user_id"`,
     );
+    await queryRunner.query(`DROP INDEX "public"."IDX_refresh_tokens_expires"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_refresh_tokens_user_revoked"`);
     await queryRunner.query(`DROP TABLE "refresh_tokens"`);
   }

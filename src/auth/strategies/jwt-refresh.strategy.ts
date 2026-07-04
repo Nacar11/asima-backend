@@ -21,6 +21,13 @@ import { JwtPayloadType } from './types/jwt-payload.type';
  * check rejects it. The verified `jti` is stamped on the request for the
  * controller/service to rotate.
  *
+ * Reuse response (ADR 0002, amended): presenting a REVOKED `jti` means the
+ * one-time rotation contract was broken — either theft or a replay. We cannot
+ * tell whether the attacker or the victim holds the CURRENT token, so the
+ * whole family (every refresh token of that user) is revoked before rejecting.
+ * Expired or unknown rows are benign (natural expiry / pre-ledger token) and
+ * get a plain 401 with no revocation.
+ *
  * Used only on `POST /auth/refresh` via `@UseGuards(JwtRefreshGuard)`.
  */
 @Injectable()
@@ -42,8 +49,17 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
     // A refresh token issued before ADR 0002 (no jti) can't be in the ledger.
     if (!payload?.id || !payload.jti) throw new UnauthorizedException();
 
-    if (!(await this.refreshTokens.isActive(payload.jti))) {
-      throw new UnauthorizedException('Refresh token revoked or expired');
+    const row = await this.refreshTokens.findByJti(payload.jti);
+    if (!row) throw new UnauthorizedException('Unknown refresh token');
+
+    if (row.revoked_at) {
+      // Reuse of a rotated/revoked token → assume compromise, kill the family.
+      await this.refreshTokens.revokeAllForUser(row.user_id);
+      throw new UnauthorizedException('Refresh token reuse detected');
+    }
+
+    if (row.expires_at <= new Date()) {
+      throw new UnauthorizedException('Refresh token expired');
     }
 
     const user = await this.usersService.findById(payload.id).catch(() => null);

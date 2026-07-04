@@ -116,6 +116,12 @@ describe('Auth (e2e)', () => {
    * Cache one login per (test user) to stay well under the 10/min login
    * throttle. The tests that explicitly exercise login still call it
    * directly above; everything else uses these shared tokens.
+   *
+   * CAUTION: only ACCESS tokens are safe to share across tests. The refresh
+   * and logout suites below revoke refresh tokens server-side (rotation
+   * revokes the presented one; reuse and logout revoke the user's whole
+   * family — ADR 0002). A cached refresh token may be dead by the time a
+   * later test runs; log in fresh if a test needs its own refresh token.
    */
   let adminAccess: string;
   let adminRefresh: string;
@@ -146,10 +152,17 @@ describe('Auth (e2e)', () => {
       expect(refreshed.body.refresh_token).not.toBe(adminRefresh);
 
       // ADR 0002: rotation revokes the token that was just presented, so
-      // reusing the OLD refresh token now fails (reuse detection).
+      // reusing the OLD refresh token now fails (reuse detection)...
       await request(app.getHttpServer())
         .post(url('/auth/refresh'))
         .set('Authorization', `Bearer ${adminRefresh}`)
+        .expect(401);
+
+      // ...and reuse implies possible theft, so the whole family is revoked:
+      // even the NEW token from the successful rotation must now be dead.
+      await request(app.getHttpServer())
+        .post(url('/auth/refresh'))
+        .set('Authorization', `Bearer ${refreshed.body.refresh_token}`)
         .expect(401);
     });
 

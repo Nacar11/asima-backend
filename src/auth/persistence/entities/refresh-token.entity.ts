@@ -19,6 +19,7 @@ import { UserEntity } from '@/users/persistence/entities/user.entity';
  */
 @Entity({ name: 'refresh_tokens' })
 @Index(['user_id', 'revoked_at'])
+@Index(['expires_at'])
 export class RefreshTokenEntity extends EntityHelper {
   @PrimaryGeneratedColumn()
   id!: number;
