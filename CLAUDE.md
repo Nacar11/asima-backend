@@ -122,10 +122,14 @@ Configured in `tsconfig.json`, `nest-cli.json`, and Jest's
 
 ## Auth
 
-- Stateless JWT. Access 15m, refresh 7d. `/auth/refresh` rotates the
+- JWT. Access 15m (stateless), refresh 7d. `/auth/refresh` rotates the
   refresh token alongside the new access token.
-- No `refresh_tokens` / sessions table in v0 — single-token revocation
-  isn't possible yet. Don't add session storage without ADR.
+- **Refresh tokens are revocable via a server-side `refresh_tokens` store
+  (ADR 0002).** Each refresh token carries a `jti`; a row is issued per token.
+  Rotation atomically revokes the presented `jti` (reuse → 401) and issues a
+  new one; `POST /auth/logout` revokes ALL of the user's active refresh tokens.
+  The **access** token is still stateless and lives out its ≤15-min expiry —
+  there is no access-token denylist. Read ADR 0002 before touching this area.
 - `bcryptjs` (not native `bcrypt`) — avoids Alpine native build pain.
 - `password_hash` column has `select: false`. Only
   `findByEmailWithCredentials` and `findByIdWithCredentials` opt in via
@@ -582,7 +586,6 @@ are not docs and also stay local.
 Don't introduce these without an ADR:
 
 - Multi-tenancy / `organization_id` columns.
-- A sessions / refresh-tokens table.
 - A separate `titles` lookup table (titles stay freeform).
 - A logger library beyond `nestjs/common`'s `Logger`.
 - Any auth provider beyond local JWT (no OAuth, no SSO in v0).

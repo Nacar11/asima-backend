@@ -12,6 +12,11 @@
 export type JwtPayloadType = {
   id: number;
   system_admin: boolean;
+  /**
+   * Present on REFRESH tokens only (ADR 0002) — the revocation-ledger id.
+   * Access tokens are stateless and carry no `jti`.
+   */
+  jti?: string;
   iat: number;
   exp: number;
 };

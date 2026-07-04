@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { UsersModule } from '@/users/users.module';
+import { RefreshTokenPersistenceModule } from './persistence/persistence.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -18,6 +19,9 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
   imports: [
     UsersModule,
     PassportModule,
+    // Refresh-token revocation ledger (ADR 0002) — provides
+    // BaseRefreshTokenRepository to AuthService + JwtRefreshStrategy.
+    RefreshTokenPersistenceModule,
     // Per-call options (secret + expiresIn) are passed to signAsync in
     // AuthService, so this registration is intentionally bare — no global
     // secret, no global expiresIn.

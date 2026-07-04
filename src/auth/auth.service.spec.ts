@@ -4,11 +4,13 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service';
 import { BaseUserRepository } from '@/users/persistence/base-user.repository';
+import { BaseRefreshTokenRepository } from '@/auth/persistence/base-refresh-token.repository';
 import { User } from '@/users/domain/user';
 
 describe('AuthService', () => {
   let service: AuthService;
   let userRepo: jest.Mocked<Pick<BaseUserRepository, 'findByEmailWithCredentials' | 'recordLogin'>>;
+  let refreshTokens: jest.Mocked<BaseRefreshTokenRepository>;
   let jwtService: jest.Mocked<Pick<JwtService, 'signAsync'>>;
   let configService: jest.Mocked<Pick<ConfigService, 'getOrThrow'>>;
 
@@ -36,6 +38,13 @@ describe('AuthService', () => {
       findByEmailWithCredentials: jest.fn(),
       recordLogin: jest.fn().mockResolvedValue(undefined),
     };
+    refreshTokens = {
+      issue: jest.fn().mockResolvedValue(undefined),
+      isActive: jest.fn().mockResolvedValue(true),
+      revokeIfActive: jest.fn().mockResolvedValue(true),
+      revokeAllForUser: jest.fn().mockResolvedValue(undefined),
+      deleteExpired: jest.fn().mockResolvedValue(0),
+    };
     jwtService = {
       signAsync: jest.fn().mockImplementation(async (_p, opts) => `signed-with-${opts.secret}`),
     };
@@ -57,6 +66,7 @@ describe('AuthService', () => {
     };
     service = new AuthService(
       userRepo as unknown as BaseUserRepository,
+      refreshTokens as unknown as BaseRefreshTokenRepository,
       jwtService as unknown as JwtService,
       configService as unknown as ConfigService,
     );
@@ -75,6 +85,13 @@ describe('AuthService', () => {
       expect(result.user).toEqual({ ...fakeUser, role: { id: 1, name: 'SUPER_ADMIN' } });
       expect(result.user.role).not.toHaveProperty('permissions');
       expect(userRepo.recordLogin).toHaveBeenCalledWith(fakeUser.id, expect.any(Date));
+      // A refresh-token row is recorded in the revocation ledger (ADR 0002).
+      expect(refreshTokens.issue).toHaveBeenCalledTimes(1);
+      expect(refreshTokens.issue).toHaveBeenCalledWith({
+        user_id: fakeUser.id,
+        jti: expect.any(String),
+        expires_at: expect.any(Date),
+      });
     });
 
     it('lower-cases and trims the email before lookup', async () => {
@@ -128,13 +145,38 @@ describe('AuthService', () => {
   });
 
   describe('refresh', () => {
-    it('returns a new token pair signed with their respective secrets', async () => {
-      const result = await service.refresh(fakeUser);
+    it('rotates: revokes the presented jti, issues a fresh pair', async () => {
+      refreshTokens.revokeIfActive.mockResolvedValue(true);
 
+      const result = await service.refresh(fakeUser, 'old-jti');
+
+      expect(refreshTokens.revokeIfActive).toHaveBeenCalledWith('old-jti');
       expect(result.access_token).toBe('signed-with-access-secret');
       expect(result.refresh_token).toBe('signed-with-refresh-secret');
       expect(result.token_expires_in).toBe(900);
       expect(jwtService.signAsync).toHaveBeenCalledTimes(2);
+      // A NEW ledger row is issued for the rotated token.
+      expect(refreshTokens.issue).toHaveBeenCalledTimes(1);
+      expect(refreshTokens.issue).toHaveBeenCalledWith(
+        expect.objectContaining({ user_id: fakeUser.id, jti: expect.any(String) }),
+      );
+    });
+
+    it('throws 401 and issues nothing when the jti was already used/revoked', async () => {
+      refreshTokens.revokeIfActive.mockResolvedValue(false);
+
+      await expect(service.refresh(fakeUser, 'reused-jti')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      expect(refreshTokens.issue).not.toHaveBeenCalled();
+      expect(jwtService.signAsync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('logout', () => {
+    it('revokes ALL of the user’s refresh tokens (revoke-all)', async () => {
+      await service.logout(fakeUser.id);
+      expect(refreshTokens.revokeAllForUser).toHaveBeenCalledWith(fakeUser.id);
     });
   });
 });

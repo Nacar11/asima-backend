@@ -9,6 +9,7 @@ import { AuthUserDto } from './dto/auth-user.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { Public } from '@/utils/decorators/public.decorator';
 import { CurrentUser } from '@/utils/decorators/current-user.decorator';
+import { RefreshJti } from './decorators/refresh-jti.decorator';
 import { User } from '@/users/domain/user';
 import { API_VERSION } from '@/utils/constants/api.constants';
 
@@ -63,29 +64,30 @@ export class AuthController {
     summary: 'Rotate the access + refresh token pair',
     description:
       'Send the REFRESH token (not the access token) as Bearer. Returns a new pair — ' +
-      'replace BOTH stored tokens with the response. Stateless v0: the old refresh token ' +
-      'remains technically valid until natural expiry; v1 sessions table will revoke it.',
+      'replace BOTH stored tokens with the response. The presented refresh token is ' +
+      'revoked server-side (ADR 0002); reusing it returns 401.',
   })
   @ApiResponse({ status: 200, type: RefreshResponseDto })
   @ApiResponse({
     status: 401,
-    description: 'Refresh token invalid, expired, or signed with the wrong secret',
+    description: 'Refresh token invalid, expired, revoked/reused, or signed with the wrong secret',
   })
-  refresh(@CurrentUser() actor: User): Promise<RefreshResponseDto> {
-    return this.service.refresh(actor);
+  refresh(@CurrentUser() actor: User, @RefreshJti() jti: string): Promise<RefreshResponseDto> {
+    return this.service.refresh(actor, jti);
   }
 
   @ApiBearerAuth()
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Stateless logout — frontend MUST discard tokens locally',
+    summary: 'Logout — revokes all of the caller’s refresh tokens',
     description:
-      'Returns 204. v0 cannot revoke tokens server-side (no sessions table); the access ' +
-      'token remains valid until its 15-min expiry. v1 will add real revocation.',
+      'Returns 204. Revokes every active refresh token for the caller (ADR 0002, ' +
+      'revoke-all), so no device can rotate afterward. The frontend MUST still discard ' +
+      'its tokens locally; the access token remains valid until its ≤15-min expiry.',
   })
   @ApiResponse({ status: 204 })
-  logout(): void {
-    // Stateless — nothing to do server-side. Documented behavior.
+  logout(@CurrentUser() actor: User): Promise<void> {
+    return this.service.logout(actor.id);
   }
 }

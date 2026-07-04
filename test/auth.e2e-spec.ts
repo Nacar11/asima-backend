@@ -144,6 +144,13 @@ describe('Auth (e2e)', () => {
       expect(refreshed.body.refresh_token).toEqual(expect.any(String));
       expect(refreshed.body.access_token).not.toBe(adminAccess);
       expect(refreshed.body.refresh_token).not.toBe(adminRefresh);
+
+      // ADR 0002: rotation revokes the token that was just presented, so
+      // reusing the OLD refresh token now fails (reuse detection).
+      await request(app.getHttpServer())
+        .post(url('/auth/refresh'))
+        .set('Authorization', `Bearer ${adminRefresh}`)
+        .expect(401);
     });
 
     it('rejects an access token sent to /auth/refresh with 401 (wrong secret)', async () => {
@@ -155,11 +162,22 @@ describe('Auth (e2e)', () => {
   });
 
   describe('POST /auth/logout', () => {
-    it('returns 204 (stateless)', async () => {
+    it('revokes the caller’s refresh tokens (ADR 0002) — refresh afterward is 401', async () => {
+      // Fresh session so we don't disturb the shared tokens above.
+      const login = await request(app.getHttpServer()).post(url('/auth/login')).send(EMPLOYEE);
+      const access = login.body.access_token as string;
+      const refresh = login.body.refresh_token as string;
+
       await request(app.getHttpServer())
         .post(url('/auth/logout'))
-        .set('Authorization', `Bearer ${adminAccess}`)
+        .set('Authorization', `Bearer ${access}`)
         .expect(204);
+
+      // The refresh token issued to this session is now revoked server-side.
+      await request(app.getHttpServer())
+        .post(url('/auth/refresh'))
+        .set('Authorization', `Bearer ${refresh}`)
+        .expect(401);
     });
   });
 
