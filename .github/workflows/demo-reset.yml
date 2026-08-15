@@ -1,0 +1,127 @@
+name: Demo data reset
+
+# Returns the portfolio demo to its seeded state: truncate the app tables,
+# purge the attachment bucket, re-seed. See the plan snapshot at
+# ../docs/plans/2026-08-15-deployment-vercel-render-supabase.md (Phase 5).
+#
+# Why truncate and not `npm run db:fresh`: db:fresh runs `schema:drop`, which
+# is NOT scoped to this app's tables. The Supabase database also holds the
+# platform-owned `auth`, `storage`, and `realtime` schemas — dropping those
+# would break Storage itself. The explicit table list below touches only what
+# this app's migrations created, and deliberately leaves the `migrations`
+# ledger intact so the schema survives.
+#
+# Why a reset is needed at all: every seed service is insert-if-missing
+# (user-seed.service.ts:84, leave-request-seed.service.ts:110), so re-seeding
+# a dirty database is a no-op. Data has to be cleared first.
+
+on:
+  schedule:
+    # Sundays 18:00 UTC — Monday 02:00 in Manila, a quiet hour for a demo.
+    - cron: '0 18 * * 0'
+  workflow_dispatch:
+
+# Never let two resets interleave; a half-truncated database is worse than a
+# stale one. Queue instead of cancelling — a cancelled reset could leave the
+# demo empty.
+concurrency:
+  group: demo-reset
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    name: Truncate, purge, reseed
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: production
+
+      # --- Deployment-specific, not secret. Edit to match your project. ---
+      DATABASE_TYPE: postgres
+      DATABASE_PORT: '5432' # Supabase session pooler
+      DATABASE_NAME: postgres
+      DATABASE_SYNCHRONIZE: 'false'
+      DATABASE_SSL_ENABLED: 'true'
+      DATABASE_MAX_CONNECTIONS: '5'
+      STORAGE_REGION: us-east-1
+      STORAGE_BUCKET: asima
+      STORAGE_FORCE_PATH_STYLE: 'true'
+
+      # --- Credentials ---
+      DATABASE_HOST: ${{ secrets.DEMO_DATABASE_HOST }}
+      DATABASE_USERNAME: ${{ secrets.DEMO_DATABASE_USERNAME }}
+      DATABASE_PASSWORD: ${{ secrets.DEMO_DATABASE_PASSWORD }}
+
+      # The same connection, spelled the way libpq expects, so the psql steps
+      # need no flags. Node reads DATABASE_*; psql reads PG*.
+      PGHOST: ${{ secrets.DEMO_DATABASE_HOST }}
+      PGPORT: '5432'
+      PGUSER: ${{ secrets.DEMO_DATABASE_USERNAME }}
+      PGPASSWORD: ${{ secrets.DEMO_DATABASE_PASSWORD }}
+      PGDATABASE: postgres
+      PGSSLMODE: require
+
+      STORAGE_ENDPOINT: ${{ secrets.DEMO_STORAGE_ENDPOINT }}
+      STORAGE_ACCESS_KEY: ${{ secrets.DEMO_STORAGE_ACCESS_KEY }}
+      STORAGE_SECRET_KEY: ${{ secrets.DEMO_STORAGE_SECRET_KEY }}
+      SEED_DEFAULT_PASSWORD: ${{ secrets.DEMO_SEED_PASSWORD }}
+
+      # SeedModule loads authConfig, whose validator requires these — but the
+      # seed only writes bcrypt password hashes and never issues a JWT, and
+      # `refresh_tokens` is truncated below. Throwaway values keep the real
+      # signing secrets out of this repo entirely. Same convention as ci.yml.
+      AUTH_JWT_SECRET: reset-job-access-secret-not-used-for-signing
+      AUTH_JWT_TOKEN_EXPIRES_IN: 15m
+      AUTH_REFRESH_SECRET: reset-job-refresh-secret-not-used-for-signing
+      AUTH_REFRESH_TOKEN_EXPIRES_IN: 7d
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Row counts before
+        run: ./.github/scripts/demo-row-counts.sh
+
+      - name: Truncate app tables
+        # One statement so CASCADE resolves the FK graph atomically. The list
+        # is every table created by src/database/migrations/ — 13 entity
+        # tables plus the role_permissions junction. `migrations` is
+        # deliberately absent: the schema stays, only the data goes.
+        run: |
+          psql -v ON_ERROR_STOP=1 -c "
+            TRUNCATE TABLE
+              approval_chains,
+              attachments,
+              compensation_audits,
+              employee_compensations,
+              leave_allocations,
+              leave_requests,
+              permissions,
+              refresh_tokens,
+              role_permissions,
+              roles,
+              time_correction_requests,
+              time_entries,
+              users,
+              work_schedules
+            RESTART IDENTITY CASCADE;
+          "
+
+      - name: Purge attachment bucket
+        run: npm run purge:attachments:prod
+
+      - name: Reseed
+        run: npm run seed:prod
+
+      - name: Row counts after
+        run: ./.github/scripts/demo-row-counts.sh
