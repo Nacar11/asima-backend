@@ -23,6 +23,78 @@ import { LeaveAllocationEntity } from '../src/leave-allocations/persistence/enti
 const SEED_PASSWORD = process.env.SEED_DEFAULT_PASSWORD ?? 'Asima@1234';
 const cred = (email: string) => ({ email, password: SEED_PASSWORD });
 
+/**
+ * Every date here is derived from today — never a literal.
+ *
+ * Submit and the day-count preview share `assertSubmittableRange`, which
+ * rejects a `start_date` before today (leave-day-count.service.ts:92). A
+ * hardcoded date is therefore a time bomb: it passes until the calendar
+ * reaches it, then every affected case 422s with "Leave cannot start in the
+ * past" — either failing an expected 201, or satisfying `.expect(422)` for
+ * the wrong reason and then failing the specific `errors.<key>` assertion.
+ *
+ * Anchoring on a future Monday also keeps every date on the seeded Mon–Fri
+ * schedule, which the same method requires (D8 work-schedule rules).
+ */
+const BUSINESS_TZ = process.env.APP_TIMEZONE ?? 'Asia/Manila';
+
+/** Today in the business timezone — matches how the service computes it. */
+const businessToday = () =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TZ }).format(new Date());
+
+/** `days` calendar days after an ISO date, as `YYYY-MM-DD`. */
+const plusDays = (date: string, days: number): string => {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+};
+
+/**
+ * The Monday `weeks` weeks out, counting from the *next* Monday — so
+ * `mondayIn(1)` is always strictly in the future, even when today is a
+ * Monday. Each week gets its own slot below so no two cases collide on a
+ * date (submitted ranges must not overlap; overlap is its own test).
+ */
+const mondayIn = (weeks: number): string => {
+  const today = businessToday();
+  const [y, m, d] = today.split('-').map(Number);
+  const anchor = new Date(Date.UTC(y, m - 1, d));
+  const daysToNextMonday = (8 - anchor.getUTCDay()) % 7 || 7;
+  return plusDays(today, daysToNextMonday + (weeks - 1) * 7);
+};
+
+// Week 1 — the 3-day vacation (Wed–Fri) plus the overlap probe that starts on
+// its last day. Both weekdays are workdays; a Sunday end would trip D8.
+const VACATION_START = plusDays(mondayIn(1), 2); // Wed
+const VACATION_END = plusDays(mondayIn(1), 4); // Fri
+const OVERLAP_START = plusDays(mondayIn(1), 4); // Fri — collides with VACATION_END
+const OVERLAP_END = plusDays(mondayIn(1), 9); // the following Wed
+
+// Week 2 — the half-day cases. A Monday, and after the week-1 range so it
+// doesn't overlap what is already pending.
+const HALF_DAY = mondayIn(2);
+const HALF_DAY_NEXT = plusDays(mondayIn(2), 1); // Tue — for the two-day probe
+
+// Weeks 3–9 — one isolated Monday per attachment case.
+const SICK_NO_FILE = mondayIn(3);
+const VACATION_WITH_FILE = mondayIn(4);
+const SICK_BAD_FILE = mondayIn(5);
+const SICK_IMAGE = mondayIn(6);
+const SICK_PDF = mondayIn(7);
+const SICK_DOWNLOAD_IMAGE = mondayIn(8);
+const SICK_DOWNLOAD_PDF = mondayIn(9);
+
+// Weeks 10–14 — the override, reject, and cancel flows.
+const OVERRIDE_START = mondayIn(10);
+const OVERRIDE_END = plusDays(mondayIn(10), 2); // Wed
+const REJECT_START = plusDays(mondayIn(11), 1); // Tue
+const REJECT_END = plusDays(mondayIn(11), 2); // Wed
+const CANCEL_PENDING_START = plusDays(mondayIn(12), 3); // Thu
+const CANCEL_PENDING_END = plusDays(mondayIn(12), 4); // Fri
+const CANCEL_APPROVED_START = mondayIn(13);
+const CANCEL_APPROVED_END = plusDays(mondayIn(13), 1); // Tue
+const LATE_VACATION_START = plusDays(mondayIn(14), 1); // Tue
+const LATE_VACATION_END = plusDays(mondayIn(14), 2); // Wed
+
 describe('Leave Requests (e2e)', () => {
   let app: INestApplication;
   let dataSource: DataSource;
@@ -119,7 +191,7 @@ describe('Leave Requests (e2e)', () => {
       const res = await auth(tokens.liam)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'vacation', start_date: '2026-07-01', end_date: '2026-07-03' }),
+          .send({ leave_type: 'vacation', start_date: VACATION_START, end_date: VACATION_END }),
       ).expect(422);
       expect(res.body.errors.approval_chain).toBeDefined();
     });
@@ -128,8 +200,8 @@ describe('Leave Requests (e2e)', () => {
       const res = await auth(tokens.emma)(
         request(app.getHttpServer()).post(url('/users/me/leave-requests')).send({
           leave_type: 'vacation',
-          start_date: '2026-07-01', // Wed
-          end_date: '2026-07-03', // Fri (both workdays; Sun end would fail D8)
+          start_date: VACATION_START, // Wed
+          end_date: VACATION_END, // Fri (both workdays; Sun end would fail D8)
           reason: 'Family trip',
         }),
       ).expect(201);
@@ -144,7 +216,7 @@ describe('Leave Requests (e2e)', () => {
       const res = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'vacation', start_date: '2026-07-03', end_date: '2026-07-08' }),
+          .send({ leave_type: 'vacation', start_date: OVERLAP_START, end_date: OVERLAP_END }),
       ).expect(422);
       expect(res.body.errors.dates).toBeDefined();
     });
@@ -153,12 +225,12 @@ describe('Leave Requests (e2e)', () => {
     let halfDayId: number;
 
     it('submits a first-half day: 0.5 working day, window, and 0.5 reserved', async () => {
-      // 2026-07-06 is a Monday; emma already has 3 vacation days pending above.
+      // HALF_DAY is a Monday; emma already has 3 vacation days pending above.
       const res = await auth(tokens.emma)(
         request(app.getHttpServer()).post(url('/users/me/leave-requests')).send({
           leave_type: 'vacation',
-          start_date: '2026-07-06',
-          end_date: '2026-07-06',
+          start_date: HALF_DAY,
+          end_date: HALF_DAY,
           day_portion: 'first_half',
         }),
       ).expect(201);
@@ -195,7 +267,7 @@ describe('Leave Requests (e2e)', () => {
       const res = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'sick', start_date: '2027-03-01', end_date: '2027-03-01' }),
+          .send({ leave_type: 'sick', start_date: SICK_NO_FILE, end_date: SICK_NO_FILE }),
       ).expect(422);
       expect(res.body.errors.attachment).toBeDefined();
     });
@@ -205,8 +277,8 @@ describe('Leave Requests (e2e)', () => {
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
           .field('leave_type', 'vacation')
-          .field('start_date', '2027-03-08')
-          .field('end_date', '2027-03-08')
+          .field('start_date', VACATION_WITH_FILE)
+          .field('end_date', VACATION_WITH_FILE)
           .attach('file', pngFixture, 'whatever.png'),
       ).expect(422);
       expect(res.body.errors.attachment).toBeDefined();
@@ -217,8 +289,8 @@ describe('Leave Requests (e2e)', () => {
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
           .field('leave_type', 'sick')
-          .field('start_date', '2027-03-15')
-          .field('end_date', '2027-03-15')
+          .field('start_date', SICK_BAD_FILE)
+          .field('end_date', SICK_BAD_FILE)
           // A text file masquerading as a PNG by filename — rejected on bytes.
           .attach('file', Buffer.from('not really an image'), 'fake.png'),
       ).expect(422);
@@ -230,8 +302,8 @@ describe('Leave Requests (e2e)', () => {
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
           .field('leave_type', 'sick')
-          .field('start_date', '2027-04-01')
-          .field('end_date', '2027-04-01')
+          .field('start_date', SICK_IMAGE)
+          .field('end_date', SICK_IMAGE)
           .attach('file', pngFixture, 'medical-cert.png'),
       ).expect(201);
 
@@ -262,8 +334,8 @@ describe('Leave Requests (e2e)', () => {
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
           .field('leave_type', 'sick')
-          .field('start_date', '2027-04-08')
-          .field('end_date', '2027-04-08')
+          .field('start_date', SICK_PDF)
+          .field('end_date', SICK_PDF)
           .attach('file', pdfFixture, 'doctor-note.pdf'),
       ).expect(201);
 
@@ -291,8 +363,8 @@ describe('Leave Requests (e2e)', () => {
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
           .field('leave_type', 'sick')
-          .field('start_date', '2027-05-03')
-          .field('end_date', '2027-05-03')
+          .field('start_date', SICK_DOWNLOAD_IMAGE)
+          .field('end_date', SICK_DOWNLOAD_IMAGE)
           .attach('file', pngFixture, 'scan.png'),
       ).expect(201);
       imageReqId = img.body.id;
@@ -301,8 +373,8 @@ describe('Leave Requests (e2e)', () => {
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
           .field('leave_type', 'sick')
-          .field('start_date', '2027-05-10')
-          .field('end_date', '2027-05-10')
+          .field('start_date', SICK_DOWNLOAD_PDF)
+          .field('end_date', SICK_DOWNLOAD_PDF)
           .attach('file', pdfFixture, 'note.pdf'),
       ).expect(201);
       pdfReqId = pdf.body.id;
@@ -348,7 +420,7 @@ describe('Leave Requests (e2e)', () => {
 
   describe('day-count preview — half day', () => {
     // emma's seeded schedule: Mon–Fri 09:00–18:00, lunch 12:00 for 60m.
-    // 2026-07-06 is a Monday (workday).
+    // HALF_DAY is a Monday (workday).
     const dayCount = (params: Record<string, string>) =>
       auth(tokens.emma)(
         request(app.getHttpServer()).get(url('/users/me/leave-requests/day-count')).query(params),
@@ -356,8 +428,8 @@ describe('Leave Requests (e2e)', () => {
 
     it('first_half returns 0.5 day and the 09:00–14:00 window', async () => {
       const res = await dayCount({
-        start_date: '2026-07-06',
-        end_date: '2026-07-06',
+        start_date: HALF_DAY,
+        end_date: HALF_DAY,
         day_portion: 'first_half',
         leave_type: 'vacation',
       }).expect(200);
@@ -368,8 +440,8 @@ describe('Leave Requests (e2e)', () => {
 
     it('second_half returns 0.5 day and the 14:00–18:00 window', async () => {
       const res = await dayCount({
-        start_date: '2026-07-06',
-        end_date: '2026-07-06',
+        start_date: HALF_DAY,
+        end_date: HALF_DAY,
         day_portion: 'second_half',
         leave_type: 'vacation',
       }).expect(200);
@@ -380,8 +452,8 @@ describe('Leave Requests (e2e)', () => {
 
     it('rejects a half-day spanning two days (422)', async () => {
       const res = await dayCount({
-        start_date: '2026-07-06',
-        end_date: '2026-07-07',
+        start_date: HALF_DAY,
+        end_date: HALF_DAY_NEXT,
         day_portion: 'first_half',
         leave_type: 'vacation',
       }).expect(422);
@@ -390,8 +462,8 @@ describe('Leave Requests (e2e)', () => {
 
     it('rejects a half-day birthday request (422 whole-day-only)', async () => {
       const res = await dayCount({
-        start_date: '2026-07-06',
-        end_date: '2026-07-06',
+        start_date: HALF_DAY,
+        end_date: HALF_DAY,
         day_portion: 'first_half',
         leave_type: 'birthday',
       }).expect(422);
@@ -458,8 +530,8 @@ describe('Leave Requests (e2e)', () => {
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
           .field('leave_type', 'sick')
-          .field('start_date', '2026-08-03')
-          .field('end_date', '2026-08-05')
+          .field('start_date', OVERRIDE_START)
+          .field('end_date', OVERRIDE_END)
           .attach('file', pdfFixture, 'note.pdf'),
       ).expect(201);
 
@@ -476,7 +548,7 @@ describe('Leave Requests (e2e)', () => {
       const submit = await auth(tokens.emma)(
         request(app.getHttpServer())
           .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'emergency', start_date: '2026-09-01', end_date: '2026-09-02' }),
+          .send({ leave_type: 'emergency', start_date: REJECT_START, end_date: REJECT_END }),
       ).expect(201);
 
       const res = await auth(tokens.karen)(
@@ -490,9 +562,11 @@ describe('Leave Requests (e2e)', () => {
 
     it('a rejection with no note is rejected by DTO validation (422)', async () => {
       const submit = await auth(tokens.emma)(
-        request(app.getHttpServer())
-          .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'emergency', start_date: '2026-10-01', end_date: '2026-10-02' }),
+        request(app.getHttpServer()).post(url('/users/me/leave-requests')).send({
+          leave_type: 'emergency',
+          start_date: CANCEL_PENDING_START,
+          end_date: CANCEL_PENDING_END,
+        }),
       ).expect(201);
 
       const res = await auth(tokens.karen)(
@@ -505,9 +579,11 @@ describe('Leave Requests (e2e)', () => {
 
     it('requester cancels their own pending request', async () => {
       const submit = await auth(tokens.emma)(
-        request(app.getHttpServer())
-          .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'vacation', start_date: '2026-11-02', end_date: '2026-11-03' }),
+        request(app.getHttpServer()).post(url('/users/me/leave-requests')).send({
+          leave_type: 'vacation',
+          start_date: CANCEL_APPROVED_START,
+          end_date: CANCEL_APPROVED_END,
+        }),
       ).expect(201);
 
       const res = await auth(tokens.emma)(
@@ -527,9 +603,11 @@ describe('Leave Requests (e2e)', () => {
       const before = await vacationAvailable();
 
       const submit = await auth(tokens.emma)(
-        request(app.getHttpServer())
-          .post(url('/users/me/leave-requests'))
-          .send({ leave_type: 'vacation', start_date: '2026-12-01', end_date: '2026-12-02' }),
+        request(app.getHttpServer()).post(url('/users/me/leave-requests')).send({
+          leave_type: 'vacation',
+          start_date: LATE_VACATION_START,
+          end_date: LATE_VACATION_END,
+        }),
       ).expect(201);
 
       // HR force-approves (override) so the request reaches the `approved` state.
