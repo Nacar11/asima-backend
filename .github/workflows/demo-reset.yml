@@ -43,7 +43,11 @@ jobs:
       DATABASE_SYNCHRONIZE: 'false'
       DATABASE_SSL_ENABLED: 'true'
       DATABASE_MAX_CONNECTIONS: '5'
-      STORAGE_REGION: us-east-1
+      # Must match the Supabase project region. Supabase does not currently
+      # validate the region in the SigV4 signature, so a wrong value still
+      # authenticates — keep it accurate so a future tightening doesn't turn
+      # this into a silent reset failure.
+      STORAGE_REGION: ap-southeast-1
       STORAGE_BUCKET: asima
       STORAGE_FORCE_PATH_STYLE: 'true'
 
