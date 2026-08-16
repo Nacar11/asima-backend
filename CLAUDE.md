@@ -328,42 +328,60 @@ What it does, in order:
 3. `npm run seed` — permissions → roles → users.
 
 **This is destructive.** It wipes all data, including anything you typed into
-TablePlus by hand. Never run `db:fresh` against a non-local database. There is
-no production guard — the only thing protecting prod is your `.env` pointing
-at the wrong host.
+TablePlus by hand. Never run `db:fresh` against a non-local database.
+
+> ⚠️ **A live Supabase database now exists, so "your `.env` points somewhere
+> else" is no longer the only thing standing between you and production.**
+> `.env.supabase.prod` holds the live credentials, and sourcing it puts them
+> in your shell where they override `.env`. If those are loaded, `db:fresh`
+> and `schema:drop` will run against **Supabase** — and `schema:drop` is not
+> scoped to app tables, while that database also holds Supabase's own `auth`,
+> `storage`, `realtime`, and `vault` schemas.
+>
+> To reset the demo, use the 14-table truncate in
+> `.github/workflows/demo-reset.yml`. Never `schema:drop`.
 
 If you only want to drop without re-applying, use `npm run schema:drop`
 on its own. If you need to nuke the volume too (e.g. Postgres extensions
 got into a weird state), `docker compose down -v && npm run docker:up` is
 the heavier option — but `db:fresh` is enough for normal schema resets.
 
-### Wipe and re-migrate (dev only)
+## Production deployment
 
-When migrations get rewritten during early development, the schema and the
-`migrations` ledger drift. The fix is to drop everything and re-apply from
-scratch:
+Live on **Render Free** (Singapore) at `https://asima-backend-1.onrender.com`,
+against **Supabase** Postgres + Storage in the same region. Auto-deploys on
+push to `main`. Full runbook:
+`../docs/universal-guidelines/deployment-and-production-stack.md`.
 
-```bash
-npm run db:fresh    # = schema:drop && migration:run && seed
+Render's build and start commands are **not** the obvious defaults:
+
+```
+Build:  npm ci --include=dev && npm run build
+Start:  npm run start:prod
 ```
 
-What it does, in order:
+- `--include=dev` because `NODE_ENV=production` makes npm omit
+  devDependencies at *install* time — without it, `husky` (the `prepare`
+  script) and `nest` both vanish and the build dies with
+  `sh: 1: nest: not found`.
+- `start:prod` (`node dist/main.js`), never `start` (`nest start`) — the
+  latter recompiles TypeScript on every cold start inside a 512 MB instance.
 
-1. `npm run schema:drop` — drops every table in the public schema, including
-   the `migrations` ledger itself (so re-runs aren't skipped as "already
-   applied").
-2. `npm run migration:run` — replays every file under `src/database/migrations/`.
-3. `npm run seed` — permissions → roles → users.
+**Config traps.** These are `@IsOptional()` in the validators but mandatory
+in production, so omitting them fails at runtime rather than at boot:
 
-**This is destructive.** It wipes all data, including anything you typed into
-TablePlus by hand. Never run `db:fresh` against a non-local database. There is
-no production guard — the only thing protecting prod is your `.env` pointing
-at the wrong host.
+| Var | Value | Why |
+|---|---|---|
+| `APP_PORT` | `10000` | Render injects `PORT`; `app.config.ts:51` reads `APP_PORT` and ignores it. Wrong value = deploy hangs. |
+| `DATABASE_SSL_ENABLED` | `true` | Supabase's pooler requires TLS. |
+| `STORAGE_ENDPOINT` | Supabase S3 URL | Unset means the AWS SDK targets **real AWS S3**. |
 
-If you only want to drop without re-applying, use `npm run schema:drop`
-on its own. If you need to nuke the volume too (e.g. Postgres extensions
-got into a weird state), `docker compose down -v && npm run docker:up` is
-the heavier option — but `db:fresh` is enough for normal schema resets.
+`CORS_ALLOWED_ORIGINS` is **exact string matching** (`main.ts:21-23`, comma
+split, no wildcards). A trailing slash, a path, or an `http://` variant all
+fail — as do Vercel preview hostnames, which change every push.
+
+`THROTTLE_DISABLED` must never be set in production (`app.module.ts:63`
+raises the limit to 100,000/min); it exists for e2e and CI only.
 
 ## Cross-cutting middleware / filters
 
