@@ -10,6 +10,10 @@ node_modules/
 .env
 .env.local
 .env.*.local
+# Deployment credentials for the live demo (Supabase). Named .prod rather
+# than .local so nobody reads it as the local-dev config — it points at real
+# data, and `db:fresh` with it loaded would drop the production schema.
+.env.*.prod
 
 # Logs
 logs/
